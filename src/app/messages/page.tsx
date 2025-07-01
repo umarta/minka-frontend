@@ -1,11 +1,27 @@
 'use client';
 
-import { ChatLayout } from '@/components/chat/chat-layout';
+import { useState, useEffect } from "react"
+import { ChatLayout } from "@/components/chat/chat-layout"
+import { UpsertSyncDemo } from "@/components/chat/upsert-demo"
+import { Button } from "@/components/ui/button"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import { Smartphone, Settings, Database, Users, User, MessageSquare, RefreshCw, CheckCircle, AlertCircle } from "lucide-react"
 import { useChatStore } from '@/lib/stores/chat';
-import { useEffect } from 'react';
+import { wahaApi } from "@/lib/api"
+import { useToast } from "@/hooks/use-toast"
 
 export default function MessagesPage() {
-  const { loadConversations } = useChatStore();
+  const { loadConversations, setSidebarCollapsed } = useChatStore();
+  const { toast } = useToast()
+  const [showSyncPanel, setShowSyncPanel] = useState(false);
+  
+  // Bulk sync state
+  const [isBulkSyncing, setIsBulkSyncing] = useState(false);
+  const [bulkSyncResult, setBulkSyncResult] = useState<any>(null);
 
   // Hide body scroll for fullscreen experience and load conversations
   useEffect(() => {
@@ -19,35 +35,226 @@ export default function MessagesPage() {
     };
   }, [loadConversations]);
 
+  // Bulk sync function
+  const handleBulkSync = async () => {
+    setIsBulkSyncing(true);
+    setBulkSyncResult(null);
+
+    try {
+      toast({
+        title: "🔄 Starting Bulk Sync",
+        description: "Syncing all contacts... This may take a while.",
+      });
+
+      const result = await wahaApi.syncAll({
+        limit: 100,
+        upsert_mode: true,
+        sync_options: {
+          create_if_new: true,
+          update_if_exists: true,
+          skip_duplicates: true,
+          conflict_resolution: 'server_wins',
+          include_metadata: true,
+          batch_size: 10,
+          parallel_sync: false
+        },
+        filters: {
+          active_sessions_only: true,
+          last_activity_hours: 168 // 7 days
+        }
+      });
+
+      setBulkSyncResult(result);
+      
+      toast({
+        title: "✅ Bulk Sync Complete!",
+        description: `Synced multiple contacts successfully`,
+      });
+
+    } catch (error) {
+      setBulkSyncResult({
+        success: false,
+        error: error instanceof Error ? error.message : "Bulk sync failed"
+      });
+      
+      toast({
+        title: "❌ Bulk Sync Failed",
+        description: "Check console for details",
+        variant: "destructive"
+      });
+    } finally {
+      setIsBulkSyncing(false);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 w-full h-full bg-gray-50 flex flex-col">
-      {/* Top Header Bar */}
-      <div className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-6 shadow-sm z-10">
-        <div className="flex items-center gap-3">
-          <button className="text-gray-600 hover:text-gray-900 transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <h1 className="text-lg font-semibold text-gray-900">Backoffice</h1>
+    <div className="fixed inset-0 flex flex-col bg-gray-100">
+      {/* Top Header */}
+      <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 z-10">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSidebarCollapsed(false)}
+            className="lg:hidden"
+          >
+            ☰
+          </Button>
+          <h1 className="text-xl font-semibold">Backoffice</h1>
         </div>
-        
-        <div className="flex items-center gap-3">
-          <button className="text-gray-600 hover:text-gray-900 transition-colors p-2 rounded-lg hover:bg-gray-100">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-          </button>
-          <button className="text-gray-600 hover:text-gray-900 transition-colors p-2 rounded-lg hover:bg-gray-100">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </button>
+        <div className="flex items-center gap-2">
+          {/* Enhanced Sync Panel */}
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Database className="w-4 h-4 mr-2" />
+                Contact & Chat Sync
+              </Button>
+            </SheetTrigger>
+            <SheetContent className="w-[500px] sm:w-[600px] max-w-[90vw]">
+              <SheetHeader>
+                <SheetTitle className="flex items-center gap-2">
+                  <Database className="h-5 w-5" />
+                  WhatsApp Contact & Chat Sync
+                </SheetTitle>
+              </SheetHeader>
+              
+              <div className="mt-6 space-y-6">
+                <Tabs defaultValue="single" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="single" className="flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      Single Contact
+                    </TabsTrigger>
+                    <TabsTrigger value="bulk" className="flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      Bulk Sync
+                    </TabsTrigger>
+                  </TabsList>
+
+                  {/* Single Contact Sync */}
+                  <TabsContent value="single" className="space-y-4">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                          <MessageSquare className="h-5 w-5" />
+                          Sync Specific Contact
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <UpsertSyncDemo />
+                      </CardContent>
+                    </Card>
+                    
+                    <div className="p-4 bg-blue-50 rounded-lg">
+                      <h3 className="font-semibold text-blue-800 mb-2">How Upsert Works:</h3>
+                      <ul className="text-sm text-blue-700 space-y-1">
+                        <li>• <strong>Create if New:</strong> Records that don't exist are created</li>
+                        <li>• <strong>Update if Exists:</strong> Existing records are updated with newer data</li>
+                        <li>• <strong>Skip Duplicates:</strong> Exact duplicates are automatically skipped</li>
+                        <li>• <strong>Conflict Resolution:</strong> Server data wins in case of conflicts</li>
+                      </ul>
+                    </div>
+                  </TabsContent>
+
+                  {/* Bulk Sync */}
+                  <TabsContent value="bulk" className="space-y-4">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                          <Users className="h-5 w-5" />
+                          Sync All Contacts
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="text-sm text-gray-600">
+                          This will sync messages for all contacts with activity in the last 7 days.
+                          Process may take several minutes depending on the number of contacts.
+                        </div>
+
+                        <Button 
+                          onClick={handleBulkSync}
+                          disabled={isBulkSyncing}
+                          className="w-full"
+                          size="lg"
+                        >
+                          {isBulkSyncing ? (
+                            <>
+                              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                              Syncing All Contacts...
+                            </>
+                          ) : (
+                            <>
+                              <Database className="w-4 h-4 mr-2" />
+                              Start Bulk Sync
+                            </>
+                          )}
+                        </Button>
+
+                        {bulkSyncResult && (
+                          <div className="p-4 bg-gray-50 rounded-lg">
+                            <div className="flex items-center gap-2 mb-3">
+                              {bulkSyncResult.success !== false ? (
+                                <CheckCircle className="h-5 w-5 text-green-600" />
+                              ) : (
+                                <AlertCircle className="h-5 w-5 text-red-600" />
+                              )}
+                              <span className="font-medium">
+                                {bulkSyncResult.success !== false ? 'Bulk Sync Completed' : 'Bulk Sync Failed'}
+                              </span>
+                            </div>
+
+                            {bulkSyncResult.success !== false ? (
+                              <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div className="flex justify-between">
+                                  <span>Total Contacts:</span>
+                                  <Badge>{bulkSyncResult.total_contacts || 0}</Badge>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>Processed:</span>
+                                  <Badge variant="secondary">{bulkSyncResult.processed_contacts || 0}</Badge>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>Successful:</span>
+                                  <Badge className="bg-green-100 text-green-800">{bulkSyncResult.successful_syncs || 0}</Badge>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>Failed:</span>
+                                  <Badge variant="destructive">{bulkSyncResult.failed_syncs || 0}</Badge>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-red-600 text-sm">
+                                {bulkSyncResult.error}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <div className="p-4 bg-amber-50 rounded-lg">
+                      <h3 className="font-semibold text-amber-800 mb-2">Bulk Sync Features:</h3>
+                      <ul className="text-sm text-amber-700 space-y-1">
+                        <li>• <strong>Batch Processing:</strong> Processes contacts in batches of 10</li>
+                        <li>• <strong>Active Sessions Only:</strong> Only syncs from active WAHA sessions</li>
+                        <li>• <strong>Recent Activity:</strong> Focuses on contacts active in last 7 days</li>
+                        <li>• <strong>Progress Tracking:</strong> Shows real-time sync progress</li>
+                      </ul>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </div>
+            </SheetContent>
+          </Sheet>
+
+          <Button variant="ghost" size="sm">
+            <Settings className="w-4 h-4" />
+          </Button>
         </div>
       </div>
-      
-      {/* Fullscreen Chat Interface */}
+
+      {/* Chat Interface */}
       <div className="flex-1 overflow-hidden">
         <ChatLayout />
       </div>

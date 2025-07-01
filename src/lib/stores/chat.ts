@@ -1,22 +1,56 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import { Contact, Message, Conversation, ChatGroups, MessageForm } from '@/types';
-import { contactsApi, messagesApi } from '@/lib/api';
+import { Contact, Message, Conversation, ChatGroups, MessageForm, Ticket } from '@/types';
+import { contactsApi, messagesApi, ticketsApi } from '@/lib/api';
 import { getWebSocketManager } from '@/lib/websocket';
 
+// New types for contact-based conversations
+interface TicketEpisode {
+  ticket: Ticket;
+  messageCount: number;
+  startDate: string;
+  endDate?: string;
+  duration?: string;
+  status: string;
+  category: 'PERLU_DIBALAS' | 'OTOMATIS' | 'SELESAI';
+  unreadCount: number;
+  lastMessage?: Message;
+}
+
+interface ContactConversation {
+  contact: Contact;
+  allMessages: Message[];
+  ticketEpisodes: TicketEpisode[];
+  currentTicket?: Ticket;
+  totalMessages: number;
+  unreadCount: number;
+  lastActivity: string;
+  conversationAge: string;
+}
+
 interface ChatState {
-  // Conversations
+  // Contact-based conversations
   conversations: Conversation[];
   chatGroups: ChatGroups;
+  
+  // New: Contact conversation management
+  activeContactConversation: ContactConversation | null;
+  contactMessages: Record<string, Message[]>; // contactId -> all messages
+  ticketEpisodes: Record<string, TicketEpisode[]>; // contactId -> episodes
   
   // Active chat
   activeContact: Contact | null;
   activeConversation: Conversation | null;
+  activeTicket: Ticket | null;
   selectedContactId: string | null;
   
-  // Messages
-  messages: Record<string, Message[]>; // contactId -> messages
-  messagePages: Record<string, number>; // contactId -> current page
+  // Messages (keeping for backward compatibility)
+  messages: Record<string, Message[]>; // ticketId -> messages
+  messagePages: Record<string, number>; // ticketId -> current page
+  
+  // New: Conversation mode
+  conversationMode: 'unified' | 'ticket-specific'; // Toggle between views
+  showTicketHistory: boolean;
   
   // UI state
   isLoadingConversations: boolean;
@@ -33,7 +67,7 @@ interface ChatState {
   isSearching: boolean;
   
   // Typing indicators
-  typingUsers: Record<string, string[]>; // contactId -> typing usernames
+  typingUsers: Record<string, string[]>; // ticketId -> typing usernames
   
   // Errors
   error: string | null;
@@ -47,18 +81,26 @@ interface ChatActions {
   clearActiveConversation: () => void;
   updateConversationStatus: (contactId: string, status: string) => void;
   
+  // New: Contact-based conversation actions
+  loadContactConversation: (contactId: string) => Promise<void>;
+  loadContactMessages: (contactId: string, page?: number) => Promise<void>;
+  loadTicketEpisodes: (contactId: string) => Promise<void>;
+  selectTicketEpisode: (ticketId: string) => void;
+  toggleConversationMode: () => void;
+  toggleTicketHistory: () => void;
+  
   // Messages
-  loadMessages: (contactId: string, page?: number) => Promise<void>;
+  loadMessages: (ticketId: string, page?: number) => Promise<void>;
   sendMessage: (data: MessageForm) => Promise<void>;
   addMessage: (message: Message) => void;
   updateMessage: (messageId: string, updates: Partial<Message>) => void;
-  markMessagesAsRead: (contactId: string) => void;
+  markMessagesAsRead: (ticketId: string) => void;
   
   // Real-time updates
   handleIncomingMessage: (message: Message) => void;
   handleMessageStatusUpdate: (messageId: string, status: string) => void;
-  handleTypingStart: (contactId: string, username: string) => void;
-  handleTypingStop: (contactId: string, username: string) => void;
+  handleTypingStart: (ticketId: string, username: string) => void;
+  handleTypingStop: (ticketId: string, username: string) => void;
   
   // Search
   searchMessages: (query: string) => Promise<void>;
@@ -66,6 +108,7 @@ interface ChatActions {
   
   // UI actions
   toggleSidebar: () => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
   toggleRightSidebar: () => void;
   setError: (error: string | null) => void;
   clearError: () => void;
@@ -82,11 +125,17 @@ export const useChatStore = create<ChatStore>()(
       automated: { botHandled: [], autoReply: [], workflow: [] },
       completed: { resolved: [], closed: [], archived: [] },
     },
+    activeContactConversation: null,
+    contactMessages: {},
+    ticketEpisodes: {},
     activeContact: null,
     activeConversation: null,
+    activeTicket: null,
     selectedContactId: null,
     messages: {},
     messagePages: {},
+    conversationMode: 'unified',
+    showTicketHistory: false,
     isLoadingConversations: false,
     isLoadingMessages: false,
     isSendingMessage: false,
@@ -100,33 +149,57 @@ export const useChatStore = create<ChatStore>()(
 
     // Actions
     loadConversations: async () => {
-      set({ isLoadingConversations: true });
+      set({ isLoadingConversations: true, error: null });
       try {
-        // Load mock conversations
-        const conversations = mockConversations;
+        // Load tickets from backend - these represent our conversations
+        const response = await ticketsApi.getAll({
+          page: 1,
+          per_page: 100,
+          include: 'contact,messages,assignedAdmin',
+          status: 'OPEN,IN_PROGRESS,RESOLVED'
+        });
+
+        const tickets = response.data || [];
         
-        // Organize conversations into groups
-        const groups: ChatGroups = {
-          needReply: {
-            urgent: conversations.filter(c => c.unread_count > 0 && c.unread_count >= 2),
-            normal: conversations.filter(c => c.unread_count > 0 && c.unread_count === 1),
-            overdue: [],
+        // Convert tickets to conversations format
+        const conversations: Conversation[] = tickets.map((ticket: any) => ({
+          id: ticket.id.toString(),
+          contact: {
+            id: ticket.contact?.id?.toString() || ticket.contact_id?.toString(),
+            name: ticket.contact?.name || ticket.contact?.phone || 'Unknown Contact',
+            phone: ticket.contact?.phone || '',
+            avatar_url: ticket.contact?.avatar_url || '',
+            wa_id: ticket.contact?.wa_id || ticket.contact?.phone || '',
+            labels: ticket.contact?.labels || [],
+            is_blocked: ticket.contact?.is_blocked || false,
+            last_seen: ticket.contact?.last_seen || new Date().toISOString(),
+            created_at: ticket.contact?.created_at || new Date().toISOString(),
+            updated_at: ticket.contact?.updated_at || new Date().toISOString(),
           },
-          automated: {
-            botHandled: [],
-            autoReply: [],
-            workflow: [],
-          },
-          completed: {
-            resolved: [],
-            closed: [],
-            archived: [],
-          },
-        };
+          ticket_id: ticket.id,
+          last_message: ticket.messages?.[0] ? {
+            id: ticket.messages[0].id?.toString(),
+            content: ticket.messages[0].body || ticket.messages[0].content || '',
+            direction: ticket.messages[0].direction?.toLowerCase() as 'incoming' | 'outgoing',
+            created_at: ticket.messages[0].created_at || new Date().toISOString(),
+          } : null,
+          last_activity: ticket.updated_at || new Date().toISOString(),
+          unread_count: ticket.unread_count || 0,
+          status: ticket.status?.toLowerCase() || 'active',
+          priority: ticket.priority?.toLowerCase() || 'normal',
+          assigned_admin: ticket.assigned_admin ? {
+            id: ticket.assigned_admin.id?.toString(),
+            name: ticket.assigned_admin.name,
+            email: ticket.assigned_admin.email,
+          } : null,
+        }));
+
+        // Group conversations
+        const chatGroups = groupConversationsIntoCategories(conversations);
 
         set({ 
           conversations,
-          chatGroups: groups,
+          chatGroups,
           isLoadingConversations: false,
           error: null 
         });
@@ -141,70 +214,72 @@ export const useChatStore = create<ChatStore>()(
 
     groupConversations: () => {
       const { conversations } = get();
-      
-      const chatGroups: ChatGroups = {
-        needReply: { urgent: [], normal: [], overdue: [] },
-        automated: { botHandled: [], autoReply: [], workflow: [] },
-        completed: { resolved: [], closed: [], archived: [] },
-      };
-
-      const now = new Date();
-      
-      conversations.forEach((conversation) => {
-        const lastActivity = new Date(conversation.last_activity);
-        const minutesSinceLastActivity = (now.getTime() - lastActivity.getTime()) / (1000 * 60);
-        
-        if (conversation.status === 'active' && conversation.unread_count > 0) {
-          if (minutesSinceLastActivity > 120) { // 2 hours
-            chatGroups.needReply.overdue.push(conversation);
-          } else if (minutesSinceLastActivity > 30) { // 30 minutes
-            chatGroups.needReply.urgent.push(conversation);
-          } else {
-            chatGroups.needReply.normal.push(conversation);
-          }
-        } else if (conversation.status === 'pending') {
-          chatGroups.automated.autoReply.push(conversation);
-        } else if (conversation.status === 'resolved') {
-          chatGroups.completed.resolved.push(conversation);
-        } else if (conversation.status === 'archived') {
-          chatGroups.completed.archived.push(conversation);
-        }
-      });
-
+      const chatGroups = groupConversationsIntoCategories(conversations);
       set({ chatGroups });
     },
 
-    selectConversation: (contact: Contact) => {
-      const conversation = get().conversations.find(c => c.contact.id === contact.id);
-      
-      set({ 
-        activeContact: contact,
-        activeConversation: conversation || null,
-        selectedContactId: contact.id,
-      });
-      
-      // Load messages for the selected contact
-      get().loadMessages(contact.id);
-      
-      // Join WebSocket room for real-time updates
-      const ws = getWebSocketManager();
-      if (ws) {
-        ws.joinContactRoom(contact.id);
+    selectConversation: async (contact: Contact) => {
+      try {
+        // Find the conversation for this contact
+        const conversation = get().conversations.find(c => c.contact.id === contact.id);
+        
+        set({ 
+          activeContact: contact,
+          activeConversation: conversation || null,
+          selectedContactId: contact.id,
+        });
+        
+        // If we have a conversation with a ticket, load messages
+        if (conversation?.ticket_id) {
+          set({ activeTicket: { id: conversation.ticket_id } as Ticket });
+          await get().loadMessages(conversation.ticket_id.toString());
+        } else {
+          // Create a new ticket for this contact if none exists
+          try {
+            const newTicket = await ticketsApi.create({
+              contact_id: parseInt(contact.id),
+              subject: `Chat with ${contact.name}`,
+              description: 'Auto-created ticket for chat conversation',
+              priority: 'NORMAL',
+              status: 'OPEN',
+            });
+            
+            set({ activeTicket: newTicket });
+            await get().loadMessages(newTicket.id.toString());
+            
+            // Refresh conversations to include the new ticket
+            get().loadConversations();
+          } catch (ticketError) {
+            console.error('Failed to create ticket for contact:', ticketError);
+            set({ error: 'Failed to create conversation' });
+          }
+        }
+        
+        // Join WebSocket room for real-time updates
+        const ws = getWebSocketManager();
+        if (ws && conversation?.ticket_id) {
+          ws.joinContactRoom(conversation.ticket_id.toString());
+        }
+      } catch (error) {
+        console.error('Failed to select conversation:', error);
+        set({ error: 'Failed to select conversation' });
       }
     },
 
     clearActiveConversation: () => {
-      const { activeContact } = get();
+      const { activeTicket } = get();
       
       // Leave WebSocket room
       const ws = getWebSocketManager();
-      if (ws && activeContact) {
-        ws.leaveContactRoom(activeContact.id);
+      if (ws && activeTicket) {
+        ws.leaveContactRoom(activeTicket.id.toString());
       }
       
       set({
         activeContact: null,
         activeConversation: null,
+        activeTicket: null,
+        selectedContactId: null,
       });
     },
 
@@ -221,25 +296,209 @@ export const useChatStore = create<ChatStore>()(
       get().groupConversations();
     },
 
-    loadMessages: async (contactId, page = 1) => {
+    // New: Contact-based conversation actions
+    loadContactConversation: async (contactId: string) => {
       try {
         set({ isLoadingMessages: true, error: null });
         
-        // Load mock messages for the contact
-        const messages = mockMessages[contactId] || [];
+        // Load all tickets for this contact
+        const ticketsResponse = await ticketsApi.getByContact(contactId);
+        const tickets = ticketsResponse.data || [];
+        
+        // Load all messages for this contact (across all tickets)
+        const allMessages: Message[] = [];
+        const episodes: TicketEpisode[] = [];
+        
+        for (const ticket of tickets) {
+          // Load messages for each ticket
+          const messagesResponse = await messagesApi.getByTicket(ticket.id.toString());
+          const ticketMessages = messagesResponse.data || [];
+          
+          // Add to all messages
+          allMessages.push(...ticketMessages.map((msg: any) => ({
+            id: msg.id?.toString(),
+            ticket_id: ticket.id.toString(),
+            contact_id: contactId,
+            session_id: msg.session_id || 'default',
+            wa_message_id: msg.wa_message_id,
+            direction: msg.direction?.toLowerCase() as 'incoming' | 'outgoing',
+            message_type: msg.message_type || 'text',
+            content: msg.body || msg.content || '',
+            body: msg.body || msg.content || '',
+            status: msg.status?.toLowerCase() || 'sent',
+            media_url: msg.media_url,
+            created_at: msg.timestamp || msg.created_at || new Date().toISOString(),
+            updated_at: msg.updated_at || new Date().toISOString(),
+            read_at: msg.read_at,
+          })));
+          
+          // Create ticket episode
+          const ticketCategory = getTicketCategory(ticket);
+          const unreadCount = ticketMessages.filter((msg: any) => 
+            msg.direction === 'incoming' && !msg.read_at
+          ).length;
+          
+          episodes.push({
+            ticket,
+            messageCount: ticketMessages.length,
+            startDate: ticket.created_at,
+            endDate: ticket.resolved_at || (ticket.status === 'CLOSED' ? ticket.updated_at : undefined),
+            status: ticket.status,
+            category: ticketCategory,
+            unreadCount,
+            lastMessage: ticketMessages[ticketMessages.length - 1],
+          });
+        }
+        
+        // Sort messages by timestamp
+        allMessages.sort((a, b) => 
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+        
+        // Find current active ticket (most recent open)
+        const currentTicket = tickets.find(t => t.status === 'OPEN') || tickets[0];
+        
+        // Get contact info
+        const contact = get().conversations.find(c => c.contact.id === contactId)?.contact;
+        if (!contact) throw new Error('Contact not found');
+        
+        const conversation: ContactConversation = {
+          contact,
+          allMessages,
+          ticketEpisodes: episodes,
+          currentTicket,
+          totalMessages: allMessages.length,
+          unreadCount: episodes.reduce((sum, ep) => sum + ep.unreadCount, 0),
+          lastActivity: allMessages[allMessages.length - 1]?.created_at || new Date().toISOString(),
+          conversationAge: calculateConversationAge(allMessages[0]?.created_at),
+        };
+        
+        set((state) => ({
+          activeContactConversation: conversation,
+          contactMessages: {
+            ...state.contactMessages,
+            [contactId]: allMessages,
+          },
+          ticketEpisodes: {
+            ...state.ticketEpisodes,
+            [contactId]: episodes,
+          },
+          isLoadingMessages: false,
+        }));
+        
+      } catch (error) {
+        console.error('Failed to load contact conversation:', error);
+        set({
+          error: 'Failed to load contact conversation',
+          isLoadingMessages: false,
+        });
+      }
+    },
+
+    loadContactMessages: async (contactId: string, page = 1) => {
+      // This method loads all messages for a contact across all tickets
+      await get().loadContactConversation(contactId);
+    },
+
+    loadTicketEpisodes: async (contactId: string) => {
+      try {
+        const ticketsResponse = await ticketsApi.getByContact(contactId);
+        const tickets = ticketsResponse.data || [];
+        
+        const episodes: TicketEpisode[] = tickets.map((ticket: any) => ({
+          ticket,
+          messageCount: ticket.message_count || 0,
+          startDate: ticket.created_at,
+          endDate: ticket.resolved_at || (ticket.status === 'CLOSED' ? ticket.updated_at : undefined),
+          status: ticket.status,
+          category: getTicketCategory(ticket),
+          unreadCount: ticket.unread_count || 0,
+          lastMessage: ticket.last_message,
+        }));
+        
+        set((state) => ({
+          ticketEpisodes: {
+            ...state.ticketEpisodes,
+            [contactId]: episodes,
+          },
+        }));
+        
+      } catch (error) {
+        console.error('Failed to load ticket episodes:', error);
+      }
+    },
+
+    selectTicketEpisode: (ticketId: string) => {
+      // Switch to specific ticket view
+      set({ conversationMode: 'ticket-specific' });
+      get().loadMessages(ticketId);
+      
+      // Update active ticket
+      const conversation = get().conversations.find(c => c.ticket_id?.toString() === ticketId);
+      if (conversation) {
+        set({ 
+          activeTicket: { id: parseInt(ticketId) } as Ticket,
+          activeConversation: conversation,
+        });
+      }
+    },
+
+    toggleConversationMode: () => {
+      set((state) => ({
+        conversationMode: state.conversationMode === 'unified' ? 'ticket-specific' : 'unified',
+      }));
+    },
+
+    toggleTicketHistory: () => {
+      set((state) => ({
+        showTicketHistory: !state.showTicketHistory,
+      }));
+    },
+
+    loadMessages: async (ticketId: string, page = 1) => {
+      try {
+        set({ isLoadingMessages: true, error: null });
+        
+        // Load messages from backend
+        const response = await messagesApi.getByTicket(ticketId, {
+          page,
+          per_page: 50,
+          order: 'created_at ASC'
+        });
+        
+        const messages = response.data || [];
+        
+        // Convert backend messages to frontend format
+        const formattedMessages: Message[] = messages.map((msg: any) => ({
+          id: msg.id?.toString(),
+          ticket_id: msg.ticket_id?.toString(),
+          contact_id: msg.contact_id?.toString(),
+          session_id: msg.session_id || 'default',
+          wa_message_id: msg.wa_message_id,
+          direction: msg.direction?.toLowerCase() as 'incoming' | 'outgoing',
+          message_type: msg.message_type || 'text',
+          content: msg.body || msg.content || '',
+          body: msg.body || msg.content || '',
+          status: msg.status?.toLowerCase() || 'sent',
+          media_url: msg.media_url,
+          created_at: msg.timestamp || msg.created_at || new Date().toISOString(),
+          updated_at: msg.updated_at || new Date().toISOString(),
+          read_at: msg.read_at,
+        }));
         
         set((state) => ({
           messages: {
             ...state.messages,
-            [contactId]: messages,
+            [ticketId]: formattedMessages,
           },
           messagePages: {
             ...state.messagePages,
-            [contactId]: page,
+            [ticketId]: page,
           },
           isLoadingMessages: false,
         }));
       } catch (error) {
+        console.error('Failed to load messages:', error);
         set({
           error: error instanceof Error ? error.message : 'Failed to load messages',
           isLoadingMessages: false,
@@ -251,30 +510,61 @@ export const useChatStore = create<ChatStore>()(
       try {
         set({ isSendingMessage: true, error: null });
         
-        // Create new message with current timestamp
+        const { activeTicket, activeContact } = get();
+        
+        if (!activeTicket || !activeContact) {
+          throw new Error('No active conversation');
+        }
+
+        // Prepare message data for backend
+        const messageData = {
+          session_name: 'default', // TODO: Get from session store
+          ticket_id: parseInt(activeTicket.id.toString()),
+          to: activeContact.phone,
+          text: data.content,
+          admin_id: 1, // TODO: Get from auth store
+        };
+
+        let response;
+        
+        if (data.media_file) {
+          // Send media message
+          const formData = new FormData();
+          formData.append('session_name', messageData.session_name);
+          formData.append('ticket_id', messageData.ticket_id.toString());
+          formData.append('to', messageData.to);
+          formData.append('caption', data.content);
+          formData.append('admin_id', messageData.admin_id.toString());
+          formData.append('media', data.media_file);
+          formData.append('media_type', data.message_type || getMediaType(data.media_file));
+          
+          response = await messagesApi.sendMedia(formData);
+        } else {
+          // Send text message
+          response = await messagesApi.send(messageData);
+        }
+
+        // The message will be added via WebSocket or we can add it optimistically
         const newMessage: Message = {
-          id: Date.now().toString(),
-          content: data.content,
-          contact_id: data.contact_id,
-          session_id: data.session_id,
+          id: response.id?.toString() || Date.now().toString(),
+          ticket_id: activeTicket.id.toString(),
+          contact_id: activeContact.id,
+          session_id: 'default',
           direction: 'outgoing',
-          message_type: data.message_type,
+          message_type: data.message_type || 'text',
+          content: data.content,
+          body: data.content,
           status: 'sent',
+          media_url: response.media_url,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
 
-        // Add the message to the store immediately (optimistic update)
         get().addMessage(newMessage);
-        
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Update message status to delivered
-        get().updateMessage(newMessage.id, { status: 'delivered' });
         
         set({ isSendingMessage: false });
       } catch (error) {
+        console.error('Failed to send message:', error);
         set({
           error: error instanceof Error ? error.message : 'Failed to send message',
           isSendingMessage: false,
@@ -284,10 +574,13 @@ export const useChatStore = create<ChatStore>()(
     },
 
     addMessage: (message: Message) => {
+      const ticketId = message.ticket_id;
+      if (!ticketId) return;
+      
       set((state) => ({
         messages: {
           ...state.messages,
-          [message.contact_id]: [...(state.messages[message.contact_id] || []), message],
+          [ticketId]: [...(state.messages[ticketId] || []), message],
         },
       }));
     },
@@ -296,8 +589,8 @@ export const useChatStore = create<ChatStore>()(
       set((state) => {
         const newMessages: Record<string, Message[]> = {};
         
-        Object.entries(state.messages).forEach(([contactId, contactMessages]) => {
-          newMessages[contactId] = contactMessages.map(msg =>
+        Object.entries(state.messages).forEach(([ticketId, ticketMessages]) => {
+          newMessages[ticketId] = ticketMessages.map(msg =>
             msg.id === messageId ? { ...msg, ...updates } : msg
           );
         });
@@ -306,64 +599,85 @@ export const useChatStore = create<ChatStore>()(
       });
     },
 
-    markMessagesAsRead: (contactId) => {
-      const messages = get().messages[contactId] || [];
-      const unreadMessages = messages.filter(msg => 
-        msg.direction === 'incoming' && !msg.read_at
-      );
-      
-      // Mark messages as read in the API
-      unreadMessages.forEach(msg => {
-        messagesApi.markAsRead(msg.id).catch(console.error);
-      });
-      
-      // Update local state
-      set((state) => ({
-        messages: {
-          ...state.messages,
-          [contactId]: state.messages[contactId]?.map(msg =>
-            msg.direction === 'incoming' && !msg.read_at
-              ? { ...msg, read_at: new Date().toISOString() }
-              : msg
-          ) || [],
-        },
-        conversations: state.conversations.map(conv =>
-          conv.contact.id === contactId
-            ? { ...conv, unread_count: 0 }
-            : conv
-        ),
-      }));
-      
-      // Re-group conversations
-      get().groupConversations();
+    markMessagesAsRead: async (ticketId: string) => {
+      try {
+        // Mark messages as read in the backend
+        await messagesApi.markAsRead(ticketId);
+        
+        // Update local state
+        set((state) => ({
+          messages: {
+            ...state.messages,
+            [ticketId]: state.messages[ticketId]?.map(msg =>
+              msg.direction === 'incoming' && !msg.read_at
+                ? { ...msg, read_at: new Date().toISOString() }
+                : msg
+            ) || [],
+          },
+          conversations: state.conversations.map(conv =>
+            conv.ticket_id?.toString() === ticketId
+              ? { ...conv, unread_count: 0 }
+              : conv
+          ),
+        }));
+        
+        // Re-group conversations
+        get().groupConversations();
+      } catch (error) {
+        console.error('Failed to mark messages as read:', error);
+      }
     },
 
     // Real-time handlers
     handleIncomingMessage: (message) => {
       get().addMessage(message);
+      
+      // Update conversation's last message and unread count
+      const ticketId = message.ticket_id;
+      if (ticketId) {
+        set((state) => ({
+          conversations: state.conversations.map(conv =>
+            conv.ticket_id?.toString() === ticketId
+              ? {
+                  ...conv,
+                  last_message: {
+                    id: message.id,
+                    content: message.content,
+                    direction: message.direction,
+                    created_at: message.created_at,
+                  },
+                  unread_count: (conv.unread_count || 0) + 1,
+                  last_activity: message.created_at,
+                }
+              : conv
+          ),
+        }));
+        
+        get().groupConversations();
+      }
     },
 
     handleMessageStatusUpdate: (messageId, status) => {
       get().updateMessage(messageId, { status: status as any });
     },
 
-    handleTypingStart: (contactId, username) => {
+    handleTypingStart: (ticketId, username) => {
       set((state) => ({
         typingUsers: {
           ...state.typingUsers,
-          [contactId]: [
-            ...(state.typingUsers[contactId] || []).filter(u => u !== username),
+          [ticketId]: [
+            ...(state.typingUsers[ticketId] || []).filter(u => u !== username),
             username,
           ],
         },
       }));
     },
 
-    handleTypingStop: (contactId, username) => {
+    handleTypingStop: (ticketId, username) => {
       set((state) => ({
         typingUsers: {
           ...state.typingUsers,
-          [contactId]: (state.typingUsers[contactId] || []).filter(u => u !== username),
+          [ticketId]: (state.typingUsers[ticketId] || []).filter(u => u !== username),
         },
       }));
     },
@@ -407,6 +721,10 @@ export const useChatStore = create<ChatStore>()(
       }));
     },
 
+    setSidebarCollapsed: (collapsed: boolean) => {
+      set({ sidebarCollapsed: collapsed });
+    },
+
     toggleRightSidebar: () => {
       set((state) => ({
         rightSidebarVisible: !state.rightSidebarVisible,
@@ -423,6 +741,98 @@ export const useChatStore = create<ChatStore>()(
   }))
 );
 
+// Helper function to group conversations into categories
+function groupConversationsIntoCategories(conversations: Conversation[]): ChatGroups {
+  const chatGroups: ChatGroups = {
+    needReply: { urgent: [], normal: [], overdue: [] },
+    automated: { botHandled: [], autoReply: [], workflow: [] },
+    completed: { resolved: [], closed: [], archived: [] },
+  };
+
+  const now = new Date();
+  
+  conversations.forEach((conversation) => {
+    const lastActivity = new Date(conversation.last_activity);
+    const minutesSinceLastActivity = (now.getTime() - lastActivity.getTime()) / (1000 * 60);
+    
+    if (conversation.status === 'active' && conversation.unread_count > 0) {
+      if (minutesSinceLastActivity > 120) { // 2 hours
+        chatGroups.needReply.overdue.push(conversation);
+      } else if (minutesSinceLastActivity > 30) { // 30 minutes
+        chatGroups.needReply.urgent.push(conversation);
+      } else {
+        chatGroups.needReply.normal.push(conversation);
+      }
+    } else if (conversation.status === 'pending') {
+      chatGroups.automated.autoReply.push(conversation);
+    } else if (conversation.status === 'resolved') {
+      chatGroups.completed.resolved.push(conversation);
+    } else if (conversation.status === 'archived') {
+      chatGroups.completed.archived.push(conversation);
+    }
+  });
+
+  return chatGroups;
+}
+
+// Helper function to get media type from file
+function getMediaType(file: File): string {
+  const type = file.type.split('/')[0];
+  switch (type) {
+    case 'image':
+      return 'image';
+    case 'video':
+      return 'video';
+    case 'audio':
+      return 'audio';
+    default:
+      return 'document';
+  }
+}
+
+// Helper function to determine ticket category
+function getTicketCategory(ticket: any): 'PERLU_DIBALAS' | 'OTOMATIS' | 'SELESAI' {
+  if (ticket.status === 'CLOSED' || ticket.status === 'RESOLVED') {
+    return 'SELESAI';
+  }
+  
+  // Check if ticket has automation labels
+  if (ticket.labels && Array.isArray(ticket.labels)) {
+    const hasAutoLabel = ticket.labels.some((label: any) => 
+      ['OTOMATIS', 'AUTO', 'BOT', 'AUTOMATED'].includes(label.name?.toUpperCase())
+    );
+    if (hasAutoLabel) {
+      return 'OTOMATIS';
+    }
+  }
+  
+  // If open and has unread messages, needs reply
+  if (ticket.status === 'OPEN' && (ticket.unread_count || 0) > 0) {
+    return 'PERLU_DIBALAS';
+  }
+  
+  // Default to needs reply for open tickets
+  return 'PERLU_DIBALAS';
+}
+
+// Helper function to calculate conversation age
+function calculateConversationAge(startDate?: string): string {
+  if (!startDate) return 'Baru';
+  
+  const start = new Date(startDate);
+  const now = new Date();
+  const diffMs = now.getTime() - start.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  
+  if (diffDays === 0) return 'Hari ini';
+  if (diffDays === 1) return 'Kemarin';
+  if (diffDays < 7) return `${diffDays} hari`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} minggu`;
+  if (diffDays < 365) return `${Math.floor(diffDays / 30)} bulan`;
+  
+  return `${Math.floor(diffDays / 365)} tahun`;
+}
+
 // Setup WebSocket listeners when store is created
 const ws = getWebSocketManager();
 if (ws) {
@@ -435,11 +845,11 @@ if (ws) {
   });
   
   ws.on('typing_start', (data) => {
-    useChatStore.getState().handleTypingStart(data.contact_id, data.username);
+    useChatStore.getState().handleTypingStart(data.ticket_id, data.username);
   });
   
   ws.on('typing_stop', (data) => {
-    useChatStore.getState().handleTypingStop(data.contact_id, data.username);
+    useChatStore.getState().handleTypingStop(data.ticket_id, data.username);
   });
 }
 
@@ -481,11 +891,12 @@ export const useChat = () => {
 export const useActiveChat = () => {
   const activeContact = useChatStore((state) => state.activeContact);
   const activeConversation = useChatStore((state) => state.activeConversation);
+  const activeTicket = useChatStore((state) => state.activeTicket);
   const messages = useChatStore((state) => 
-    activeContact ? state.messages[activeContact.id] || [] : []
+    activeTicket ? state.messages[activeTicket.id.toString()] || [] : []
   );
   
-  return { activeContact, activeConversation, messages };
+  return { activeContact, activeConversation, activeTicket, messages };
 };
 
 export const useChatGroups = () => useChatStore((state) => state.chatGroups);
@@ -497,509 +908,16 @@ export const useChatSearch = () => useChatStore((state) => ({
   clearSearch: state.clearSearch,
 }));
 
-// Mock data for development
-const mockConversations: Conversation[] = [
-  {
-    contact: {
-      id: '1',
-      name: 'Yanuar',
-      phone: '+6281933393369',
-      avatar_url: '',
-      last_seen: new Date(Date.now() - 15 * 60 * 1000).toISOString(), // 15 minutes ago
-      is_blocked: false,
-      labels: [],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    last_message: {
-      id: '1',
-      content: 'Brp??',
-      contact_id: '1',
-      session_id: '1',
-      direction: 'incoming',
-      message_type: 'text',
-      status: 'delivered',
-      created_at: new Date(Date.now() - 45 * 60 * 1000).toISOString(), // 45 minutes ago
-      updated_at: new Date().toISOString(),
-    },
-    last_activity: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-    unread_count: 2,
-    status: 'active',
-    assigned_to: undefined,
-    labels: [],
-  },
-  {
-    contact: {
-      id: '2',
-      name: 'arniadyrendy',
-      phone: '+6281234567890',
-      avatar_url: '',
-      last_seen: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
-      is_blocked: false,
-      labels: [],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    last_message: {
-      id: '2',
-      content: 'Untuk harga pembuatan stiker nya berapa ka?',
-      contact_id: '2',
-      session_id: '1',
-      direction: 'incoming',
-      message_type: 'text',
-      status: 'delivered',
-      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    last_activity: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    unread_count: 2,
-    status: 'active',
-    assigned_to: undefined,
-    labels: [],
-  },
-  {
-    contact: {
-      id: '3',
-      name: 'RAJA ES PISANG IJO KHAS MAKASAR',
-      phone: '+6281345678901',
-      avatar_url: '',
-      last_seen: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-      is_blocked: false,
-      labels: [],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    last_message: {
-      id: '3',
-      content: 'Saya mau bikin stiker',
-      contact_id: '3',
-      session_id: '1',
-      direction: 'incoming',
-      message_type: 'text',
-      status: 'delivered',
-      created_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    last_activity: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-    unread_count: 2,
-    status: 'active',
-    assigned_to: undefined,
-    labels: [],
-  },
-  {
-    contact: {
-      id: '4',
-      name: 'ابو عدنان',
-      phone: '+6281456789012',
-      avatar_url: '',
-      last_seen: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-      is_blocked: false,
-      labels: [],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    last_message: {
-      id: '4',
-      content: '🤝 Halo kak ابو عدنان, ada yang bisa Kame bantu? Jam Operasional Cs...',
-      contact_id: '4',
-      session_id: '1',
-      direction: 'outgoing',
-      message_type: 'text',
-      status: 'delivered',
-      created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    last_activity: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-    unread_count: 1,
-    status: 'active',
-    assigned_to: undefined,
-    labels: [],
-  },
-  {
-    contact: {
-      id: '5',
-      name: 'IAP',
-      phone: '+6281567890123',
-      avatar_url: '',
-      last_seen: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-      is_blocked: false,
-      labels: [],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    last_message: {
-      id: '5',
-      content: '🤝 Halo kak IAP, ada yang bisa Kame bantu? Jam Operasional Cs...',
-      contact_id: '5',
-      session_id: '1',
-      direction: 'outgoing',
-      message_type: 'text',
-      status: 'delivered',
-      created_at: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    last_activity: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-    unread_count: 1,
-    status: 'active',
-    assigned_to: undefined,
-    labels: [],
-  },
-  {
-    contact: {
-      id: '6',
-      name: 'Umi Astuti',
-      phone: '+6281678901234',
-      avatar_url: '',
-      last_seen: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
-      is_blocked: false,
-      labels: [],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    last_message: {
-      id: '6',
-      content: '🤝 Halo kak Umi Astuti, ada yang bisa Kame bantu? Jam Operasional...',
-      contact_id: '6',
-      session_id: '1',
-      direction: 'outgoing',
-      message_type: 'text',
-      status: 'delivered',
-      created_at: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    last_activity: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
-    unread_count: 1,
-    status: 'active',
-    assigned_to: undefined,
-    labels: [],
-  },
-  {
-    contact: {
-      id: '7',
-      name: 'Warkop11_12',
-      phone: '+6281789012345',
-      avatar_url: '',
-      last_seen: new Date(Date.now() - 10 * 60 * 60 * 1000).toISOString(),
-      is_blocked: false,
-      labels: [],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    last_message: {
-      id: '7',
-      content: '🤝 Halo kak Warkop11_12, ada yang bisa Kame bantu? Jam Operasional...',
-      contact_id: '7',
-      session_id: '1',
-      direction: 'outgoing',
-      message_type: 'text',
-      status: 'delivered',
-      created_at: new Date(Date.now() - 10 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    last_activity: new Date(Date.now() - 10 * 60 * 60 * 1000).toISOString(),
-    unread_count: 1,
-    status: 'active',
-    assigned_to: undefined,
-    labels: [],
-  },
-  {
-    contact: {
-      id: '8',
-      name: 'A. Rahman',
-      phone: '+6281890123456',
-      avatar_url: '',
-      last_seen: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-      is_blocked: false,
-      labels: [],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    last_message: {
-      id: '8',
-      content: '🤝 Halo kak A. Rahman, ada yang bisa Kame bantu? Jam Operasional...',
-      contact_id: '8',
-      session_id: '1',
-      direction: 'outgoing',
-      message_type: 'text',
-      status: 'delivered',
-      created_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    last_activity: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-    unread_count: 1,
-    status: 'active',
-    assigned_to: undefined,
-    labels: [],
-  },
-  {
-    contact: {
-      id: '9',
-      name: 'Tri Irawanto',
-      phone: '+6281901234567',
-      avatar_url: '',
-      last_seen: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      is_blocked: false,
-      labels: [],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    last_message: {
-      id: '9',
-      content: '🤝 Halo kak Tri Irawanto, ada yang bisa Kame bantu? Jam Operasional...',
-      contact_id: '9',
-      session_id: '1',
-      direction: 'outgoing',
-      message_type: 'text',
-      status: 'delivered',
-      created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    last_activity: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    unread_count: 1,
-    status: 'active',
-    assigned_to: undefined,
-    labels: [],
-  },
-];
+export const useChatUI = () => useChatStore((state) => ({
+  sidebarCollapsed: state.sidebarCollapsed,
+  rightSidebarVisible: state.rightSidebarVisible,
+  toggleSidebar: state.toggleSidebar,
+  setSidebarCollapsed: state.setSidebarCollapsed,
+  toggleRightSidebar: state.toggleRightSidebar,
+}));
 
-// Mock messages data for each contact
-const mockMessages: Record<string, Message[]> = {
-  '1': [ // Yanuar
-    {
-      id: '1-1',
-      content: 'Halo kak, mau tanya dong',
-      contact_id: '1',
-      session_id: '1',
-      direction: 'incoming',
-      message_type: 'text',
-      status: 'delivered',
-      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: '1-2',
-      content: 'Halo! Ada yang bisa saya bantu?',
-      contact_id: '1',
-      session_id: '1',
-      direction: 'outgoing',
-      message_type: 'text',
-      status: 'read',
-      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000 + 30000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: '1-3',
-      content: 'Saya mau order stiker untuk usaha saya',
-      contact_id: '1',
-      session_id: '1',
-      direction: 'incoming',
-      message_type: 'text',
-      status: 'delivered',
-      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000 + 60000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: '1-4',
-      content: 'Siap kak! Stiker untuk apa ya? Dan kira-kira berapa quantity yang dibutuhkan?',
-      contact_id: '1',
-      session_id: '1',
-      direction: 'outgoing',
-      message_type: 'text',
-      status: 'read',
-      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000 + 90000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: '1-5',
-      content: 'Untuk branding produk makanan saya',
-      contact_id: '1',
-      session_id: '1',
-      direction: 'incoming',
-      message_type: 'text',
-      status: 'delivered',
-      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000 + 120000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: '1-6',
-      content: 'Kira-kira butuh sekitar 100-200 pcs',
-      contact_id: '1',
-      session_id: '1',
-      direction: 'incoming',
-      message_type: 'text',
-      status: 'delivered',
-      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000 + 125000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: '1-7',
-      content: 'Brp??',
-      contact_id: '1',
-      session_id: '1',
-      direction: 'incoming',
-      message_type: 'text',
-      status: 'delivered',
-      created_at: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-  ],
-  '2': [ // arniadyrendy
-    {
-      id: '2-1',
-      content: 'Halo admin',
-      contact_id: '2',
-      session_id: '1',
-      direction: 'incoming',
-      message_type: 'text',
-      status: 'delivered',
-      created_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: '2-2',
-      content: 'Selamat pagi! Ada yang bisa kami bantu?',
-      contact_id: '2',
-      session_id: '1',
-      direction: 'outgoing',
-      message_type: 'text',
-      status: 'read',
-      created_at: new Date(Date.now() - 3 * 60 * 60 * 1000 + 60000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: '2-3',
-      content: 'Untuk harga pembuatan stiker nya berapa ka?',
-      contact_id: '2',
-      session_id: '1',
-      direction: 'incoming',
-      message_type: 'text',
-      status: 'delivered',
-      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: '2-4',
-      content: 'Untuk stiker custom mulai dari 25rb/set (10 stiker). Mau design sendiri atau kita buatkan?',
-      contact_id: '2',
-      session_id: '1',
-      direction: 'outgoing',
-      message_type: 'text',
-      status: 'delivered',
-      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000 + 120000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-  ],
-  '3': [ // RAJA ES PISANG IJO KHAS MAKASAR
-    {
-      id: '3-1',
-      content: '🤝 Halo kak RAJA ES PISANG IJO KHAS MAKASAR, ada yang bisa Kame bantu? Jam Operasional Customer Service kami 08.00-17.00 WIB',
-      contact_id: '3',
-      session_id: '1',
-      direction: 'outgoing',
-      message_type: 'text',
-      status: 'read',
-      created_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: '3-2',
-      content: 'Saya mau bikin stiker',
-      contact_id: '3',
-      session_id: '1',
-      direction: 'incoming',
-      message_type: 'text',
-      status: 'delivered',
-      created_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: '3-3',
-      content: 'Siap kak! Untuk stiker custom kami ada beberapa paket:\n\n📦 Paket A: 10 stiker - 25rb\n📦 Paket B: 20 stiker - 45rb\n📦 Paket C: 50 stiker - 100rb\n\nSemua include design dan cetak berkualitas tinggi. Mau pilih yang mana?',
-      contact_id: '3',
-      session_id: '1',
-      direction: 'outgoing',
-      message_type: 'text',
-      status: 'delivered',
-      created_at: new Date(Date.now() - 3 * 60 * 60 * 1000 + 180000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-  ],
-  '4': [ // ابو عدنان
-    {
-      id: '4-1',
-      content: '🤝 Halo kak ابو عدنان, ada yang bisa Kame bantu? Jam Operasional Cs kami 08.00-17.00 WIB',
-      contact_id: '4',
-      session_id: '1',
-      direction: 'outgoing',
-      message_type: 'text',
-      status: 'delivered',
-      created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-  ],
-  '5': [ // IAP
-    {
-      id: '5-1',
-      content: '🤝 Halo kak IAP, ada yang bisa Kame bantu? Jam Operasional Cs kami 08.00-17.00 WIB',
-      contact_id: '5',
-      session_id: '1',
-      direction: 'outgoing',
-      message_type: 'text',
-      status: 'delivered',
-      created_at: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-  ],
-  '6': [ // Umi Astuti
-    {
-      id: '6-1',
-      content: '🤝 Halo kak Umi Astuti, ada yang bisa Kame bantu? Jam Operasional Cs kami 08.00-17.00 WIB',
-      contact_id: '6',
-      session_id: '1',
-      direction: 'outgoing',
-      message_type: 'text',
-      status: 'delivered',
-      created_at: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-  ],
-  '7': [ // Warkop11_12
-    {
-      id: '7-1',
-      content: '🤝 Halo kak Warkop11_12, ada yang bisa Kame bantu? Jam Operasional Cs kami 08.00-17.00 WIB',
-      contact_id: '7',
-      session_id: '1',
-      direction: 'outgoing',
-      message_type: 'text',
-      status: 'delivered',
-      created_at: new Date(Date.now() - 10 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-  ],
-  '8': [ // A. Rahman
-    {
-      id: '8-1',
-      content: '🤝 Halo kak A. Rahman, ada yang bisa Kame bantu? Jam Operasional Cs kami 08.00-17.00 WIB',
-      contact_id: '8',
-      session_id: '1',
-      direction: 'outgoing',
-      message_type: 'text',
-      status: 'delivered',
-      created_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-  ],
-  '9': [ // Tri Irawanto
-    {
-      id: '9-1',
-      content: '🤝 Halo kak Tri Irawanto, ada yang bisa Kame bantu? Jam Operasional Cs kami 08.00-17.00 WIB',
-      contact_id: '9',
-      session_id: '1',
-      direction: 'outgoing',
-      message_type: 'text',
-      status: 'delivered',
-      created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-  ],
-}; 
+export const useChatError = () => useChatStore((state) => ({
+  error: state.error,
+  setError: state.setError,
+  clearError: state.clearError,
+})); 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Play, Square, RotateCcw, Trash2, Settings, QrCode, Smartphone, MoreVertical, LogOut } from 'lucide-react';
+import { Play, Square, RotateCcw, Trash2, Settings, QrCode, Smartphone, MoreVertical, LogOut, Database } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -39,12 +39,14 @@ export function SessionCard({ session, onShowQR, onEdit }: SessionCardProps) {
     restartSession, 
     logoutSession,
     deleteSession,
+    syncSessions,
     error,
     clearError 
   } = useSessionStore();
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const getStatusColor = (status: SessionStatus) => {
     switch (status) {
@@ -100,6 +102,21 @@ export function SessionCard({ session, onShowQR, onEdit }: SessionCardProps) {
   const handleRestart = () => handleAction(() => restartSession(session.session_name));
   const handleLogout = () => handleAction(() => logoutSession(session.session_name));
   
+  const handleSync = async () => {
+    if (isSyncing) return;
+    
+    setIsSyncing(true);
+    clearError();
+    
+    try {
+      await syncSessions();
+    } catch (err) {
+      console.error('Sync failed:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+  
   const handleDelete = async () => {
     setIsProcessing(true);
     try {
@@ -112,10 +129,13 @@ export function SessionCard({ session, onShowQR, onEdit }: SessionCardProps) {
     }
   };
 
-  const canStart = session.status === 'stopped' || session.status === 'failed';
-  const canStop = session.status === 'working' || session.status === 'scan_qr_code' || session.status === 'starting';
-  const canLogout = session.status === 'working' && session.phone_number;
-  const canShowQR = session.status === 'scan_qr_code';
+  const canStart = session.status === 'stopped' || session.status === 'failed' || session.status === 'STOPPED' || session.status === 'FAILED';
+  const canStop = session.status === 'working' || session.status === 'scan_qr_code' || session.status === 'starting' || session.status === 'WORKING' || session.status === 'SCAN_QR_CODE' || session.status === 'STARTING';
+  const canLogout = (session.status === 'working' || session.status === 'WORKING') && session.phone_number;
+  const canShowQR = session.status === 'scan_qr_code' || session.status === 'SCAN_QR_CODE';
+  const canSync = session.status === 'working' || session.status === 'WORKING'; // Allow sync for active sessions (both cases)
+
+
 
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -156,6 +176,12 @@ export function SessionCard({ session, onShowQR, onEdit }: SessionCardProps) {
                 <DropdownMenuItem onClick={() => onShowQR(session)}>
                   <QrCode className="h-4 w-4 mr-2" />
                   Show QR Code
+                </DropdownMenuItem>
+              )}
+              {canSync && (
+                <DropdownMenuItem onClick={handleSync} disabled={isSyncing}>
+                  <Database className="h-4 w-4 mr-2" />
+                  {isSyncing ? 'Syncing...' : 'Sync WAHA'}
                 </DropdownMenuItem>
               )}
               {canLogout && (
@@ -247,6 +273,20 @@ export function SessionCard({ session, onShowQR, onEdit }: SessionCardProps) {
             <RotateCcw className="h-4 w-4 mr-2" />
             Restart
           </Button>
+
+          {/* Sync button for active sessions */}
+          {(session.status === 'WORKING' || session.status === 'working') && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleSync}
+              disabled={isSyncing}
+              className="text-blue-600 hover:text-blue-700 border-blue-200"
+            >
+              <Database className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-pulse' : ''}`} />
+              {isSyncing ? 'Syncing' : 'Sync'}
+            </Button>
+          )}
 
           {canShowQR && onShowQR && (
             <Button

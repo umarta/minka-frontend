@@ -11,8 +11,9 @@ import { Ticket, User as UserType } from '@/types';
 
 interface AssignTicketDialogProps {
   ticket: Ticket | null;
-  isOpen: boolean;
-  onClose: () => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess: () => void;
 }
 
 // Mock agents data - in a real app, this would come from an API
@@ -52,18 +53,18 @@ const mockAgents: UserType[] = [
   },
 ];
 
-export function AssignTicketDialog({ ticket, isOpen, onClose }: AssignTicketDialogProps) {
+export function AssignTicketDialog({ ticket, open, onOpenChange, onSuccess }: AssignTicketDialogProps) {
   const { assignTicket, isLoading } = useTicketStore();
   const [selectedAgent, setSelectedAgent] = useState<UserType | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Reset selection when dialog opens
   useEffect(() => {
-    if (isOpen) {
+    if (open) {
       setSelectedAgent(ticket?.assigned_to || null);
       setSearchQuery('');
     }
-  }, [isOpen, ticket]);
+  }, [open, ticket]);
 
   const filteredAgents = mockAgents.filter(agent =>
     agent.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -75,7 +76,8 @@ export function AssignTicketDialog({ ticket, isOpen, onClose }: AssignTicketDial
 
     try {
       await assignTicket(ticket.id, selectedAgent.id);
-      onClose();
+      onSuccess();
+      onOpenChange(false);
     } catch (error) {
       console.error('Failed to assign ticket:', error);
     }
@@ -101,7 +103,7 @@ export function AssignTicketDialog({ ticket, isOpen, onClose }: AssignTicketDial
   if (!ticket) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -209,7 +211,7 @@ export function AssignTicketDialog({ ticket, isOpen, onClose }: AssignTicketDial
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button 

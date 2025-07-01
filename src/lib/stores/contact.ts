@@ -380,10 +380,7 @@ export const useContactStore = create<ContactStore>()(
       try {
         set({ isImporting: true, error: null });
         
-        const formData = new FormData();
-        formData.append('file', file);
-        
-        await contactsApi.import(formData);
+        await contactsApi.import(file);
         
         // Refresh contacts list
         await get().fetchContacts();
@@ -402,8 +399,7 @@ export const useContactStore = create<ContactStore>()(
       try {
         set({ isExporting: true, error: null });
         
-        const response = await contactsApi.export({
-          format,
+        const response = await contactsApi.export(format, {
           filters: get().filters,
         });
         

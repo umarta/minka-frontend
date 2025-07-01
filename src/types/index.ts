@@ -372,4 +372,123 @@ export interface SearchFilters {
   date_to?: string;
   contact_id?: string;
   session_id?: string;
+}
+
+// WhatsApp Sync types
+export interface SyncOptions {
+  create_if_new: boolean;
+  update_if_exists: boolean;
+  skip_duplicates: boolean;
+  conflict_resolution: 'server_wins' | 'client_wins' | 'merge';
+  include_metadata?: boolean;
+  batch_size?: number;
+  parallel_sync?: boolean;
+}
+
+export interface SyncFilters {
+  active_sessions_only?: boolean;
+  last_activity_hours?: number;
+}
+
+export interface SyncContactRequest {
+  phone_number: string;
+  limit?: number;
+  upsert_mode?: boolean;
+  sync_options?: SyncOptions;
+}
+
+export interface SyncAllRequest {
+  limit?: number;
+  upsert_mode?: boolean;
+  sync_options?: SyncOptions;
+  filters?: SyncFilters;
+}
+
+export interface SyncResult {
+  phone_number: string;
+  contact_name?: string;
+  new_records: number;
+  updated_records: number;
+  skipped_records: number;
+  total_processed: number;
+  status: 'SUCCESS' | 'PARTIAL' | 'FAILED';
+  duration: string;
+  errors?: string[];
+  last_sync_at: string;
+}
+
+export interface SyncAllResult {
+  total_contacts: number;
+  successful_syncs: number;
+  failed_syncs: number;
+  total_new_records: number;
+  total_updated_records: number;
+  total_skipped_records: number;
+  sync_results: SyncResult[];
+  duration: string;
+  started_at: string;
+  completed_at: string;
+}
+
+export interface SyncStatus {
+  phone_number: string;
+  contact_name?: string;
+  last_sync: string | null;
+  message_count: number;
+  status: 'idle' | 'syncing' | 'completed' | 'failed' | 'conflict';
+  sync_progress?: number; // 0-100
+  last_error?: string;
+  next_sync_at?: string;
+  conflict_count?: number;
+}
+
+export interface SyncConflict {
+  id: string;
+  phone_number: string;
+  message_id: string;
+  local_message: Message;
+  remote_message: Message;
+  conflict_type: 'content_mismatch' | 'timestamp_conflict' | 'status_conflict';
+  created_at: string;
+  resolved: boolean;
+  resolution?: 'local_kept' | 'remote_kept' | 'merged';
+}
+
+export interface SyncHistory {
+  id: string;
+  phone_number: string;
+  sync_type: 'contact' | 'all';
+  started_at: string;
+  completed_at?: string;
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
+  result?: SyncResult;
+  error?: string;
+  initiated_by: string; // user ID or 'system'
+}
+
+export interface ConflictResolutionRequest {
+  phone_number: string;
+  conflict_resolution: 'server_wins' | 'client_wins' | 'merge';
+  message_ids?: string[];
+}
+
+export interface WAHASessionValidation {
+  session_name: string;
+  phone_number?: string;
+  status: SessionStatus;
+  is_ready: boolean;
+  last_activity?: string;
+  can_sync: boolean;
+  validation_errors?: string[];
+}
+
+export interface PhoneNumberValidation {
+  phone_number: string;
+  is_valid: boolean;
+  formatted_number?: string;
+  country_code?: string;
+  carrier?: string;
+  type?: 'mobile' | 'landline' | 'voip';
+  can_receive_whatsapp: boolean;
+  validation_errors?: string[];
 } 

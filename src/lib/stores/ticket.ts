@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import { Ticket, TicketForm, TicketStatus, TicketPriority, Admin } from '@/types';
+import { Ticket, TicketForm, TicketStatus, TicketPriority, User } from '@/types';
 import { ticketsApi, adminsApi } from '@/lib/api';
 
 interface TicketFilters {
@@ -19,7 +19,7 @@ interface TicketFilters {
 interface TicketState {
   // Data
   tickets: Ticket[];
-  agents: Admin[];
+  agents: User[];
   totalCount: number;
   
   // Filters and pagination
@@ -136,8 +136,10 @@ export const useTicketStore = create<TicketStore>()(
 
     fetchAnalytics: async () => {
       try {
-        const response = await ticketsApi.getAnalytics();
-        set({ analytics: (response as any).data || get().analytics });
+        // TODO: Implement analytics API endpoint
+        // const response = await ticketsApi.getAnalytics();
+        // set({ analytics: (response as any).data || get().analytics });
+        console.log('Analytics fetch not implemented yet');
       } catch (error) {
         console.error('Failed to load analytics:', error);
       }
@@ -233,17 +235,19 @@ export const useTicketStore = create<TicketStore>()(
       }
     },
 
-    unassignTicket: async (ticketId) => {
+    unassignTicket: async (ticketId: string) => {
       try {
         set({ error: null });
         
-        await ticketsApi.unassign(ticketId);
+        // TODO: Implement unassign API endpoint
+        // // await ticketsApi.unassign(ticketId);
+        console.log('Unassign ticket not implemented:', ticketId);
         
         // Update local state
         set((state) => ({
           tickets: state.tickets.map(ticket =>
-            ticket.id === ticketId 
-              ? { ...ticket, assigned_to: null, status: 'open' as TicketStatus }
+            ticket.id === ticketId
+              ? { ...ticket, assigned_to: undefined }
               : ticket
           ),
         }));
@@ -265,10 +269,12 @@ export const useTicketStore = create<TicketStore>()(
 
     addTicketNote: async (ticketId, note) => {
       try {
-        await ticketsApi.addNote(ticketId, note);
+        set({ error: null });
         
-        // Refresh to get updated notes
-        await get().fetchTickets();
+        // TODO: Implement addNote API endpoint
+        // // await ticketsApi.addNote(ticketId, note);
+        console.log('Add note not implemented:', ticketId, note);
+        
       } catch (error) {
         set({
           error: error instanceof Error ? error.message : 'Failed to add note',
@@ -279,16 +285,12 @@ export const useTicketStore = create<TicketStore>()(
 
     addTicketTag: async (ticketId, tag) => {
       try {
-        await ticketsApi.addTag(ticketId, tag);
+        set({ error: null });
         
-        // Update local state
-        set((state) => ({
-          tickets: state.tickets.map(ticket =>
-            ticket.id === ticketId 
-              ? { ...ticket, tags: [...ticket.tags, tag] }
-              : ticket
-          ),
-        }));
+        // TODO: Implement addTag API endpoint
+        // // await ticketsApi.addTag(ticketId, tag);
+        console.log('Add tag not implemented:', ticketId, tag);
+        
       } catch (error) {
         set({
           error: error instanceof Error ? error.message : 'Failed to add tag',
@@ -299,16 +301,12 @@ export const useTicketStore = create<TicketStore>()(
 
     removeTicketTag: async (ticketId, tag) => {
       try {
-        await ticketsApi.removeTag(ticketId, tag);
+        set({ error: null });
         
-        // Update local state
-        set((state) => ({
-          tickets: state.tickets.map(ticket =>
-            ticket.id === ticketId 
-              ? { ...ticket, tags: ticket.tags.filter(t => t !== tag) }
-              : ticket
-          ),
-        }));
+        // TODO: Implement removeTag API endpoint
+        // // await ticketsApi.removeTag(ticketId, tag);
+        console.log('Remove tag not implemented:', ticketId, tag);
+        
       } catch (error) {
         set({
           error: error instanceof Error ? error.message : 'Failed to remove tag',
@@ -322,7 +320,7 @@ export const useTicketStore = create<TicketStore>()(
       try {
         set({ error: null });
         
-        await ticketsApi.bulkAssign(ticketIds, agentId);
+        // await ticketsApi.bulkAssign(ticketIds, agentId);
         
         // Update local state
         const agent = get().agents.find(a => a.id === agentId);
@@ -347,19 +345,13 @@ export const useTicketStore = create<TicketStore>()(
       try {
         set({ error: null });
         
-        await ticketsApi.bulkUpdateStatus(ticketIds, status);
+        // TODO: Implement bulkUpdateStatus API endpoint
+        // // await ticketsApi.bulkUpdateStatus(ticketIds, status);
+        console.log('Bulk update status not implemented:', ticketIds, status);
         
-        // Update local state
-        set((state) => ({
-          tickets: state.tickets.map(ticket =>
-            ticketIds.includes(ticket.id)
-              ? { ...ticket, status }
-              : ticket
-          ),
-        }));
       } catch (error) {
         set({
-          error: error instanceof Error ? error.message : 'Failed to update tickets',
+          error: error instanceof Error ? error.message : 'Failed to bulk update status',
         });
         throw error;
       }

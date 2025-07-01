@@ -520,10 +520,19 @@ export const messagesApi = {
       handleApiError(error as AxiosError<ApiResponse>);
     }
   },
+
+  getByTicket: async (ticketId: string, params?: { page?: number; per_page?: number; order?: string }) => {
+    try {
+      const response = await api.get(`/messages/ticket/${ticketId}`, { params });
+      return handleApiResponse<PaginatedResponse<any>>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
   
   send: async (data: any) => {
     try {
-      const response = await api.post('/messages/send', data);
+      const response = await api.post('/messages/send/text', data);
       return handleApiResponse(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
@@ -532,7 +541,7 @@ export const messagesApi = {
   
   sendMedia: async (data: FormData) => {
     try {
-      const response = await api.post('/messages/send-media', data, {
+      const response = await api.post('/messages/send/media', data, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -543,9 +552,18 @@ export const messagesApi = {
     }
   },
   
-  markAsRead: async (id: string) => {
+  markAsRead: async (ticketId: string) => {
     try {
-      const response = await api.post(`/messages/${id}/read`);
+      const response = await api.put(`/messages/ticket/${ticketId}/read-all`);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  markSingleAsRead: async (messageId: string) => {
+    try {
+      const response = await api.put(`/messages/${messageId}/read`);
       return handleApiResponse(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
@@ -555,6 +573,51 @@ export const messagesApi = {
   search: async (query: string, params?: any) => {
     try {
       const response = await api.get('/messages/search', { params: { query, ...params } });
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  getAll: async (params?: { page?: number; per_page?: number }) => {
+    try {
+      const response = await api.get('/messages', { params });
+      return handleApiResponse<PaginatedResponse<any>>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  getById: async (id: string) => {
+    try {
+      const response = await api.get(`/messages/${id}`);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  update: async (id: string, data: any) => {
+    try {
+      const response = await api.put(`/messages/${id}`, data);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  delete: async (id: string) => {
+    try {
+      const response = await api.delete(`/messages/${id}`);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  getUnreadCount: async (ticketId: string) => {
+    try {
+      const response = await api.get(`/messages/ticket/${ticketId}/unread-count`);
       return handleApiResponse(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
@@ -577,6 +640,15 @@ export const ticketsApi = {
     try {
       const response = await api.get(`/tickets/${id}`);
       return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+  
+  getByContact: async (contactId: string, params?: any) => {
+    try {
+      const response = await api.get(`/tickets/contact/${contactId}`, { params });
+      return handleApiResponse<PaginatedResponse<any>>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
     }
@@ -612,6 +684,15 @@ export const ticketsApi = {
   close: async (id: string, resolution?: string) => {
     try {
       const response = await api.post(`/tickets/${id}/close`, { resolution });
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  delete: async (id: string) => {
+    try {
+      const response = await api.delete(`/tickets/${id}`);
       return handleApiResponse(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
@@ -713,6 +794,120 @@ export const adminApi = {
   delete: async (id: string) => {
     try {
       const response = await api.delete(`/admins/${id}`);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+};
+
+// WhatsApp Sync API
+export const wahaApi = {
+  // Sync messages for a specific contact with upsert logic
+  syncContact: async (data: {
+    phone_number: string;
+    limit?: number;
+    upsert_mode?: boolean;
+    sync_options?: {
+      create_if_new: boolean;
+      update_if_exists: boolean;
+      skip_duplicates: boolean;
+      conflict_resolution: 'server_wins' | 'client_wins' | 'merge';
+      include_metadata?: boolean;
+    };
+  }) => {
+    try {
+      const response = await api.post('/sync/messages/contact', data);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  // Bulk sync all active contacts with upsert logic
+  syncAll: async (data: {
+    limit?: number;
+    upsert_mode?: boolean;
+    sync_options?: {
+      create_if_new: boolean;
+      update_if_exists: boolean;
+      skip_duplicates: boolean;
+      conflict_resolution: 'server_wins' | 'client_wins' | 'merge';
+      include_metadata?: boolean;
+      batch_size?: number;
+      parallel_sync?: boolean;
+    };
+    filters?: {
+      active_sessions_only?: boolean;
+      last_activity_hours?: number;
+    };
+  }) => {
+    try {
+      const response = await api.post('/sync/messages/all', data);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  // Get sync status for a specific contact
+  getSyncStatus: async (phoneNumber: string) => {
+    try {
+      const response = await api.get(`/sync/status/${phoneNumber}`);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  // Get all sync statuses
+  getAllSyncStatuses: async () => {
+    try {
+      const response = await api.get('/sync/status/all');
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  // Get sync history/logs
+  getSyncHistory: async (params?: { limit?: number; offset?: number; phone_number?: string }) => {
+    try {
+      const response = await api.get('/sync/history', { params });
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  // Manually trigger conflict resolution for duplicate records
+  resolveConflicts: async (data: {
+    phone_number: string;
+    conflict_resolution: 'server_wins' | 'client_wins' | 'merge';
+    message_ids?: string[];
+  }) => {
+    try {
+      const response = await api.post('/sync/resolve-conflicts', data);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  // Get WAHA session status for sync validation
+  getWahaStatus: async (sessionName: string) => {
+    try {
+      const response = await api.get(`/waha/sessions/${sessionName}/status`);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  // Validate phone number before sync
+  validatePhoneNumber: async (phoneNumber: string) => {
+    try {
+      const response = await api.post('/sync/validate-phone', { phone_number: phoneNumber });
       return handleApiResponse(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);

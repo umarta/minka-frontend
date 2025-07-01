@@ -15,29 +15,38 @@ export function MessagesList({ contactId }: MessagesListProps) {
     messages,
     isLoadingMessages,
     typingUsers,
-    markMessagesAsRead 
+    markMessagesAsRead,
+    activeTicket,
+    loadMessages
   } = useChatStore();
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
 
-  // Get messages for the current contact
-  const contactMessages = contactId ? (messages[contactId] || []) : [];
+  // Get messages for the current ticket
+  const ticketMessages = activeTicket ? (messages[activeTicket.id.toString()] || []) : [];
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     if (autoScroll && messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [contactMessages, autoScroll]);
+  }, [ticketMessages, autoScroll]);
 
-  // Mark messages as read when component mounts or contact changes
+  // Load messages when ticket changes
   useEffect(() => {
-    if (contactId && contactMessages.length > 0) {
-      markMessagesAsRead(contactId);
+    if (activeTicket) {
+      loadMessages(activeTicket.id.toString());
     }
-  }, [contactId, markMessagesAsRead]);
+  }, [activeTicket, loadMessages]);
+
+  // Mark messages as read when component mounts or ticket changes
+  useEffect(() => {
+    if (activeTicket && ticketMessages.length > 0) {
+      markMessagesAsRead(activeTicket.id.toString());
+    }
+  }, [activeTicket, markMessagesAsRead, ticketMessages.length]);
 
   // Handle scroll to detect if user scrolled up
   const handleScroll = () => {
@@ -61,7 +70,7 @@ export function MessagesList({ contactId }: MessagesListProps) {
   };
 
   // Group messages by date
-  const groupedMessages = contactMessages.reduce((groups: { [key: string]: Message[] }, message) => {
+  const groupedMessages = ticketMessages.reduce((groups: { [key: string]: Message[] }, message) => {
     const dateKey = format(new Date(message.created_at), 'yyyy-MM-dd');
     if (!groups[dateKey]) {
       groups[dateKey] = [];
@@ -70,7 +79,7 @@ export function MessagesList({ contactId }: MessagesListProps) {
     return groups;
   }, {});
 
-  if (!contactId) {
+  if (!activeTicket) {
     return (
       <div className="flex-1 flex items-center justify-center bg-gray-50">
         <p className="text-gray-500">Pilih kontak untuk melihat pesan</p>
@@ -92,7 +101,7 @@ export function MessagesList({ contactId }: MessagesListProps) {
       className="flex-1 overflow-y-auto bg-gray-100 p-3"
       onScroll={handleScroll}
     >
-      {contactMessages.length === 0 ? (
+      {ticketMessages.length === 0 ? (
         <div className="flex items-center justify-center h-full">
           <div className="text-center">
             <p className="text-gray-500 mb-2">Belum ada pesan</p>
@@ -135,8 +144,8 @@ export function MessagesList({ contactId }: MessagesListProps) {
           ))}
           
           {/* Typing indicator */}
-          {contactId && typingUsers[contactId] && typingUsers[contactId].length > 0 && (
-            <TypingIndicator users={typingUsers[contactId]} />
+          {activeTicket && typingUsers[activeTicket.id.toString()] && typingUsers[activeTicket.id.toString()].length > 0 && (
+            <TypingIndicator users={typingUsers[activeTicket.id.toString()]} />
           )}
           
           {/* Scroll anchor */}
