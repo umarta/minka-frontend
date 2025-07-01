@@ -915,4 +915,175 @@ export const wahaApi = {
   },
 };
 
+// Quick Reply API
+export const quickReplyApi = {
+  getAll: async (params?: { page?: number; per_page?: number; category?: string }) => {
+    try {
+      const response = await api.get('/quick-replies', { params });
+      return handleApiResponse<PaginatedResponse<any>>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  getById: async (id: string) => {
+    try {
+      const response = await api.get(`/quick-replies/${id}`);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  create: async (data: { title: string; content: string; category: string }) => {
+    try {
+      const response = await api.post('/quick-replies', data);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  update: async (id: string, data: { title?: string; content?: string; category?: string }) => {
+    try {
+      const response = await api.put(`/quick-replies/${id}`, data);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  delete: async (id: string) => {
+    try {
+      const response = await api.delete(`/quick-replies/${id}`);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  getByCategory: async (category: string) => {
+    try {
+      const response = await api.get(`/quick-replies/category/${category}`);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  incrementUsage: async (id: string) => {
+    try {
+      const response = await api.post(`/quick-replies/${id}/increment-usage`);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+};
+
+// Contact Notes API
+export const contactNotesApi = {
+  getByContact: async (contactId: string, params?: { page?: number; per_page?: number }) => {
+    try {
+      const response = await api.get(`/contact-notes/contact/${contactId}`, { params });
+      return handleApiResponse<PaginatedResponse<any>>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  getById: async (id: string) => {
+    try {
+      const response = await api.get(`/contact-notes/${id}`);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  create: async (data: { contact_id: string; content: string; type: 'public' | 'private' }) => {
+    try {
+      const response = await api.post('/contact-notes', data);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  update: async (id: string, data: { content?: string; type?: 'public' | 'private' }) => {
+    try {
+      const response = await api.put(`/contact-notes/${id}`, data);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  delete: async (id: string) => {
+    try {
+      const response = await api.delete(`/contact-notes/${id}`);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+};
+
+// Draft Messages API
+export const draftMessagesApi = {
+  getByContact: async (contactId: string) => {
+    try {
+      const response = await api.get(`/draft-messages/contact/${contactId}`);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  getById: async (id: string) => {
+    try {
+      const response = await api.get(`/draft-messages/${id}`);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  create: async (data: { contact_id: string; content: string }) => {
+    try {
+      const response = await api.post('/draft-messages', data);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  update: async (id: string, data: { content: string }) => {
+    try {
+      const response = await api.put(`/draft-messages/${id}`, data);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  delete: async (id: string) => {
+    try {
+      const response = await api.delete(`/draft-messages/${id}`);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  autoSave: async (contactId: string, content: string) => {
+    try {
+      const response = await api.post('/draft-messages/auto-save', { contact_id: contactId, content });
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+};
+
 export default api; 

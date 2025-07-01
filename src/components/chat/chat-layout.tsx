@@ -8,6 +8,7 @@ import TicketHistoryPanel from './ticket-history-panel';
 import { useChatStore } from '@/lib/stores/chat';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { toast } from '@/hooks/use-toast';
 import { 
   Info, 
   MessageSquare, 
@@ -17,9 +18,15 @@ import {
   Users,
   Bot,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Search,
+  X,
+  Settings,
+  Filter,
+  SortAsc
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Message } from '@/types';
 
 export function ChatLayout() {
   const { 
@@ -29,6 +36,7 @@ export function ChatLayout() {
     sidebarCollapsed,
     toggleSidebar,
     loadConversations,
+    updateMessage,
     // New contact conversation features
     conversationMode,
     showTicketHistory,
@@ -42,6 +50,21 @@ export function ChatLayout() {
 
   const [mobileView, setMobileView] = useState<'sidebar' | 'chat' | 'info' | 'history'>('sidebar');
   const [rightPanelMode, setRightPanelMode] = useState<'info' | 'history'>('info');
+  
+  // Enhanced Search State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Message[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchFilters, setSearchFilters] = useState({
+    messageType: 'all' as 'all' | 'text' | 'image' | 'video' | 'audio' | 'document',
+    dateRange: 'all' as 'all' | 'today' | 'week' | 'month',
+    sender: 'all' as 'all' | 'incoming' | 'outgoing'
+  });
+
+  // Enhanced Message Actions State
+  const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
+  const [editingMessage, setEditingMessage] = useState<string | null>(null);
+  const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
 
   // Load conversations when component mounts
   useEffect(() => {
@@ -54,6 +77,135 @@ export function ChatLayout() {
       loadContactConversation(activeContact.id);
     }
   }, [activeContact, conversationMode, loadContactConversation]);
+
+  // Search functionality
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    
+    // Simulate search API call
+    setTimeout(() => {
+      // Get all messages from all contact conversations
+      let allMessages: Message[] = [];
+      if (activeContactConversation) {
+        allMessages = activeContactConversation.allMessages;
+      }
+      
+      const filteredMessages = allMessages.filter(message => {
+        const matchesQuery = message.content.toLowerCase().includes(query.toLowerCase());
+        const matchesType = searchFilters.messageType === 'all' || message.message_type === searchFilters.messageType;
+        const matchesSender = searchFilters.sender === 'all' || message.direction === searchFilters.sender;
+        
+        return matchesQuery && matchesType && matchesSender;
+      });
+      
+      setSearchResults(filteredMessages);
+      setIsSearching(false);
+      
+      console.log('🔍 Search results:', filteredMessages.length, 'messages found for:', query);
+    }, 500);
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setSearchResults([]);
+    setIsSearching(false);
+    console.log('🗑️ Search cleared');
+  };
+
+  // Enhanced Message Actions
+  const handleReact = async (messageId: string, emoji: string) => {
+    try {
+      // Simulate reaction API call
+      console.log('✅ Reaction added:', emoji, 'to message:', messageId);
+      
+      toast({
+        title: "Reaction Added",
+        description: `Added ${emoji} reaction to message`,
+      });
+    } catch (error) {
+      console.error('Failed to add reaction:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add reaction",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEdit = async (messageId: string) => {
+    setEditingMessage(messageId);
+    console.log('✏️ Editing message:', messageId);
+    
+    toast({
+      title: "Edit Mode",
+      description: "You can now edit this message",
+    });
+  };
+
+  const handleReply = (message: Message) => {
+    setReplyToMessage(message);
+    console.log('💬 Replying to message:', message.id);
+    
+    toast({
+      title: "Reply Mode",
+      description: "Replying to message",
+    });
+  };
+
+  const handleForward = (message: Message) => {
+    setForwardingMessage(message);
+    console.log('⏩ Forwarding message:', message.id);
+    
+    toast({
+      title: "Forward Mode",
+      description: "Select contacts to forward message",
+    });
+  };
+
+  const handleDelete = async (messageId: string) => {
+    try {
+      // Simulate delete API call
+      console.log('🗑️ Message deleted:', messageId);
+      
+      toast({
+        title: "Message Deleted",
+        description: "Message has been deleted successfully",
+      });
+    } catch (error) {
+      console.error('Failed to delete message:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete message",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCopy = async (content: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      console.log('📋 Text copied to clipboard');
+      
+      toast({
+        title: "Copied",
+        description: "Message copied to clipboard",
+      });
+    } catch (error) {
+      console.error('Failed to copy text:', error);
+      toast({
+        title: "Error",
+        description: "Failed to copy text",
+        variant: "destructive",
+      });
+    }
+  };
 
   // Mock data for demonstration (replace with real data from store)
   const mockTicketEpisodes = activeContact ? [
@@ -96,6 +248,25 @@ export function ChatLayout() {
     otomatis: activeContactConversation.ticketEpisodes.filter(ep => ep.category === 'OTOMATIS').length,
     selesai: activeContactConversation.ticketEpisodes.filter(ep => ep.category === 'SELESAI').length,
   } : { perluDibalas: 1, otomatis: 0, selesai: 1 };
+
+  // Enhanced props for ChatArea
+  const enhancedChatAreaProps = {
+    onReact: handleReact,
+    onEdit: handleEdit,
+    onReply: handleReply,
+    onForward: handleForward,
+    onDelete: handleDelete,
+    onCopy: handleCopy,
+    onSearch: handleSearch,
+    onClearSearch: clearSearch,
+    searchQuery,
+    searchResults,
+    isSearching,
+    replyToMessage,
+    setReplyToMessage,
+    editingMessage,
+    setEditingMessage
+  };
 
   return (
     <div className="w-full h-full flex flex-col bg-white">
@@ -150,24 +321,42 @@ export function ChatLayout() {
           )}
         </div>
 
-        {/* Conversation Mode Toggle */}
-        {activeContact && (
+        {/* Enhanced Mobile Controls */}
+        <div className="flex items-center gap-2">
+          {/* Search Toggle */}
           <Button
             variant="ghost"
             size="sm"
-            onClick={toggleConversationMode}
+            onClick={() => {
+              // Toggle search in mobile
+              if (searchQuery) {
+                clearSearch();
+              }
+            }}
             className="shrink-0"
           >
-            {conversationMode === 'unified' ? (
-              <ToggleRight className="h-4 w-4 text-blue-600" />
-            ) : (
-              <ToggleLeft className="h-4 w-4 text-gray-400" />
-            )}
+            <Search className="h-4 w-4" />
           </Button>
-        )}
+          
+          {/* Conversation Mode Toggle */}
+          {activeContact && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleConversationMode}
+              className="shrink-0"
+            >
+              {conversationMode === 'unified' ? (
+                <ToggleRight className="h-4 w-4 text-blue-600" />
+              ) : (
+                <ToggleLeft className="h-4 w-4 text-gray-400" />
+              )}
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* Desktop Header with Conversation Controls */}
+      {/* Enhanced Desktop Header with Search and Conversation Controls */}
       {activeContact && (
         <div className="hidden lg:flex items-center justify-between p-3 border-b bg-gray-50 shrink-0">
           <div className="flex items-center gap-4">
@@ -198,83 +387,146 @@ export function ChatLayout() {
               <div className="flex items-center gap-1">
                 <AlertCircle className="h-3 w-3 text-orange-500" />
                 <span className="text-orange-700">{conversationStats.perluDibalas}</span>
+                <span className="text-gray-500">Perlu Dibalas</span>
               </div>
               <div className="flex items-center gap-1">
                 <Bot className="h-3 w-3 text-blue-500" />
                 <span className="text-blue-700">{conversationStats.otomatis}</span>
+                <span className="text-gray-500">Otomatis</span>
               </div>
               <div className="flex items-center gap-1">
                 <CheckCircle className="h-3 w-3 text-green-500" />
                 <span className="text-green-700">{conversationStats.selesai}</span>
+                <span className="text-gray-500">Selesai</span>
               </div>
             </div>
           </div>
 
+          {/* Enhanced Search and Controls */}
           <div className="flex items-center gap-2">
+            {/* Search Results Badge */}
+            {searchQuery && (
+              <Badge variant="secondary" className="text-xs">
+                {isSearching ? 'Searching...' : `${searchResults.length} results`}
+              </Badge>
+            )}
+            
+            {/* Clear Search */}
+            {searchQuery && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearSearch}
+                className="h-7"
+              >
+                <X className="h-3 w-3 mr-1" />
+                Clear
+              </Button>
+            )}
+
+            {/* Search Filters */}
             <Button
-              variant={rightPanelMode === 'history' ? 'default' : 'outline'}
+              variant="ghost"
               size="sm"
-              onClick={() => {
-                setRightPanelMode('history');
-                if (!rightSidebarVisible) toggleRightSidebar();
-              }}
               className="h-7"
+              onClick={() => {
+                // Toggle search filters
+                console.log('🔧 Search filters toggled');
+              }}
             >
-              <History className="h-3 w-3 mr-1" />
-              Riwayat
+              <Filter className="h-3 w-3 mr-1" />
+              Filter
             </Button>
+
+            {/* Message Sort */}
             <Button
-              variant={rightPanelMode === 'info' ? 'default' : 'outline'}
+              variant="ghost"
               size="sm"
-              onClick={() => {
-                setRightPanelMode('info');
-                if (!rightSidebarVisible) toggleRightSidebar();
-              }}
               className="h-7"
+              onClick={() => {
+                // Toggle message sort
+                console.log('📋 Message sort toggled');
+              }}
             >
-              <Info className="h-3 w-3 mr-1" />
-              Info
+              <SortAsc className="h-3 w-3 mr-1" />
+              Sort
             </Button>
           </div>
         </div>
       )}
 
-      {/* Main Chat Layout */}
-      <div className="flex flex-1 overflow-hidden min-h-0">
-        {/* Contact Sidebar */}
+      {/* Main Content Area */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Sidebar - Contact List */}
         <div className={cn(
-          "flex-shrink-0 bg-white border-r border-gray-200",
-          mobileView === 'sidebar' ? "block" : "hidden lg:block",
-          sidebarCollapsed ? "w-16" : "w-80"
+          "bg-white border-r transition-all duration-300 flex-shrink-0",
+          sidebarCollapsed ? "w-0 lg:w-16" : "w-full lg:w-80",
+          mobileView === 'sidebar' ? "block" : "hidden lg:block"
         )}>
           <ContactSidebar />
         </div>
 
-        {/* Chat Area */}
+        {/* Center - Chat Area */}
         <div className={cn(
-          "flex-1 min-w-0",
-          mobileView === 'chat' ? "block" : "hidden lg:block"
+          "flex-1 flex flex-col bg-gray-50 min-w-0",
+          mobileView === 'chat' ? "block" : activeContact ? "hidden lg:block" : "block"
         )}>
-          <ChatArea />
+          <ChatArea {...enhancedChatAreaProps} />
         </div>
 
-        {/* Right Panel - Info or History */}
-        {rightSidebarVisible && activeContact && (
+        {/* Right Sidebar - Info Panel or Ticket History */}
+        {activeContact && (
           <div className={cn(
-            "flex-shrink-0 border-l border-gray-200 bg-gray-50 w-80",
+            "bg-white border-l transition-all duration-300 flex-shrink-0",
+            rightSidebarVisible ? "w-full lg:w-80" : "w-0",
             (mobileView === 'info' || mobileView === 'history') ? "block" : "hidden lg:block"
           )}>
-            {rightPanelMode === 'history' || mobileView === 'history' ? (
-              <TicketHistoryPanel
-                contactId={activeContact.id}
-                episodes={mockTicketEpisodes}
-                currentTicketId={undefined} // Will be managed by store
-                onEpisodeSelect={handleEpisodeSelect}
-                onShowAllMessages={handleShowAllMessages}
-              />
-            ) : (
-              <InfoPanel />
-            )}
+            {/* Right Panel Toggle */}
+            <div className="p-3 border-b bg-gray-50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={rightPanelMode === 'info' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setRightPanelMode('info')}
+                  className="h-7"
+                >
+                  <Info className="h-3 w-3 mr-1" />
+                  Info
+                </Button>
+                <Button
+                  variant={rightPanelMode === 'history' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setRightPanelMode('history')}
+                  className="h-7"
+                >
+                  <History className="h-3 w-3 mr-1" />
+                  History
+                </Button>
+              </div>
+              
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleRightSidebar}
+                className="lg:hidden"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Panel Content */}
+            <div className="flex-1 overflow-hidden">
+              {rightPanelMode === 'info' ? (
+                <InfoPanel />
+              ) : (
+                <TicketHistoryPanel
+                  episodes={mockTicketEpisodes}
+                  onEpisodeSelect={handleEpisodeSelect}
+                  onShowAllMessages={handleShowAllMessages}
+                  conversationMode={conversationMode}
+                />
+              )}
+            </div>
           </div>
         )}
       </div>

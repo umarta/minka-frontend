@@ -31,19 +31,19 @@ interface TicketEpisode {
 }
 
 interface TicketHistoryPanelProps {
-  contactId: string;
   episodes: TicketEpisode[];
   currentTicketId?: string;
   onEpisodeSelect: (ticketId: string) => void;
   onShowAllMessages: () => void;
+  conversationMode?: 'unified' | 'ticket-specific';
 }
 
 const TicketHistoryPanel: React.FC<TicketHistoryPanelProps> = ({
-  contactId,
   episodes,
   currentTicketId,
   onEpisodeSelect,
-  onShowAllMessages
+  onShowAllMessages,
+  conversationMode
 }) => {
   const [expandedEpisodes, setExpandedEpisodes] = useState<Set<string>>(new Set());
 

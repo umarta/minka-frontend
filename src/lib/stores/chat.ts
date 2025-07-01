@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import { Contact, Message, Conversation, ChatGroups, MessageForm, Ticket } from '@/types';
-import { contactsApi, messagesApi, ticketsApi } from '@/lib/api';
+import { Contact, Message, Conversation, ChatGroups, MessageForm, Ticket, QuickReplyTemplate, ContactNote, DraftMessage } from '@/types';
+import { contactsApi, messagesApi, ticketsApi, quickReplyApi, contactNotesApi, draftMessagesApi } from '@/lib/api';
 import { getWebSocketManager } from '@/lib/websocket';
 
 // New types for contact-based conversations
@@ -52,6 +52,18 @@ interface ChatState {
   conversationMode: 'unified' | 'ticket-specific'; // Toggle between views
   showTicketHistory: boolean;
   
+  // Quick Reply Templates
+  quickReplyTemplates: QuickReplyTemplate[];
+  isLoadingQuickReplies: boolean;
+  
+  // Contact Notes
+  contactNotes: Record<string, ContactNote[]>; // contactId -> notes
+  isLoadingContactNotes: boolean;
+  
+  // Draft Messages
+  draftMessages: Record<string, DraftMessage>; // contactId -> draft
+  isLoadingDraftMessages: boolean;
+  
   // UI state
   isLoadingConversations: boolean;
   isLoadingMessages: boolean;
@@ -96,6 +108,25 @@ interface ChatActions {
   updateMessage: (messageId: string, updates: Partial<Message>) => void;
   markMessagesAsRead: (ticketId: string) => void;
   
+  // Quick Reply Templates
+  loadQuickReplyTemplates: () => Promise<void>;
+  createQuickReply: (data: { title: string; content: string; category: string }) => Promise<void>;
+  updateQuickReply: (id: string, data: { title?: string; content?: string; category?: string }) => Promise<void>;
+  deleteQuickReply: (id: string) => Promise<void>;
+  useQuickReply: (id: string) => Promise<void>;
+  
+  // Contact Notes
+  loadContactNotes: (contactId: string) => Promise<void>;
+  createContactNote: (contactId: string, data: { content: string; type: 'public' | 'private' }) => Promise<void>;
+  updateContactNote: (id: string, data: { content?: string; type?: 'public' | 'private' }) => Promise<void>;
+  deleteContactNote: (id: string) => Promise<void>;
+  
+  // Draft Messages
+  loadDraftMessage: (contactId: string) => Promise<void>;
+  saveDraftMessage: (contactId: string, content: string) => Promise<void>;
+  deleteDraftMessage: (contactId: string) => Promise<void>;
+  autoSaveDraft: (contactId: string, content: string) => Promise<void>;
+  
   // Real-time updates
   handleIncomingMessage: (message: Message) => void;
   handleMessageStatusUpdate: (messageId: string, status: string) => void;
@@ -136,6 +167,12 @@ export const useChatStore = create<ChatStore>()(
     messagePages: {},
     conversationMode: 'unified',
     showTicketHistory: false,
+    quickReplyTemplates: [],
+    isLoadingQuickReplies: false,
+    contactNotes: {},
+    isLoadingContactNotes: false,
+    draftMessages: {},
+    isLoadingDraftMessages: false,
     isLoadingConversations: false,
     isLoadingMessages: false,
     isSendingMessage: false,
@@ -737,6 +774,145 @@ export const useChatStore = create<ChatStore>()(
 
     clearError: () => {
       set({ error: null });
+    },
+
+    // Quick Reply Templates
+    loadQuickReplyTemplates: async () => {
+      try {
+        const response = await quickReplyApi.getAll();
+        set({ quickReplyTemplates: response.data || [] });
+      } catch (error) {
+        console.error('Failed to load quick reply templates:', error);
+        set({ error: 'Failed to load quick reply templates' });
+      }
+    },
+
+    createQuickReply: async (data) => {
+      try {
+        const response = await quickReplyApi.create(data);
+        set({ quickReplyTemplates: [...get().quickReplyTemplates, response.data] });
+      } catch (error) {
+        console.error('Failed to create quick reply:', error);
+        set({ error: 'Failed to create quick reply' });
+      }
+    },
+
+    updateQuickReply: async (id, data) => {
+      try {
+        const response = await quickReplyApi.update(id, data);
+        set({ quickReplyTemplates: get().quickReplyTemplates.map(qr =>
+          qr.id === id ? response.data : qr
+        ) });
+      } catch (error) {
+        console.error('Failed to update quick reply:', error);
+        set({ error: 'Failed to update quick reply' });
+      }
+    },
+
+    deleteQuickReply: async (id) => {
+      try {
+        await quickReplyApi.delete(id);
+        set({ quickReplyTemplates: get().quickReplyTemplates.filter(qr => qr.id !== id) });
+      } catch (error) {
+        console.error('Failed to delete quick reply:', error);
+        set({ error: 'Failed to delete quick reply' });
+      }
+    },
+
+    useQuickReply: async (id) => {
+      try {
+        const response = await quickReplyApi.use(id);
+        set({ quickReplyTemplates: get().quickReplyTemplates.map(qr =>
+          qr.id === id ? response.data : qr
+        ) });
+      } catch (error) {
+        console.error('Failed to use quick reply:', error);
+        set({ error: 'Failed to use quick reply' });
+      }
+    },
+
+    // Contact Notes
+    loadContactNotes: async (contactId) => {
+      try {
+        const response = await contactNotesApi.getAll(contactId);
+        set({ contactNotes: response.data || {} });
+      } catch (error) {
+        console.error('Failed to load contact notes:', error);
+        set({ error: 'Failed to load contact notes' });
+      }
+    },
+
+    createContactNote: async (contactId, data) => {
+      try {
+        const response = await contactNotesApi.create(contactId, data);
+        set({ contactNotes: { ...get().contactNotes, [contactId]: [...(get().contactNotes[contactId] || []), response.data] } });
+      } catch (error) {
+        console.error('Failed to create contact note:', error);
+        set({ error: 'Failed to create contact note' });
+      }
+    },
+
+    updateContactNote: async (id, data) => {
+      try {
+        const response = await contactNotesApi.update(id, data);
+        set({ contactNotes: { ...get().contactNotes, [get().activeContactConversation?.contact.id || '']: get().contactNotes[get().activeContactConversation?.contact.id || ''].map(n =>
+          n.id === id ? response.data : n
+        ) } });
+      } catch (error) {
+        console.error('Failed to update contact note:', error);
+        set({ error: 'Failed to update contact note' });
+      }
+    },
+
+    deleteContactNote: async (id) => {
+      try {
+        await contactNotesApi.delete(id);
+        set({ contactNotes: { ...get().contactNotes, [get().activeContactConversation?.contact.id || '']: get().contactNotes[get().activeContactConversation?.contact.id || ''].filter(n => n.id !== id) } });
+      } catch (error) {
+        console.error('Failed to delete contact note:', error);
+        set({ error: 'Failed to delete contact note' });
+      }
+    },
+
+    // Draft Messages
+    loadDraftMessage: async (contactId) => {
+      try {
+        const response = await draftMessagesApi.get(contactId);
+        set({ draftMessages: response.data || {} });
+      } catch (error) {
+        console.error('Failed to load draft message:', error);
+        set({ error: 'Failed to load draft message' });
+      }
+    },
+
+    saveDraftMessage: async (contactId, content) => {
+      try {
+        const response = await draftMessagesApi.create(contactId, content);
+        set({ draftMessages: { ...get().draftMessages, [contactId]: response.data } });
+      } catch (error) {
+        console.error('Failed to save draft message:', error);
+        set({ error: 'Failed to save draft message' });
+      }
+    },
+
+    deleteDraftMessage: async (contactId) => {
+      try {
+        await draftMessagesApi.delete(contactId);
+        set({ draftMessages: { ...get().draftMessages, [contactId]: undefined } });
+      } catch (error) {
+        console.error('Failed to delete draft message:', error);
+        set({ error: 'Failed to delete draft message' });
+      }
+    },
+
+    autoSaveDraft: async (contactId, content) => {
+      try {
+        const response = await draftMessagesApi.update(contactId, content);
+        set({ draftMessages: { ...get().draftMessages, [contactId]: response.data } });
+      } catch (error) {
+        console.error('Failed to auto-save draft message:', error);
+        set({ error: 'Failed to auto-save draft message' });
+      }
     },
   }))
 );
