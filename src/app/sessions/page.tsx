@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Smartphone, Activity, AlertCircle, Search, Filter, RefreshCw, Zap, Clock } from 'lucide-react';
+import { Plus, Smartphone, Activity, AlertCircle, Search, Filter, RefreshCw, Zap } from 'lucide-react';
 import { MainLayout } from '@/components/layout/main-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -56,7 +56,6 @@ export default function SessionsPage() {
   const [editSession, setEditSession] = useState<Session | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
-  const [autoRefresh, setAutoRefresh] = useState(true);
 
   // Fetch sessions on component mount
   useEffect(() => {
@@ -64,18 +63,6 @@ export default function SessionsPage() {
     setLastRefresh(new Date());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency array to run only once on mount
-
-  // Auto-refresh sessions every 30 seconds
-  useEffect(() => {
-    if (!autoRefresh) return;
-
-    const interval = setInterval(() => {
-      fetchSessions();
-      setLastRefresh(new Date());
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, [autoRefresh, fetchSessions]);
 
   // Filter sessions based on search and status
   const filteredSessions = sessions.filter(session => {
@@ -173,38 +160,17 @@ export default function SessionsPage() {
               Manage your WhatsApp bot sessions and QR codes
             </p>
             <div className="flex items-center gap-2 mt-2">
-              <Badge variant="outline" className="text-xs">
-                <Clock className="h-3 w-3 mr-1" />
-                Last updated: {lastRefresh.toLocaleTimeString()}
+              <Badge variant="outline" className="text-xs text-blue-600">
+                <Activity className="h-3 w-3 mr-1" />
+                Real-time updates via WebSocket
               </Badge>
-              {autoRefresh && (
-                <Badge variant="outline" className="text-xs text-green-600">
-                  <Activity className="h-3 w-3 mr-1" />
-                  Auto-refresh ON
-                </Badge>
-              )}
+              <Badge variant="outline" className="text-xs">
+                Last refresh: {lastRefresh.toLocaleTimeString()}
+              </Badge>
             </div>
           </div>
           
           <div className="flex items-center gap-3">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setAutoRefresh(!autoRefresh)}
-                    className={autoRefresh ? 'text-green-600' : 'text-gray-600'}
-                  >
-                    <Activity className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {autoRefresh ? 'Disable' : 'Enable'} auto-refresh
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>

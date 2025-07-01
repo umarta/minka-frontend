@@ -5,6 +5,12 @@ export interface BaseEntity {
   updated_at: string;
 }
 
+// Date range type for analytics and filtering
+export interface DateRange {
+  from: Date;
+  to: Date;
+}
+
 // Authentication types
 export interface User extends BaseEntity {
   username: string;

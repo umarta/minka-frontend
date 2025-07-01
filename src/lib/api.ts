@@ -255,6 +255,130 @@ export const contactsApi = {
       handleApiError(error as AxiosError<ApiResponse>);
     }
   },
+
+  search: async (query: string, params?: any) => {
+    try {
+      const response = await api.get('/contacts/search', { params: { ...params, search: query } });
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  bulkUpdate: async (ids: string[], data: any) => {
+    try {
+      const response = await api.put('/contacts/bulk', { ids, data });
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  bulkDelete: async (ids: string[]) => {
+    try {
+      const response = await api.delete('/contacts/bulk', { data: { ids } });
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  addLabel: async (contactId: string, labelId: string) => {
+    try {
+      const response = await api.post(`/contacts/${contactId}/labels/${labelId}`);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  removeLabel: async (contactId: string, labelId: string) => {
+    try {
+      const response = await api.delete(`/contacts/${contactId}/labels/${labelId}`);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  import: async (file: File, options?: any) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      if (options) {
+        formData.append('options', JSON.stringify(options));
+      }
+      const response = await api.post('/contacts/import', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  export: async (format: 'csv' | 'excel', params?: any) => {
+    try {
+      const response = await api.get('/contacts/export', { 
+        params: { ...params, format },
+        responseType: 'blob'
+      });
+      return response.data;
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+};
+
+// Labels API
+export const labelsApi = {
+  getAll: async () => {
+    try {
+      const response = await api.get('/labels');
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  create: async (data: any) => {
+    try {
+      const response = await api.post('/labels', data);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  update: async (id: string, data: any) => {
+    try {
+      const response = await api.put(`/labels/${id}`, data);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+
+  delete: async (id: string) => {
+    try {
+      const response = await api.delete(`/labels/${id}`);
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
+};
+
+// Admins API
+export const adminsApi = {
+  getAll: async () => {
+    try {
+      const response = await api.get('/admin/users');
+      return handleApiResponse(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+    }
+  },
 };
 
 // Sessions API

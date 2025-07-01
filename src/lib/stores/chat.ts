@@ -12,6 +12,7 @@ interface ChatState {
   // Active chat
   activeContact: Contact | null;
   activeConversation: Conversation | null;
+  selectedContactId: string | null;
   
   // Messages
   messages: Record<string, Message[]>; // contactId -> messages
@@ -83,6 +84,7 @@ export const useChatStore = create<ChatStore>()(
     },
     activeContact: null,
     activeConversation: null,
+    selectedContactId: null,
     messages: {},
     messagePages: {},
     isLoadingConversations: false,
@@ -98,34 +100,41 @@ export const useChatStore = create<ChatStore>()(
 
     // Actions
     loadConversations: async () => {
+      set({ isLoadingConversations: true });
       try {
-        set({ isLoadingConversations: true, error: null });
+        // Load mock conversations
+        const conversations = mockConversations;
         
-        const contacts = await contactsApi.getAll();
-        
-        // Transform contacts to conversations (this would be more complex in real app)
-        const conversations: Conversation[] = (contacts as any).data.map((contact: Contact) => ({
-          contact,
-          last_message: undefined,
-          unread_count: 0,
-          status: 'active' as const,
-          assigned_to: undefined,
-          labels: contact.labels || [],
-          last_activity: contact.updated_at,
-          ticket: undefined,
-        }));
-        
+        // Organize conversations into groups
+        const groups: ChatGroups = {
+          needReply: {
+            urgent: conversations.filter(c => c.unread_count > 0 && c.unread_count >= 2),
+            normal: conversations.filter(c => c.unread_count > 0 && c.unread_count === 1),
+            overdue: [],
+          },
+          automated: {
+            botHandled: [],
+            autoReply: [],
+            workflow: [],
+          },
+          completed: {
+            resolved: [],
+            closed: [],
+            archived: [],
+          },
+        };
+
         set({ 
           conversations,
+          chatGroups: groups,
           isLoadingConversations: false,
+          error: null 
         });
-        
-        // Group conversations after loading
-        get().groupConversations();
       } catch (error) {
-        set({
-          error: error instanceof Error ? error.message : 'Failed to load conversations',
-          isLoadingConversations: false,
+        console.error('Failed to load conversations:', error);
+        set({ 
+          error: 'Failed to load conversations',
+          isLoadingConversations: false 
         });
       }
     },
@@ -165,12 +174,13 @@ export const useChatStore = create<ChatStore>()(
       set({ chatGroups });
     },
 
-    selectConversation: (contact) => {
+    selectConversation: (contact: Contact) => {
       const conversation = get().conversations.find(c => c.contact.id === contact.id);
       
-      set({
+      set({ 
         activeContact: contact,
         activeConversation: conversation || null,
+        selectedContactId: contact.id,
       });
       
       // Load messages for the selected contact
@@ -215,13 +225,13 @@ export const useChatStore = create<ChatStore>()(
       try {
         set({ isLoadingMessages: true, error: null });
         
-        const response = await messagesApi.getByContact(contactId, { page, per_page: 50 });
-        const messages = (response as any).data;
+        // Load mock messages for the contact
+        const messages = mockMessages[contactId] || [];
         
         set((state) => ({
           messages: {
             ...state.messages,
-            [contactId]: page === 1 ? messages : [...(state.messages[contactId] || []), ...messages],
+            [contactId]: messages,
           },
           messagePages: {
             ...state.messagePages,
@@ -241,23 +251,27 @@ export const useChatStore = create<ChatStore>()(
       try {
         set({ isSendingMessage: true, error: null });
         
-        let response;
-        if (data.media_file) {
-          const formData = new FormData();
-          formData.append('contact_id', data.contact_id);
-          formData.append('session_id', data.session_id);
-          formData.append('content', data.content);
-          formData.append('message_type', data.message_type);
-          formData.append('media', data.media_file);
-          
-          response = await messagesApi.sendMedia(formData);
-        } else {
-          response = await messagesApi.send(data);
-        }
+        // Create new message with current timestamp
+        const newMessage: Message = {
+          id: Date.now().toString(),
+          content: data.content,
+          contact_id: data.contact_id,
+          session_id: data.session_id,
+          direction: 'outgoing',
+          message_type: data.message_type,
+          status: 'sent',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        // Add the message to the store immediately (optimistic update)
+        get().addMessage(newMessage);
         
-        // Add optimistic message update
-        const message = response as Message;
-        get().addMessage(message);
+        // Simulate API delay
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Update message status to delivered
+        get().updateMessage(newMessage.id, { status: 'delivered' });
         
         set({ isSendingMessage: false });
       } catch (error) {
@@ -269,43 +283,21 @@ export const useChatStore = create<ChatStore>()(
       }
     },
 
-    addMessage: (message) => {
+    addMessage: (message: Message) => {
       set((state) => ({
         messages: {
           ...state.messages,
-          [message.contact_id]: [
-            ...(state.messages[message.contact_id] || []),
-            message,
-          ],
+          [message.contact_id]: [...(state.messages[message.contact_id] || []), message],
         },
       }));
-      
-      // Update conversation's last message and unread count
-      set((state) => ({
-        conversations: state.conversations.map(conv =>
-          conv.contact.id === message.contact_id
-            ? {
-                ...conv,
-                last_message: message,
-                unread_count: message.direction === 'incoming' 
-                  ? conv.unread_count + 1 
-                  : conv.unread_count,
-                last_activity: message.created_at,
-              }
-            : conv
-        ),
-      }));
-      
-      // Re-group conversations
-      get().groupConversations();
     },
 
-    updateMessage: (messageId, updates) => {
+    updateMessage: (messageId: string, updates: Partial<Message>) => {
       set((state) => {
-        const newMessages = { ...state.messages };
+        const newMessages: Record<string, Message[]> = {};
         
-        Object.keys(newMessages).forEach(contactId => {
-          newMessages[contactId] = newMessages[contactId].map(msg =>
+        Object.entries(state.messages).forEach(([contactId, contactMessages]) => {
+          newMessages[contactId] = contactMessages.map(msg =>
             msg.id === messageId ? { ...msg, ...updates } : msg
           );
         });
@@ -503,4 +495,511 @@ export const useChatSearch = () => useChatStore((state) => ({
   isSearching: state.isSearching,
   searchMessages: state.searchMessages,
   clearSearch: state.clearSearch,
-})); 
+}));
+
+// Mock data for development
+const mockConversations: Conversation[] = [
+  {
+    contact: {
+      id: '1',
+      name: 'Yanuar',
+      phone: '+6281933393369',
+      avatar_url: '',
+      last_seen: new Date(Date.now() - 15 * 60 * 1000).toISOString(), // 15 minutes ago
+      is_blocked: false,
+      labels: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    last_message: {
+      id: '1',
+      content: 'Brp??',
+      contact_id: '1',
+      session_id: '1',
+      direction: 'incoming',
+      message_type: 'text',
+      status: 'delivered',
+      created_at: new Date(Date.now() - 45 * 60 * 1000).toISOString(), // 45 minutes ago
+      updated_at: new Date().toISOString(),
+    },
+    last_activity: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
+    unread_count: 2,
+    status: 'active',
+    assigned_to: undefined,
+    labels: [],
+  },
+  {
+    contact: {
+      id: '2',
+      name: 'arniadyrendy',
+      phone: '+6281234567890',
+      avatar_url: '',
+      last_seen: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
+      is_blocked: false,
+      labels: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    last_message: {
+      id: '2',
+      content: 'Untuk harga pembuatan stiker nya berapa ka?',
+      contact_id: '2',
+      session_id: '1',
+      direction: 'incoming',
+      message_type: 'text',
+      status: 'delivered',
+      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    last_activity: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    unread_count: 2,
+    status: 'active',
+    assigned_to: undefined,
+    labels: [],
+  },
+  {
+    contact: {
+      id: '3',
+      name: 'RAJA ES PISANG IJO KHAS MAKASAR',
+      phone: '+6281345678901',
+      avatar_url: '',
+      last_seen: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+      is_blocked: false,
+      labels: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    last_message: {
+      id: '3',
+      content: 'Saya mau bikin stiker',
+      contact_id: '3',
+      session_id: '1',
+      direction: 'incoming',
+      message_type: 'text',
+      status: 'delivered',
+      created_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    last_activity: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+    unread_count: 2,
+    status: 'active',
+    assigned_to: undefined,
+    labels: [],
+  },
+  {
+    contact: {
+      id: '4',
+      name: 'ابو عدنان',
+      phone: '+6281456789012',
+      avatar_url: '',
+      last_seen: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+      is_blocked: false,
+      labels: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    last_message: {
+      id: '4',
+      content: '🤝 Halo kak ابو عدنان, ada yang bisa Kame bantu? Jam Operasional Cs...',
+      contact_id: '4',
+      session_id: '1',
+      direction: 'outgoing',
+      message_type: 'text',
+      status: 'delivered',
+      created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    last_activity: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+    unread_count: 1,
+    status: 'active',
+    assigned_to: undefined,
+    labels: [],
+  },
+  {
+    contact: {
+      id: '5',
+      name: 'IAP',
+      phone: '+6281567890123',
+      avatar_url: '',
+      last_seen: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+      is_blocked: false,
+      labels: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    last_message: {
+      id: '5',
+      content: '🤝 Halo kak IAP, ada yang bisa Kame bantu? Jam Operasional Cs...',
+      contact_id: '5',
+      session_id: '1',
+      direction: 'outgoing',
+      message_type: 'text',
+      status: 'delivered',
+      created_at: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    last_activity: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+    unread_count: 1,
+    status: 'active',
+    assigned_to: undefined,
+    labels: [],
+  },
+  {
+    contact: {
+      id: '6',
+      name: 'Umi Astuti',
+      phone: '+6281678901234',
+      avatar_url: '',
+      last_seen: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
+      is_blocked: false,
+      labels: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    last_message: {
+      id: '6',
+      content: '🤝 Halo kak Umi Astuti, ada yang bisa Kame bantu? Jam Operasional...',
+      contact_id: '6',
+      session_id: '1',
+      direction: 'outgoing',
+      message_type: 'text',
+      status: 'delivered',
+      created_at: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    last_activity: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
+    unread_count: 1,
+    status: 'active',
+    assigned_to: undefined,
+    labels: [],
+  },
+  {
+    contact: {
+      id: '7',
+      name: 'Warkop11_12',
+      phone: '+6281789012345',
+      avatar_url: '',
+      last_seen: new Date(Date.now() - 10 * 60 * 60 * 1000).toISOString(),
+      is_blocked: false,
+      labels: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    last_message: {
+      id: '7',
+      content: '🤝 Halo kak Warkop11_12, ada yang bisa Kame bantu? Jam Operasional...',
+      contact_id: '7',
+      session_id: '1',
+      direction: 'outgoing',
+      message_type: 'text',
+      status: 'delivered',
+      created_at: new Date(Date.now() - 10 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    last_activity: new Date(Date.now() - 10 * 60 * 60 * 1000).toISOString(),
+    unread_count: 1,
+    status: 'active',
+    assigned_to: undefined,
+    labels: [],
+  },
+  {
+    contact: {
+      id: '8',
+      name: 'A. Rahman',
+      phone: '+6281890123456',
+      avatar_url: '',
+      last_seen: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+      is_blocked: false,
+      labels: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    last_message: {
+      id: '8',
+      content: '🤝 Halo kak A. Rahman, ada yang bisa Kame bantu? Jam Operasional...',
+      contact_id: '8',
+      session_id: '1',
+      direction: 'outgoing',
+      message_type: 'text',
+      status: 'delivered',
+      created_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    last_activity: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+    unread_count: 1,
+    status: 'active',
+    assigned_to: undefined,
+    labels: [],
+  },
+  {
+    contact: {
+      id: '9',
+      name: 'Tri Irawanto',
+      phone: '+6281901234567',
+      avatar_url: '',
+      last_seen: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      is_blocked: false,
+      labels: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    last_message: {
+      id: '9',
+      content: '🤝 Halo kak Tri Irawanto, ada yang bisa Kame bantu? Jam Operasional...',
+      contact_id: '9',
+      session_id: '1',
+      direction: 'outgoing',
+      message_type: 'text',
+      status: 'delivered',
+      created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    last_activity: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    unread_count: 1,
+    status: 'active',
+    assigned_to: undefined,
+    labels: [],
+  },
+];
+
+// Mock messages data for each contact
+const mockMessages: Record<string, Message[]> = {
+  '1': [ // Yanuar
+    {
+      id: '1-1',
+      content: 'Halo kak, mau tanya dong',
+      contact_id: '1',
+      session_id: '1',
+      direction: 'incoming',
+      message_type: 'text',
+      status: 'delivered',
+      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    {
+      id: '1-2',
+      content: 'Halo! Ada yang bisa saya bantu?',
+      contact_id: '1',
+      session_id: '1',
+      direction: 'outgoing',
+      message_type: 'text',
+      status: 'read',
+      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000 + 30000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    {
+      id: '1-3',
+      content: 'Saya mau order stiker untuk usaha saya',
+      contact_id: '1',
+      session_id: '1',
+      direction: 'incoming',
+      message_type: 'text',
+      status: 'delivered',
+      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000 + 60000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    {
+      id: '1-4',
+      content: 'Siap kak! Stiker untuk apa ya? Dan kira-kira berapa quantity yang dibutuhkan?',
+      contact_id: '1',
+      session_id: '1',
+      direction: 'outgoing',
+      message_type: 'text',
+      status: 'read',
+      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000 + 90000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    {
+      id: '1-5',
+      content: 'Untuk branding produk makanan saya',
+      contact_id: '1',
+      session_id: '1',
+      direction: 'incoming',
+      message_type: 'text',
+      status: 'delivered',
+      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000 + 120000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    {
+      id: '1-6',
+      content: 'Kira-kira butuh sekitar 100-200 pcs',
+      contact_id: '1',
+      session_id: '1',
+      direction: 'incoming',
+      message_type: 'text',
+      status: 'delivered',
+      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000 + 125000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    {
+      id: '1-7',
+      content: 'Brp??',
+      contact_id: '1',
+      session_id: '1',
+      direction: 'incoming',
+      message_type: 'text',
+      status: 'delivered',
+      created_at: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+  ],
+  '2': [ // arniadyrendy
+    {
+      id: '2-1',
+      content: 'Halo admin',
+      contact_id: '2',
+      session_id: '1',
+      direction: 'incoming',
+      message_type: 'text',
+      status: 'delivered',
+      created_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    {
+      id: '2-2',
+      content: 'Selamat pagi! Ada yang bisa kami bantu?',
+      contact_id: '2',
+      session_id: '1',
+      direction: 'outgoing',
+      message_type: 'text',
+      status: 'read',
+      created_at: new Date(Date.now() - 3 * 60 * 60 * 1000 + 60000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    {
+      id: '2-3',
+      content: 'Untuk harga pembuatan stiker nya berapa ka?',
+      contact_id: '2',
+      session_id: '1',
+      direction: 'incoming',
+      message_type: 'text',
+      status: 'delivered',
+      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    {
+      id: '2-4',
+      content: 'Untuk stiker custom mulai dari 25rb/set (10 stiker). Mau design sendiri atau kita buatkan?',
+      contact_id: '2',
+      session_id: '1',
+      direction: 'outgoing',
+      message_type: 'text',
+      status: 'delivered',
+      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000 + 120000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+  ],
+  '3': [ // RAJA ES PISANG IJO KHAS MAKASAR
+    {
+      id: '3-1',
+      content: '🤝 Halo kak RAJA ES PISANG IJO KHAS MAKASAR, ada yang bisa Kame bantu? Jam Operasional Customer Service kami 08.00-17.00 WIB',
+      contact_id: '3',
+      session_id: '1',
+      direction: 'outgoing',
+      message_type: 'text',
+      status: 'read',
+      created_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    {
+      id: '3-2',
+      content: 'Saya mau bikin stiker',
+      contact_id: '3',
+      session_id: '1',
+      direction: 'incoming',
+      message_type: 'text',
+      status: 'delivered',
+      created_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    {
+      id: '3-3',
+      content: 'Siap kak! Untuk stiker custom kami ada beberapa paket:\n\n📦 Paket A: 10 stiker - 25rb\n📦 Paket B: 20 stiker - 45rb\n📦 Paket C: 50 stiker - 100rb\n\nSemua include design dan cetak berkualitas tinggi. Mau pilih yang mana?',
+      contact_id: '3',
+      session_id: '1',
+      direction: 'outgoing',
+      message_type: 'text',
+      status: 'delivered',
+      created_at: new Date(Date.now() - 3 * 60 * 60 * 1000 + 180000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+  ],
+  '4': [ // ابو عدنان
+    {
+      id: '4-1',
+      content: '🤝 Halo kak ابو عدنان, ada yang bisa Kame bantu? Jam Operasional Cs kami 08.00-17.00 WIB',
+      contact_id: '4',
+      session_id: '1',
+      direction: 'outgoing',
+      message_type: 'text',
+      status: 'delivered',
+      created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+  ],
+  '5': [ // IAP
+    {
+      id: '5-1',
+      content: '🤝 Halo kak IAP, ada yang bisa Kame bantu? Jam Operasional Cs kami 08.00-17.00 WIB',
+      contact_id: '5',
+      session_id: '1',
+      direction: 'outgoing',
+      message_type: 'text',
+      status: 'delivered',
+      created_at: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+  ],
+  '6': [ // Umi Astuti
+    {
+      id: '6-1',
+      content: '🤝 Halo kak Umi Astuti, ada yang bisa Kame bantu? Jam Operasional Cs kami 08.00-17.00 WIB',
+      contact_id: '6',
+      session_id: '1',
+      direction: 'outgoing',
+      message_type: 'text',
+      status: 'delivered',
+      created_at: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+  ],
+  '7': [ // Warkop11_12
+    {
+      id: '7-1',
+      content: '🤝 Halo kak Warkop11_12, ada yang bisa Kame bantu? Jam Operasional Cs kami 08.00-17.00 WIB',
+      contact_id: '7',
+      session_id: '1',
+      direction: 'outgoing',
+      message_type: 'text',
+      status: 'delivered',
+      created_at: new Date(Date.now() - 10 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+  ],
+  '8': [ // A. Rahman
+    {
+      id: '8-1',
+      content: '🤝 Halo kak A. Rahman, ada yang bisa Kame bantu? Jam Operasional Cs kami 08.00-17.00 WIB',
+      contact_id: '8',
+      session_id: '1',
+      direction: 'outgoing',
+      message_type: 'text',
+      status: 'delivered',
+      created_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+  ],
+  '9': [ // Tri Irawanto
+    {
+      id: '9-1',
+      content: '🤝 Halo kak Tri Irawanto, ada yang bisa Kame bantu? Jam Operasional Cs kami 08.00-17.00 WIB',
+      contact_id: '9',
+      session_id: '1',
+      direction: 'outgoing',
+      message_type: 'text',
+      status: 'delivered',
+      created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+  ],
+}; 
