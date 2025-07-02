@@ -616,14 +616,15 @@ export const sessionsApi = {
 
 // Messages API
 export const messagesApi = {
-  getByContact: async (contactId: string, params?: { page?: number; per_page?: number }) => {
-    try {
-      const response = await api.get(`/messages/contact/${contactId}`, { params });
-      return handleArrayResponse<any>(response);
-    } catch (error) {
-      handleApiError(error as AxiosError<ApiResponse>);
-      return [];
-    }
+  getByContact: async (contactId: string, params?: { page?: number; limit?: number; query?: string; order?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.page) searchParams.append('page', params.page.toString());
+    if (params?.limit) searchParams.append('limit', params.limit.toString());
+    if (params?.query) searchParams.append('query', params.query);
+    if (params?.order) searchParams.append('order', params.order);
+    
+    const response = await api.get(`/messages/contact/${contactId}?${searchParams.toString()}`);
+    return response.data;
   },
 
   getByTicket: async (ticketId: string, params?: { page?: number; per_page?: number; order?: string }) => {

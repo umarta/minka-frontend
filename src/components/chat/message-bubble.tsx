@@ -20,6 +20,7 @@ import {
 import { Message, MessageReaction } from '@/types';
 import { cn } from '@/lib/utils';
 import { format, formatDistanceToNow } from 'date-fns';
+import { useChatStore } from '@/lib/stores/chat';
 
 interface MessageBubbleProps {
   message: Message;
@@ -31,6 +32,8 @@ interface MessageBubbleProps {
   onForward?: (message: Message) => void;
   onDelete?: (messageId: string) => void;
   onCopy?: (content: string) => void;
+  showTicketBadge?: boolean;
+  isSearchResult?: boolean;
 }
 
 export function MessageBubble({ 
@@ -42,7 +45,9 @@ export function MessageBubble({
   onReply,
   onForward,
   onDelete,
-  onCopy
+  onCopy,
+  showTicketBadge = false,
+  isSearchResult = false
 }: MessageBubbleProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
@@ -50,6 +55,18 @@ export function MessageBubble({
   
   const isOutgoing = message.direction === 'outgoing';
   const isSystem = message.message_type === 'system';
+
+  // Ambil mode percakapan
+  const conversationMode = useChatStore((state) => state.conversationMode);
+  const showAdminName = isOutgoing && (message as any).admin_name;
+
+  // Badge color per ticket
+  const getTicketBadgeColor = (ticketId: any) => {
+    if (ticketId === 1 || ticketId === '1') return 'bg-orange-500';
+    if (ticketId === 2 || ticketId === '2') return 'bg-green-500';
+    if (ticketId === 3 || ticketId === '3') return 'bg-blue-500';
+    return 'bg-gray-400';
+  };
 
   // System messages
   if (isSystem) {
@@ -522,168 +539,100 @@ export function MessageBubble({
 
   return (
     <div className={cn(
-      "flex w-full group items-center",
-      isOutgoing ? "justify-end flex-row" : "justify-start flex-row"
+      'flex',
+      isOutgoing ? 'justify-end' : 'justify-start',
+      'mb-3',
+      isSearchResult && 'ring-2 ring-yellow-200 bg-yellow-50 rounded-lg p-2'
     )}>
-      {/* Action Buttons - Outside Bubble */}
-      <div
-        className={cn(
-          "opacity-0 group-hover:opacity-100 transition-opacity z-20 flex flex-col items-center",
-          isOutgoing ? "order-1" : "order-2",
-          isOutgoing ? "mr-0 ml-2" : "ml-0 mr-2"
-        )}
-        style={{ minWidth: 32 }}
-      >
-        <div className="flex items-center gap-1">
-          {/* Quick React */}
-          <div className="relative">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 w-6 p-0 bg-white shadow-sm"
-              onMouseEnter={() => setShowReactions(true)}
-              onMouseLeave={() => setShowReactions(false)}
-            >
-              <Smile className="h-3 w-3" />
-            </Button>
-            {showReactions && (
-              <div 
-                className="absolute bottom-8 left-0 bg-white shadow-lg rounded-lg p-2 flex gap-1 z-10"
-                onMouseEnter={() => setShowReactions(true)}
-                onMouseLeave={() => setShowReactions(false)}
-              >
-                {quickReactions.map((emoji) => (
-                  <button
-                    key={emoji}
-                    className="hover:bg-gray-100 rounded p-1 text-lg"
-                    onClick={() => {
-                      onReact?.(message.id, emoji);
-                      setShowReactions(false);
-                    }}
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          {/* More Actions */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 bg-white shadow-sm">
-                <MoreVertical className="h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent side={isOutgoing ? "left" : "right"} align="start">
-              <DropdownMenuItem onClick={() => onReply?.(message)}>
-                <Reply className="h-4 w-4 mr-2" />
-                Reply
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onForward?.(message)}>
-                <Forward className="h-4 w-4 mr-2" />
-                Forward
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onCopy?.(message.content)}>
-                <Copy className="h-4 w-4 mr-2" />
-                Copy
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Star className="h-4 w-4 mr-2" />
-                Star
-              </DropdownMenuItem>
-              {message.can_edit && isOutgoing && (
-                <DropdownMenuItem onClick={() => onEdit?.(message.id)}>
-                  <Edit className="h-4 w-4 mr-2" />
-                  Edit
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              {message.can_delete && (
-                <DropdownMenuItem 
-                  className="text-red-600"
-                  onClick={() => onDelete?.(message.id)}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-      {/* Bubble */}
-      <div className={cn(
-        "max-w-[75%] rounded-lg px-3 py-2 relative",
-        isOutgoing 
-          ? "bg-green-500 text-white rounded-br-sm order-2 ml-0" 
-          : "bg-white border border-gray-200 rounded-bl-sm shadow-sm order-1 mr-0",
-        isGrouped && isOutgoing && "rounded-br-lg",
-        isGrouped && !isOutgoing && "rounded-bl-lg"
-      )}>
-        {/* Reply indicator */}
-        {message.quoted_message && (
+
+        
+        {/* Bubble */}
+        <div className={cn(
+          "max-w-[75%] rounded-lg px-3 py-2 relative",
+          isOutgoing 
+            ? "bg-green-500 text-white rounded-br-sm order-2 ml-0" 
+            : "bg-white border border-gray-200 rounded-bl-sm shadow-sm order-1 mr-0",
+          isGrouped && isOutgoing && "rounded-br-lg",
+          isGrouped && !isOutgoing && "rounded-bl-lg"
+        )}>
+          {/* Badge Tiket di pojok bubble, hanya mode unified */}
+        {conversationMode === 'unified' && message.ticket_id && (
           <div className={cn(
-            "border-l-4 pl-3 py-2 mb-2 rounded",
-            isOutgoing ? "border-green-300 bg-green-400/20" : "border-gray-300 bg-gray-50"
+            'absolute -top-2 text-xs px-2 py-0.5 rounded-full text-white font-medium',
+            isOutgoing ? '-right-1' : '-left-1',
+            getTicketBadgeColor(message.ticket_id)
           )}>
-            <p className="text-xs opacity-75 mb-1">
-              {message.quoted_message.direction === 'outgoing' ? 'You' : 'Customer'}
-            </p>
-            <p className="text-sm opacity-90 truncate">
-              {message.quoted_message.content}
-            </p>
+            #{message.ticket_id}
           </div>
         )}
-
-        {/* Forwarded indicator */}
-        {message.forwarded_from && (
-          <div className={cn(
-            "text-xs italic mb-2 flex items-center gap-1",
-            isOutgoing ? "text-green-100" : "text-gray-500"
-          )}>
-            <Forward className="h-3 w-3" />
-            Forwarded
-          </div>
+        {/* Nama Admin */}
+        {showAdminName && (
+          <div className="text-xs text-blue-700 font-semibold mb-1 text-left">{(message as any).admin_name || 'Admin'}</div>
         )}
+          {/* Reply indicator */}
+          {message.quoted_message && (
+            <div className={cn(
+              "border-l-4 pl-3 py-2 mb-2 rounded",
+              isOutgoing ? "border-green-300 bg-green-400/20" : "border-gray-300 bg-gray-50"
+            )}>
+              <p className="text-xs opacity-75 mb-1">
+                {message.quoted_message.direction === 'outgoing' ? 'You' : 'Customer'}
+              </p>
+              <p className="text-sm opacity-90 truncate">
+                {message.quoted_message.content}
+              </p>
+            </div>
+          )}
 
-        {/* Message Content */}
-        <div className={cn(isOutgoing ? "text-white" : "text-gray-900")}>
-          {renderMediaContent()}
-        </div>
-
-        {/* Edited indicator */}
-        {message.edited_at && (
-          <span className={cn(
-            "text-xs italic mt-1 block",
-            isOutgoing ? "text-green-100" : "text-gray-500"
-          )}>
-            edited
-          </span>
-        )}
-
-        {/* Reactions */}
-        {renderReactions()}
-
-        {/* Message Info */}
-        <div className="flex items-center justify-between mt-2">
-          <div className="flex items-center gap-1">
-            <span className={cn(
-              "text-xs",
+          {/* Forwarded indicator */}
+          {message.forwarded_from && (
+            <div className={cn(
+              "text-xs italic mb-2 flex items-center gap-1",
               isOutgoing ? "text-green-100" : "text-gray-500"
             )}>
-              {format(new Date(message.created_at), 'HH:mm')}
-            </span>
-            {message.edited_at && (
-              <Edit className="h-3 w-3 opacity-50" />
-            )}
+              <Forward className="h-3 w-3" />
+              Forwarded
+            </div>
+          )}
+
+          {/* Message Content */}
+          <div className={cn(isOutgoing ? "text-white" : "text-gray-900")}>
+            {renderMediaContent()}
           </div>
-          
-          <div className="flex items-center gap-1">
-            {getStatusIcon()}
-            {renderReadReceipts()}
+
+          {/* Edited indicator */}
+          {message.edited_at && (
+            <span className={cn(
+              "text-xs italic mt-1 block",
+              isOutgoing ? "text-green-100" : "text-gray-500"
+            )}>
+              edited
+            </span>
+          )}
+
+          {/* Reactions */}
+          {renderReactions()}
+
+          {/* Message Info */}
+          <div className="flex items-center justify-between mt-2">
+            <div className="flex items-center gap-1">
+              <span className={cn(
+                "text-xs",
+                isOutgoing ? "text-green-100" : "text-gray-500"
+              )}>
+                {format(new Date(message.created_at), 'HH:mm')}
+              </span>
+              {message.edited_at && (
+                <Edit className="h-3 w-3 opacity-50" />
+              )}
+            </div>
+            
+            <div className="flex items-center gap-1">
+              {getStatusIcon()}
+              {renderReadReceipts()}
+            </div>
           </div>
         </div>
       </div>
-    </div>
   );
 } 

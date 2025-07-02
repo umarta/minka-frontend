@@ -5,6 +5,54 @@ import { contactsApi, messagesApi, ticketsApi, quickReplyApi, contactNotesApi, d
 import { getWebSocketManager } from '@/lib/websocket';
 import { shallow } from 'zustand/shallow';
 
+/**
+ * OPTIMIZED MESSAGE LOADING STRATEGY
+ * 
+ * This store implements several optimizations to avoid unnecessary API calls and data replacements:
+ * 
+ * 1. SMART LOADING (loadMessages):
+ *    - Checks if messages already exist for the ticket/page combination
+ *    - Skips loading if data is already available (unless forceRefresh=true)
+ *    - Reduces unnecessary API calls and UI flickering
+ * 
+ * 2. APPEND LOADING (appendMessages):
+ *    - Loads additional pages without replacing existing messages
+ *    - Avoids duplicates by checking message IDs
+ *    - Useful for pagination or loading older messages
+ * 
+ * 3. SINGLE MESSAGE OPERATIONS:
+ *    - updateSingleMessage: Updates one message without reloading all
+ *    - addSingleMessage: Adds one message without reloading all
+ *    - Preserves existing state and optimistically updates UI
+ * 
+ * 4. DUAL STORAGE STRATEGY:
+ *    - contactMessages: For unified conversation view (all messages per contact)
+ *    - messages: For ticket-specific view (messages per ticket)
+ *    - Both are kept in sync automatically
+ * 
+ * 5. CACHING:
+ *    - Messages are cached by ticket ID and page
+ *    - Prevents redundant API calls for same data
+ *    - Manual refresh available via refreshMessages()
+ * 
+ * USAGE EXAMPLES:
+ * 
+ * // Load messages for first time
+ * loadMessages(ticketId, 1)
+ * 
+ * // Load more messages (pagination)
+ * appendMessages(ticketId, 2)
+ * 
+ * // Force refresh (ignore cache)
+ * refreshMessages(ticketId)
+ * 
+ * // Update single message (e.g., mark as read)
+ * updateSingleMessage(ticketId, messageId, { read_at: new Date().toISOString() })
+ * 
+ * // Add new message (e.g., from WebSocket)
+ * addSingleMessage(ticketId, newMessage)
+ */
+
 // New types for contact-based conversations
 interface TicketEpisode {
   ticket: Ticket;
@@ -97,14 +145,18 @@ interface ChatActions {
   
   // New: Contact-based conversation actions
   loadContactConversation: (contactId: string) => Promise<void>;
-  loadContactMessages: (contactId: string, page?: number) => Promise<void>;
+  loadContactMessages: (contactId: string, page?: number, query?: string, append?: boolean) => Promise<any>;
   loadTicketEpisodes: (contactId: string) => Promise<void>;
   selectTicketEpisode: (ticketId: string) => void;
   toggleConversationMode: () => void;
   toggleTicketHistory: () => void;
   
   // Messages
-  loadMessages: (ticketId: string, page?: number) => Promise<void>;
+  loadMessages: (ticketId: string, page?: number, forceRefresh?: boolean) => Promise<void>;
+  appendMessages: (ticketId: string, page?: number) => Promise<void>;
+  refreshMessages: (ticketId: string) => Promise<void>;
+  updateSingleMessage: (ticketId: string, messageId: string, updates: Partial<Message>) => void;
+  addSingleMessage: (ticketId: string, message: Message) => void;
   sendMessage: (data: MessageForm) => Promise<void>;
   addMessage: (message: Message) => void;
   updateMessage: (messageId: string, updates: Partial<Message>) => void;
@@ -146,6 +198,7 @@ interface ChatActions {
   setError: (error: string | null) => void;
   clearError: () => void;
   setRightSidebarMode: (mode: 'auto' | 'always' | 'never') => void; // NEW
+  getActiveTicket: () => any; // Helper method to get active ticket
 }
 
 type ChatStore = ChatState & ChatActions;
@@ -229,89 +282,35 @@ export const useChatStore = create<ChatStore>()(
           error: null,
         });
         
-        // Load conversation detail with all messages using the new enhanced endpoint
-        const response = await conversationsApi.getConversationDetail(contact.id, {
-          mode: 'unified',
-          include_reactions: true,
-          include_receipts: true,
-          include_history: true,
-        });
-        const conversationDetail = response.data || response;
-        console.log('conversationDetail before mapping:', conversationDetail);
+        // Load contact conversation for info panel
+        console.log('DEBUG selectConversation: loading contact conversation for:', contact.id);
+        await get().loadContactConversation(contact.id);
         
-        if (conversationDetail) {
-          // Extract messages from the response
-          const messages: Message[] = conversationDetail.messages?.map((msg: any) => ({
-            id: msg.id?.toString(),
-            ticket_id: msg.ticket_id?.toString(),
-            contact_id: msg.contact_id?.toString(),
-            session_id: msg.session_id || 'default',
-            wa_message_id: msg.wa_message_id,
-            direction: msg.direction?.toLowerCase() as 'incoming' | 'outgoing',
-            message_type: msg.message_type || 'text',
-            content: msg.content || msg.body || '',
-            body: msg.content || msg.body || '',
-            status: msg.status?.toLowerCase() || 'sent',
-            media_url: msg.media_url,
-            created_at: msg.created_at || new Date().toISOString(),
-            updated_at: msg.updated_at || new Date().toISOString(),
-            read_at: msg.read_at,
-            // Enhanced fields
-            sequence: msg.sequence,
-            reply_to_message_id: msg.reply_to_message_id,
-            quoted_message: msg.quoted_message,
-            forwarded_from: msg.forwarded_from,
-            reactions: msg.reactions,
-            read_by: msg.read_by,
-            edit_history: msg.edit_history,
-            thread_messages: msg.thread_messages,
-            has_replies: msg.has_replies,
-            file_info: msg.file_info,
-            audio_info: msg.audio_info,
-            location_info: msg.location_info,
-            metadata: msg.metadata,
-          })) || [];
-          console.log('Mapped messages:', messages);
-          
-          // Set active ticket if available
-          const activeTicket = conversationDetail.current_ticket || conversationDetail.tickets?.[0];
-          
-          if (activeTicket && activeTicket.id) {
-            set(state => ({
-              activeTicket,
-              messages: {
-                [activeTicket.id.toString()]: messages,
-              },
-              messagePages: {
-                [activeTicket.id.toString()]: 1,
-              },
-              contactMessages: {
-                ...state.contactMessages,
-                [contact.id]: messages,
-              },
-              isLoadingMessages: false,
-            }));
-          } else {
-            set(state => ({
-              activeTicket: null,
-              messages: {},
-              messagePages: {},
-              contactMessages: {
-                ...state.contactMessages,
-                [contact.id]: messages,
-              },
-              isLoadingMessages: false,
-            }));
-          }
+        // Load all messages for this contact using the unified endpoint
+        await get().loadContactMessages(contact.id, 1);
+        
+        // Set active ticket - prioritize from conversation, then from contact conversation
+        let activeTicket = conversation?.active_ticket;
+        
+        if (!activeTicket) {
+          // Try to get from contact conversation
+          const contactConversation = get().activeContactConversation;
+          activeTicket = contactConversation?.currentTicket;
+        }
+        
+        if (activeTicket) {
+          set({ activeTicket });
           
           // Join WebSocket room for real-time updates
           const ws = getWebSocketManager();
-          if (ws && activeTicket?.id) {
+          if (ws) {
             ws.joinContactRoom(activeTicket.id.toString());
           }
         } else {
-          set({ isLoadingMessages: false });
+          console.warn('No active ticket found for contact:', contact.id);
         }
+        
+        set({ isLoadingMessages: false });
         
       } catch (error) {
         console.error('Failed to select conversation:', error);
@@ -354,104 +353,217 @@ export const useChatStore = create<ChatStore>()(
 
     // New: Contact-based conversation actions
     loadContactConversation: async (contactId: string) => {
+      console.log('DEBUG loadContactConversation called with contactId:', contactId);
       try {
-        set({ isLoadingMessages: true, error: null });
-        
-        // Load all tickets for this contact
+        // Load all tickets for this contact (for info panel)
+        console.log('DEBUG loading tickets for contact:', contactId);
         const tickets = await ticketsApi.getByContact(contactId);
+        console.log('DEBUG tickets loaded:', tickets);
         
-        // Load all messages for this contact (across all tickets)
-        const allMessages: Message[] = [];
-        const episodes: TicketEpisode[] = [];
-        
-        for (const ticket of tickets) {
-          // Load messages for each ticket
-          const ticketMessages = await messagesApi.getByTicket(ticket.id.toString());
-          
-          // Add to all messages
-          allMessages.push(...ticketMessages.map((msg: any) => ({
-            id: msg.id?.toString(),
-            ticket_id: ticket.id.toString(),
-            contact_id: contactId,
-            session_id: msg.session_id || 'default',
-            wa_message_id: msg.wa_message_id,
-            direction: msg.direction?.toLowerCase() as 'incoming' | 'outgoing',
-            message_type: msg.message_type || 'text',
-            content: msg.body || msg.content || '',
-            body: msg.body || msg.content || '',
-            status: msg.status?.toLowerCase() || 'sent',
-            media_url: msg.media_url,
-            created_at: msg.timestamp || msg.created_at || new Date().toISOString(),
-            updated_at: msg.updated_at || new Date().toISOString(),
-            read_at: msg.read_at,
-          })));
-          
-          // Create ticket episode
-          const ticketCategory = getTicketCategory(ticket);
-          const unreadCount = ticketMessages.filter((msg: any) => 
-            msg.direction === 'incoming' && !msg.read_at
-          ).length;
-          
-          episodes.push({
-            ticket,
-            messageCount: ticketMessages.length,
-            startDate: ticket.created_at,
-            endDate: ticket.resolved_at || (ticket.status === 'CLOSED' ? ticket.updated_at : undefined),
-            status: ticket.status,
-            category: ticketCategory,
-            unreadCount,
-            lastMessage: ticketMessages[ticketMessages.length - 1],
-          });
-        }
-        
-        // Sort messages by timestamp
-        allMessages.sort((a, b) => 
-          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        );
-        
-        // Find current active ticket (most recent open)
-        const currentTicket = tickets.find(t => t.status === 'OPEN') || tickets[0];
+        // Create ticket episodes for info panel
+        const episodes: TicketEpisode[] = tickets.map((ticket: any) => ({
+          ticket,
+          messageCount: ticket.message_count || 0,
+          startDate: ticket.created_at,
+          endDate: ticket.resolved_at || (ticket.status === 'CLOSED' ? ticket.updated_at : undefined),
+          status: ticket.status,
+          category: getTicketCategory(ticket),
+          unreadCount: ticket.unread_count || 0,
+          lastMessage: ticket.last_message,
+        }));
         
         // Get contact info
         const contact = get().conversations.find(c => c.contact.id === contactId)?.contact;
         if (!contact) throw new Error('Contact not found');
         
+        // Find current active ticket (most recent open)
+        const currentTicket = tickets.find(t => t.status === 'OPEN') || tickets[0];
+        
         const conversation: ContactConversation = {
           contact,
-          allMessages,
+          allMessages: [], // Messages will be loaded separately by loadContactMessages
           ticketEpisodes: episodes,
           currentTicket,
-          totalMessages: allMessages.length,
+          totalMessages: episodes.reduce((sum, ep) => sum + ep.messageCount, 0),
           unreadCount: episodes.reduce((sum, ep) => sum + ep.unreadCount, 0),
-          lastActivity: allMessages[allMessages.length - 1]?.created_at || new Date().toISOString(),
-          conversationAge: calculateConversationAge(allMessages[0]?.created_at),
+          lastActivity: currentTicket?.updated_at || new Date().toISOString(),
+          conversationAge: calculateConversationAge(currentTicket?.created_at),
         };
         
         set((state) => ({
           activeContactConversation: conversation,
-          contactMessages: {
-            ...state.contactMessages,
-            [contactId]: allMessages,
-          },
           ticketEpisodes: {
             ...state.ticketEpisodes,
             [contactId]: episodes,
           },
-          isLoadingMessages: false,
+          // Also set active ticket if not already set
+          activeTicket: state.activeTicket || currentTicket,
         }));
         
       } catch (error) {
         console.error('Failed to load contact conversation:', error);
         set({
           error: 'Failed to load contact conversation',
-          isLoadingMessages: false,
         });
       }
     },
 
-    loadContactMessages: async (contactId: string, page = 1) => {
-      // This method loads all messages for a contact across all tickets
-      await get().loadContactConversation(contactId);
+    loadContactMessages: async (contactId: string, page = 1, query?: string, append = false) => {
+      try {
+        console.log('🔍 loadContactMessages called with:', { contactId, page, query, append });
+        set({ isLoadingMessages: true, error: null });
+        
+        // Use the unified contact messages endpoint with DESC order for reverse pagination
+        const response = await messagesApi.getByContact(contactId, { 
+          page, 
+          limit: 20, 
+          query,
+          order: 'timestamp DESC' // Get newest messages first
+        });
+        
+        console.log('🔍 API response:', response);
+        
+        // Handle different response formats
+        let messages: Message[] = [];
+        if (response.data?.messages) {
+          messages = response.data.messages;
+        } else if (response.data && Array.isArray(response.data)) {
+          messages = response.data;
+        } else if (response.data && response.data.data) {
+          messages = response.data.data;
+        }
+        
+        const total = response.meta?.total || response.data?.meta?.total || messages.length;
+        
+        console.log('🔍 Processed messages:', messages.length, 'total:', total);
+        
+        // Convert backend message format to frontend format
+        const formattedMessages: Message[] = messages.map((msg: any) => ({
+          id: msg.id?.toString(),
+          ticket_id: msg.ticket_id?.toString(),
+          contact_id: msg.contact_id?.toString(),
+          session_id: msg.session_id || 'default',
+          wa_message_id: msg.wa_message_id,
+          direction: msg.direction?.toLowerCase() as 'incoming' | 'outgoing',
+          message_type: msg.message_type || 'text',
+          content: msg.content || msg.body || '',
+          body: msg.content || msg.body || '',
+          status: msg.status?.toLowerCase() || 'sent',
+          media_url: msg.media_url,
+          created_at: msg.timestamp || msg.created_at || new Date().toISOString(),
+          updated_at: msg.updated_at || new Date().toISOString(),
+          read_at: msg.read_at,
+        }));
+        
+        // For reverse pagination: reverse the messages to show oldest to newest
+        const reversedMessages = formattedMessages.reverse();
+        
+        set((state) => {
+          const existingMessages = state.contactMessages[contactId] || [];
+          let newMessages: Message[];
+          
+          if (append && page > 1) {
+            // Append older messages to the beginning (for pagination)
+            newMessages = [...reversedMessages, ...existingMessages];
+          } else {
+            // Replace messages (for initial load or refresh)
+            newMessages = reversedMessages;
+          }
+          
+          return {
+            contactMessages: {
+              ...state.contactMessages,
+              [contactId]: newMessages,
+            },
+            searchQuery: query || '',
+            searchResults: query ? newMessages : [],
+            isLoadingMessages: false,
+          };
+        });
+        
+        console.log('🔍 Search state updated:', { searchQuery: query, searchResultsCount: query ? formattedMessages.length : 0 });
+        
+        // Return the response so we can access pagination metadata
+        return response;
+        
+      } catch (error) {
+        console.error('Failed to load contact messages:', error);
+        set({
+          error: 'Failed to load messages',
+          isLoadingMessages: false,
+        });
+        throw error;
+      }
+    },
+
+    loadOlderMessages: async (contactId: string, page: number) => {
+      try {
+        console.log('🔍 loadOlderMessages called with:', { contactId, page });
+        set({ isLoadingMessages: true, error: null });
+        
+        // Load older messages (higher page number = older messages)
+        const response = await messagesApi.getByContact(contactId, { 
+          page, 
+          limit: 20, 
+          order: 'timestamp DESC' // Get older messages
+        });
+        
+        console.log('🔍 API response for older messages:', response);
+        
+        // Handle different response formats
+        let messages: Message[] = [];
+        if (response.data?.messages) {
+          messages = response.data.messages;
+        } else if (response.data && Array.isArray(response.data)) {
+          messages = response.data;
+        } else if (response.data && response.data.data) {
+          messages = response.data.data;
+        }
+        
+        // Convert backend message format to frontend format
+        const formattedMessages: Message[] = messages.map((msg: any) => ({
+          id: msg.id?.toString(),
+          ticket_id: msg.ticket_id?.toString(),
+          contact_id: msg.contact_id?.toString(),
+          session_id: msg.session_id || 'default',
+          wa_message_id: msg.wa_message_id,
+          direction: msg.direction?.toLowerCase() as 'incoming' | 'outgoing',
+          message_type: msg.message_type || 'text',
+          content: msg.content || msg.body || '',
+          body: msg.content || msg.body || '',
+          status: msg.status?.toLowerCase() || 'sent',
+          media_url: msg.media_url,
+          created_at: msg.timestamp || msg.created_at || new Date().toISOString(),
+          updated_at: msg.updated_at || new Date().toISOString(),
+          read_at: msg.read_at,
+        }));
+        
+        // For reverse pagination: reverse the messages to show oldest to newest
+        const reversedMessages = formattedMessages.reverse();
+        
+        // Append older messages to the beginning
+        set((state) => {
+          const existingMessages = state.contactMessages[contactId] || [];
+          const newMessages = [...reversedMessages, ...existingMessages];
+          
+          return {
+            contactMessages: {
+              ...state.contactMessages,
+              [contactId]: newMessages,
+            },
+            isLoadingMessages: false,
+          };
+        });
+        
+        console.log('🔍 Messages loaded:', { contactId, messageCount: reversedMessages.length });
+        
+      } catch (error) {
+        console.error('Failed to load contact messages:', error);
+        set({
+          error: 'Failed to load messages',
+          isLoadingMessages: false,
+        });
+      }
     },
 
     loadTicketEpisodes: async (contactId: string) => {
@@ -508,14 +620,24 @@ export const useChatStore = create<ChatStore>()(
       }));
     },
 
-    loadMessages: async (ticketId: string, page = 1) => {
+    loadMessages: async (ticketId: string, page = 1, forceRefresh = false) => {
       try {
         set({ isLoadingMessages: true, error: null });
+        
+        // Check if we already have messages for this ticket and page
+        const existingMessages = get().messages[ticketId] || [];
+        const existingPage = get().messagePages[ticketId] || 0;
+        
+        // Skip loading if we already have the data and not forcing refresh
+        if (!forceRefresh && existingMessages.length > 0 && existingPage === page) {
+          set({ isLoadingMessages: false });
+          return;
+        }
         
         // Load messages from backend
         const messages = await messagesApi.getByTicket(ticketId, {
           page,
-          per_page: 50,
+          per_page: 1000,
           order: 'created_at ASC'
         });
         
@@ -557,24 +679,143 @@ export const useChatStore = create<ChatStore>()(
       }
     },
 
+    appendMessages: async (ticketId: string, page = 1) => {
+      try {
+        set({ isLoadingMessages: true, error: null });
+        
+        const existingMessages = get().messages[ticketId] || [];
+        
+        // Load messages from backend
+        const messages = await messagesApi.getByTicket(ticketId, {
+          page,
+          per_page: 1000,
+          order: 'created_at ASC'
+        });
+        
+        // Convert backend messages to frontend format
+        const formattedMessages: Message[] = messages.map((msg: any) => ({
+          id: msg.id?.toString(),
+          ticket_id: msg.ticket_id?.toString(),
+          contact_id: msg.contact_id?.toString(),
+          session_id: msg.session_id || 'default',
+          wa_message_id: msg.wa_message_id,
+          direction: msg.direction?.toLowerCase() as 'incoming' | 'outgoing',
+          message_type: msg.message_type || 'text',
+          content: msg.body || msg.content || '',
+          body: msg.body || msg.content || '',
+          status: msg.status?.toLowerCase() || 'sent',
+          media_url: msg.media_url,
+          created_at: msg.timestamp || msg.created_at || new Date().toISOString(),
+          updated_at: msg.updated_at || new Date().toISOString(),
+          read_at: msg.read_at,
+        }));
+        
+        // Append new messages to existing ones, avoiding duplicates
+        const existingIds = new Set(existingMessages.map(msg => msg.id));
+        const newMessages = formattedMessages.filter(msg => !existingIds.has(msg.id));
+        
+        set((state) => ({
+          messages: {
+            ...state.messages,
+            [ticketId]: [...existingMessages, ...newMessages],
+          },
+          messagePages: {
+            ...state.messagePages,
+            [ticketId]: page,
+          },
+          isLoadingMessages: false,
+        }));
+      } catch (error) {
+        console.error('Failed to append messages:', error);
+        set({
+          error: error instanceof Error ? error.message : 'Failed to append messages',
+          isLoadingMessages: false,
+        });
+      }
+    },
+
+    refreshMessages: async (ticketId: string) => {
+      return get().loadMessages(ticketId, 1, true);
+    },
+
+    updateSingleMessage: (ticketId: string, messageId: string, updates: Partial<Message>) => {
+      set((state) => ({
+        messages: {
+          ...state.messages,
+          [ticketId]: state.messages[ticketId]?.map(msg =>
+            msg.id === messageId ? { ...msg, ...updates } : msg
+          ) || [],
+        },
+      }));
+    },
+
+    addSingleMessage: (ticketId: string, message: Message) => {
+      set((state) => {
+        const existingMessages = state.messages[ticketId] || [];
+        const existingIds = new Set(existingMessages.map(msg => msg.id));
+        
+        // Don't add if message already exists
+        if (existingIds.has(message.id)) {
+          return state;
+        }
+        
+        return {
+          messages: {
+            ...state.messages,
+            [ticketId]: [...existingMessages, message],
+          },
+        };
+      });
+    },
+
     sendMessage: async (data) => {
       try {
         set({ isSendingMessage: true, error: null });
         
-        const { activeTicket, activeContact } = get();
+        const { activeContact } = get();
+        const ticketToUse = get().getActiveTicket();
         
-        if (!activeTicket || !activeContact) {
-          throw new Error('No active conversation');
+        if (!ticketToUse || !activeContact) {
+          console.error('Send message failed - missing data:', {
+            activeContact: !!activeContact,
+            ticketToUse: !!ticketToUse,
+            activeTicket: !!get().activeTicket,
+            activeContactConversation: !!get().activeContactConversation,
+            currentTicket: !!get().activeContactConversation?.currentTicket
+          });
+          throw new Error('No active conversation or ticket');
+        }
+
+        // Get phone number from multiple possible fields
+        const phoneNumber = activeContact.phone || activeContact.phone_number || activeContact.PhoneNumber;
+        
+        // Validate phone number
+        if (!phoneNumber) {
+          console.error('Send message failed - missing phone number:', {
+            activeContact: activeContact,
+            phone: activeContact.phone,
+            phone_number: activeContact.phone_number,
+            PhoneNumber: activeContact.PhoneNumber,
+            contactId: activeContact.id
+          });
+          throw new Error('Contact phone number is required');
         }
 
         // Prepare message data for backend
         const messageData = {
           session_name: 'default', // TODO: Get from session store
-          ticket_id: parseInt(activeTicket.id.toString()),
-          to: activeContact.phone,
+          ticket_id: parseInt(ticketToUse.id.toString()),
+          to: phoneNumber,
           text: data.content,
           admin_id: 1, // TODO: Get from auth store
         };
+
+        console.log('🔍 Sending message with data:', {
+          to: messageData.to,
+          ticket_id: messageData.ticket_id,
+          text: messageData.text?.substring(0, 50) + '...',
+          contactId: activeContact.id
+        });
 
         let response;
         
@@ -598,7 +839,7 @@ export const useChatStore = create<ChatStore>()(
         // The message will be added via WebSocket or we can add it optimistically
         const newMessage: Message = {
           id: response.id?.toString() || Date.now().toString(),
-          ticket_id: activeTicket.id.toString(),
+          ticket_id: ticketToUse.id.toString(),
           contact_id: activeContact.id,
           session_id: 'default',
           direction: 'outgoing',
@@ -610,13 +851,13 @@ export const useChatStore = create<ChatStore>()(
           updated_at: new Date().toISOString(),
         };
 
-        // Add message to contact's message list instead of ticket-based list
-        set((state) => ({
-          messages: {
-            ...state.messages,
-            [activeContact.id]: [...(state.messages[activeContact.id] || []), newMessage],
-          },
-        }));
+        // Add message to both contact and ticket message lists
+        get().addMessage(newMessage);
+        
+        // Refresh contact messages to ensure the new message appears
+        if (activeContact?.id) {
+          await get().loadContactMessages(activeContact.id, 1);
+        }
         
         set({ isSendingMessage: false });
       } catch (error) {
@@ -631,27 +872,45 @@ export const useChatStore = create<ChatStore>()(
 
     addMessage: (message: Message) => {
       const contactId = message.contact_id;
+      const ticketId = message.ticket_id;
       if (!contactId) return;
       
+      // Add to contact-based messages (for unified view)
       set((state) => ({
-        messages: {
-          ...state.messages,
-          [contactId]: [...(state.messages[contactId] || []), message],
+        contactMessages: {
+          ...state.contactMessages,
+          [contactId]: [...(state.contactMessages[contactId] || []), message],
         },
       }));
+      
+      // Also add to ticket-based messages if ticketId exists
+      if (ticketId) {
+        get().addSingleMessage(ticketId, message);
+      }
     },
 
     updateMessage: (messageId: string, updates: Partial<Message>) => {
       set((state) => {
-        const newMessages: Record<string, Message[]> = {};
-        
-        Object.entries(state.messages).forEach(([contactId, contactMessages]) => {
-          newMessages[contactId] = contactMessages.map(msg =>
+        // Update in contact-based messages
+        const newContactMessages: Record<string, Message[]> = {};
+        Object.entries(state.contactMessages).forEach(([contactId, contactMessages]) => {
+          newContactMessages[contactId] = contactMessages.map(msg =>
             msg.id === messageId ? { ...msg, ...updates } : msg
           );
         });
         
-        return { messages: newMessages };
+        // Update in ticket-based messages
+        const newMessages: Record<string, Message[]> = {};
+        Object.entries(state.messages).forEach(([ticketId, ticketMessages]) => {
+          newMessages[ticketId] = ticketMessages.map(msg =>
+            msg.id === messageId ? { ...msg, ...updates } : msg
+          );
+        });
+        
+        return { 
+          contactMessages: newContactMessages,
+          messages: newMessages 
+        };
       });
     },
 
@@ -945,6 +1204,14 @@ export const useChatStore = create<ChatStore>()(
       set({ rightSidebarMode: mode });
       if (mode === 'always') set({ rightSidebarVisible: true });
       if (mode === 'never') set({ rightSidebarVisible: false });
+    },
+
+    // Helper method to get active ticket from multiple sources
+    getActiveTicket: () => {
+      const state = get();
+      return state.activeTicket || 
+             state.activeContactConversation?.currentTicket || 
+             state.activeConversation?.active_ticket;
     },
   }))
 );

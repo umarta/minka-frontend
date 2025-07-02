@@ -42,6 +42,8 @@ export interface AuthResponse {
 export interface Contact extends BaseEntity {
   name: string;
   phone: string;
+  phone_number?: string; // Backend field name
+  PhoneNumber?: string; // Alternative backend field name
   email?: string;
   avatar_url?: string;
   labels: Label[];

@@ -89,10 +89,20 @@ export function ChatLayout({ children }: { children?: React.ReactNode }) {
 
   // Load contact conversation when active contact changes
   useEffect(() => {
-    if (activeContact && conversationMode === 'unified') {
-      loadContactConversation(activeContact.id);
+    console.log('DEBUG useEffect activeContact changed:', activeContact);
+    if (activeContact) {
+      console.log('DEBUG calling loadContactConversation with ID:', activeContact.id);
+      // Call directly without dependency to avoid infinite loop
+      const loadData = async () => {
+        try {
+          await loadContactConversation(activeContact.id);
+        } catch (error) {
+          console.error('Failed to load contact conversation:', error);
+        }
+      };
+      loadData();
     }
-  }, [activeContact, conversationMode, loadContactConversation]);
+  }, [activeContact]); // Remove loadContactConversation from dependency
 
   // Search functionality
   const handleSearch = async (query: string) => {
