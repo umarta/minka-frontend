@@ -522,15 +522,101 @@ export function MessageBubble({
 
   return (
     <div className={cn(
-      "flex w-full group",
-      isOutgoing ? "justify-end" : "justify-start",
-      isGrouped ? "mb-0.5" : "mb-3"
+      "flex w-full group items-center",
+      isOutgoing ? "justify-end flex-row" : "justify-start flex-row"
     )}>
+      {/* Action Buttons - Outside Bubble */}
+      <div
+        className={cn(
+          "opacity-0 group-hover:opacity-100 transition-opacity z-20 flex flex-col items-center",
+          isOutgoing ? "order-1" : "order-2",
+          isOutgoing ? "mr-0 ml-2" : "ml-0 mr-2"
+        )}
+        style={{ minWidth: 32 }}
+      >
+        <div className="flex items-center gap-1">
+          {/* Quick React */}
+          <div className="relative">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0 bg-white shadow-sm"
+              onMouseEnter={() => setShowReactions(true)}
+              onMouseLeave={() => setShowReactions(false)}
+            >
+              <Smile className="h-3 w-3" />
+            </Button>
+            {showReactions && (
+              <div 
+                className="absolute bottom-8 left-0 bg-white shadow-lg rounded-lg p-2 flex gap-1 z-10"
+                onMouseEnter={() => setShowReactions(true)}
+                onMouseLeave={() => setShowReactions(false)}
+              >
+                {quickReactions.map((emoji) => (
+                  <button
+                    key={emoji}
+                    className="hover:bg-gray-100 rounded p-1 text-lg"
+                    onClick={() => {
+                      onReact?.(message.id, emoji);
+                      setShowReactions(false);
+                    }}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {/* More Actions */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 bg-white shadow-sm">
+                <MoreVertical className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side={isOutgoing ? "left" : "right"} align="start">
+              <DropdownMenuItem onClick={() => onReply?.(message)}>
+                <Reply className="h-4 w-4 mr-2" />
+                Reply
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onForward?.(message)}>
+                <Forward className="h-4 w-4 mr-2" />
+                Forward
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onCopy?.(message.content)}>
+                <Copy className="h-4 w-4 mr-2" />
+                Copy
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <Star className="h-4 w-4 mr-2" />
+                Star
+              </DropdownMenuItem>
+              {message.can_edit && isOutgoing && (
+                <DropdownMenuItem onClick={() => onEdit?.(message.id)}>
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              {message.can_delete && (
+                <DropdownMenuItem 
+                  className="text-red-600"
+                  onClick={() => onDelete?.(message.id)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+      {/* Bubble */}
       <div className={cn(
         "max-w-[75%] rounded-lg px-3 py-2 relative",
         isOutgoing 
-          ? "bg-green-500 text-white rounded-br-sm" 
-          : "bg-white border border-gray-200 rounded-bl-sm shadow-sm",
+          ? "bg-green-500 text-white rounded-br-sm order-2 ml-0" 
+          : "bg-white border border-gray-200 rounded-bl-sm shadow-sm order-1 mr-0",
         isGrouped && isOutgoing && "rounded-br-lg",
         isGrouped && !isOutgoing && "rounded-bl-lg"
       )}>
@@ -595,91 +681,6 @@ export function MessageBubble({
           <div className="flex items-center gap-1">
             {getStatusIcon()}
             {renderReadReceipts()}
-          </div>
-        </div>
-
-        {/* Message Actions - Visible on Hover */}
-        <div className={cn(
-          "absolute top-1 opacity-0 group-hover:opacity-100 transition-opacity",
-          isOutgoing ? "-left-10" : "-right-10"
-        )}>
-          <div className="flex items-center gap-1">
-            {/* Quick React */}
-            <div className="relative">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 w-6 p-0 bg-white shadow-sm"
-                onMouseEnter={() => setShowReactions(true)}
-                onMouseLeave={() => setShowReactions(false)}
-              >
-                <Smile className="h-3 w-3" />
-              </Button>
-              
-              {showReactions && (
-                <div 
-                  className="absolute bottom-8 left-0 bg-white shadow-lg rounded-lg p-2 flex gap-1 z-10"
-                  onMouseEnter={() => setShowReactions(true)}
-                  onMouseLeave={() => setShowReactions(false)}
-                >
-                  {quickReactions.map((emoji) => (
-                    <button
-                      key={emoji}
-                      className="hover:bg-gray-100 rounded p-1 text-lg"
-                      onClick={() => {
-                        onReact?.(message.id, emoji);
-                        setShowReactions(false);
-                      }}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* More Actions */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 bg-white shadow-sm">
-                  <MoreVertical className="h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side={isOutgoing ? "left" : "right"} align="start">
-                <DropdownMenuItem onClick={() => onReply?.(message)}>
-                  <Reply className="h-4 w-4 mr-2" />
-                  Reply
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onForward?.(message)}>
-                  <Forward className="h-4 w-4 mr-2" />
-                  Forward
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onCopy?.(message.content)}>
-                  <Copy className="h-4 w-4 mr-2" />
-                  Copy
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Star className="h-4 w-4 mr-2" />
-                  Star
-                </DropdownMenuItem>
-                {message.can_edit && isOutgoing && (
-                  <DropdownMenuItem onClick={() => onEdit?.(message.id)}>
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuSeparator />
-                {message.can_delete && (
-                  <DropdownMenuItem 
-                    className="text-red-600"
-                    onClick={() => onDelete?.(message.id)}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
         </div>
       </div>

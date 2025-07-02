@@ -355,18 +355,28 @@ export type TicketPriority = 'low' | 'normal' | 'high' | 'urgent';
 
 // Enhanced Conversation Management
 export interface Conversation {
+  id: string;
+  contact_id: string;
   contact: Contact;
+  session_id?: string;
+  session?: Session;
+  last_message_id?: string;
   last_message?: Message;
+  tickets?: Ticket[];
+  created_at: string;
+  updated_at: string;
+  
+  // Enriched fields from backend
   unread_count: number;
   status: ConversationStatus;
-  assigned_to?: User;
-  labels: Label[];
   last_activity: string;
-  ticket?: Ticket;
-  
-  // Enhanced features
   priority?: 'urgent' | 'high' | 'normal' | 'low';
   online_status?: 'online' | 'recent' | 'offline';
+  labels: string[];
+  assigned_to?: User;
+  active_ticket?: Ticket;
+  
+  // Enhanced features
   ticket_episodes?: TicketEpisode[];
   contact_notes?: ContactNote[];
 }

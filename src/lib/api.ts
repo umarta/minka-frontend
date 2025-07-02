@@ -117,6 +117,35 @@ const handleApiResponse = <T>(response: AxiosResponse<ApiResponse<T>>): T => {
   throw new Error(response.data.error || response.data.message || 'API request failed');
 };
 
+// Helper function to extract array from paginated or direct response
+const extractArray = <T>(data: T[] | { data: T[] } | PaginatedResponse<T>): T[] => {
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === 'object' && 'data' in data && Array.isArray((data as any).data)) {
+    return (data as any).data;
+  }
+  return [];
+};
+
+// Helper function to extract single item from response
+const extractSingle = <T>(data: T | { data: T }): T => {
+  if (data && typeof data === 'object' && 'data' in data) {
+    return (data as any).data;
+  }
+  return data as T;
+};
+
+// Standardized API response handler for array responses
+const handleArrayResponse = <T>(response: AxiosResponse<ApiResponse<T[] | PaginatedResponse<T>>>): T[] => {
+  const data = handleApiResponse(response);
+  return extractArray(data);
+};
+
+// Standardized API response handler for single item responses
+const handleSingleResponse = <T>(response: AxiosResponse<ApiResponse<T>>): T => {
+  const data = handleApiResponse(response);
+  return extractSingle(data);
+};
+
 const handleApiError = (error: AxiosError<ApiResponse>) => {
   if (error.response?.data) {
     const { message, error: errorMessage, errors } = error.response.data;
@@ -138,9 +167,11 @@ export const authApi = {
   login: async (credentials: { username: string; password: string }) => {
     try {
       const response = await api.post('/auth/login', credentials);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
@@ -150,6 +181,8 @@ export const authApi = {
       tokenManager.removeTokens();
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
@@ -157,36 +190,44 @@ export const authApi = {
     try {
       const refreshToken = tokenManager.getRefreshToken();
       const response = await api.post('/auth/refresh', { refresh_token: refreshToken });
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   changePassword: async (data: { current_password: string; new_password: string }) => {
     try {
       const response = await api.post('/auth/change-password', data);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   getProfile: async () => {
     try {
       const response = await api.get('/auth/me');
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   updateProfile: async (data: any) => {
     try {
       const response = await api.put('/admin/profile', data);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 };
@@ -196,108 +237,129 @@ export const contactsApi = {
   getAll: async (params?: { page?: number; per_page?: number; search?: string; label?: string }) => {
     try {
       const response = await api.get('/contacts', { params });
-      return handleApiResponse<PaginatedResponse<any>>(response);
+      return handleArrayResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+      return [];
     }
   },
   
   getById: async (id: string) => {
     try {
       const response = await api.get(`/contacts/${id}`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+      return null;
     }
   },
   
   create: async (data: any) => {
     try {
       const response = await api.post('/contacts', data);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+      return null;
     }
   },
   
   update: async (id: string, data: any) => {
     try {
       const response = await api.put(`/contacts/${id}`, data);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   delete: async (id: string) => {
     try {
       const response = await api.delete(`/contacts/${id}`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   block: async (id: string) => {
     try {
       const response = await api.post(`/contacts/${id}/block`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   unblock: async (id: string) => {
     try {
       const response = await api.post(`/contacts/${id}/unblock`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   search: async (query: string, params?: any) => {
     try {
       const response = await api.get('/contacts/search', { params: { ...params, search: query } });
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   bulkUpdate: async (ids: string[], data: any) => {
     try {
       const response = await api.put('/contacts/bulk', { ids, data });
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   bulkDelete: async (ids: string[]) => {
     try {
       const response = await api.delete('/contacts/bulk', { data: { ids } });
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   addLabel: async (contactId: string, labelId: string) => {
     try {
       const response = await api.post(`/contacts/${contactId}/labels/${labelId}`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   removeLabel: async (contactId: string, labelId: string) => {
     try {
       const response = await api.delete(`/contacts/${contactId}/labels/${labelId}`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
@@ -311,9 +373,11 @@ export const contactsApi = {
       const response = await api.post('/contacts/import', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
@@ -326,6 +390,8 @@ export const contactsApi = {
       return response.data;
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 };
@@ -335,36 +401,44 @@ export const labelsApi = {
   getAll: async () => {
     try {
       const response = await api.get('/labels');
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   create: async (data: any) => {
     try {
       const response = await api.post('/labels', data);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   update: async (id: string, data: any) => {
     try {
       const response = await api.put(`/labels/${id}`, data);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   delete: async (id: string) => {
     try {
       const response = await api.delete(`/labels/${id}`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 };
@@ -374,9 +448,11 @@ export const adminsApi = {
   getAll: async () => {
     try {
       const response = await api.get('/admin/users');
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 };
@@ -386,126 +462,154 @@ export const sessionsApi = {
   getAll: async () => {
     try {
       const response = await api.get('/sessions');
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   getById: async (id: string) => {
     try {
       const response = await api.get(`/sessions/by-id/${id}`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   getByName: async (name: string) => {
     try {
       const response = await api.get(`/sessions/by-name/${name}`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   create: async (data: any) => {
     try {
       const response = await api.post('/sessions', data);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   update: async (id: string, data: any) => {
     try {
       const response = await api.put(`/sessions/by-id/${id}`, data);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   delete: async (id: string) => {
     try {
       const response = await api.delete(`/sessions/by-id/${id}`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   start: async (name: string) => {
     try {
       const response = await api.post(`/sessions/by-name/${name}/start`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   stop: async (name: string) => {
     try {
       const response = await api.post(`/sessions/by-name/${name}/stop`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   restart: async (name: string) => {
     try {
       const response = await api.post(`/sessions/by-name/${name}/restart`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   getQR: async (name: string) => {
     try {
       const response = await api.get(`/sessions/by-name/${name}/qr`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   getStatus: async (name: string) => {
     try {
       const response = await api.get(`/sessions/by-name/${name}/status`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   logout: async (name: string) => {
     try {
       const response = await api.post(`/sessions/by-name/${name}/logout`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   sync: async () => {
     try {
       const response = await api.post('/sessions/sync');
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   getActiveCount: async () => {
     try {
       const response = await api.get('/sessions/active/count');
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 };
@@ -515,27 +619,31 @@ export const messagesApi = {
   getByContact: async (contactId: string, params?: { page?: number; per_page?: number }) => {
     try {
       const response = await api.get(`/messages/contact/${contactId}`, { params });
-      return handleApiResponse<PaginatedResponse<any>>(response);
+      return handleArrayResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+      return [];
     }
   },
 
   getByTicket: async (ticketId: string, params?: { page?: number; per_page?: number; order?: string }) => {
     try {
       const response = await api.get(`/messages/ticket/${ticketId}`, { params });
-      return handleApiResponse<PaginatedResponse<any>>(response);
+      return handleArrayResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+      return [];
     }
   },
   
   send: async (data: any) => {
     try {
       const response = await api.post('/messages/send/text', data);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
@@ -546,36 +654,44 @@ export const messagesApi = {
           'Content-Type': 'multipart/form-data',
         },
       });
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   markAsRead: async (ticketId: string) => {
     try {
       const response = await api.put(`/messages/ticket/${ticketId}/read-all`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   markSingleAsRead: async (messageId: string) => {
     try {
       const response = await api.put(`/messages/${messageId}/read`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   search: async (query: string, params?: any) => {
     try {
       const response = await api.get('/messages/search', { params: { query, ...params } });
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
@@ -585,42 +701,52 @@ export const messagesApi = {
       return handleApiResponse<PaginatedResponse<any>>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   getById: async (id: string) => {
     try {
       const response = await api.get(`/messages/${id}`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   update: async (id: string, data: any) => {
     try {
       const response = await api.put(`/messages/${id}`, data);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   delete: async (id: string) => {
     try {
       const response = await api.delete(`/messages/${id}`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   getUnreadCount: async (ticketId: string) => {
     try {
       const response = await api.get(`/messages/ticket/${ticketId}/unread-count`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 };
@@ -630,72 +756,86 @@ export const ticketsApi = {
   getAll: async (params?: any) => {
     try {
       const response = await api.get('/tickets', { params });
-      return handleApiResponse<PaginatedResponse<any>>(response);
+      return handleArrayResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+      return [];
     }
   },
   
   getById: async (id: string) => {
     try {
       const response = await api.get(`/tickets/${id}`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   getByContact: async (contactId: string, params?: any) => {
     try {
       const response = await api.get(`/tickets/contact/${contactId}`, { params });
-      return handleApiResponse<PaginatedResponse<any>>(response);
+      return handleArrayResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+      return [];
     }
   },
   
   create: async (data: any) => {
     try {
       const response = await api.post('/tickets', data);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   update: async (id: string, data: any) => {
     try {
       const response = await api.put(`/tickets/${id}`, data);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   assign: async (id: string, adminId: string) => {
     try {
       const response = await api.post(`/tickets/${id}/assign`, { admin_id: adminId });
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   close: async (id: string, resolution?: string) => {
     try {
       const response = await api.post(`/tickets/${id}/close`, { resolution });
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   delete: async (id: string) => {
     try {
       const response = await api.delete(`/tickets/${id}`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 };
@@ -705,36 +845,44 @@ export const dashboardApi = {
   getStats: async () => {
     try {
       const response = await api.get('/dashboard/stats');
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   getAgentPerformance: async (params?: any) => {
     try {
       const response = await api.get('/dashboard/agent-performance', { params });
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   getMessageMetrics: async (params?: any) => {
     try {
       const response = await api.get('/dashboard/message-metrics', { params });
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   getResponseTimeMetrics: async (params?: any) => {
     try {
       const response = await api.get('/dashboard/response-time', { params });
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 };
@@ -744,9 +892,11 @@ export const reportsApi = {
   generate: async (type: string, filters?: any) => {
     try {
       const response = await api.post('/reports/generate', { type, filters });
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
@@ -758,6 +908,8 @@ export const reportsApi = {
       return response.data;
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 };
@@ -767,36 +919,43 @@ export const adminApi = {
   getAll: async (params?: any) => {
     try {
       const response = await api.get('/admins', { params });
-      return handleApiResponse<PaginatedResponse<any>>(response);
+      return handleArrayResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+      return [];
     }
   },
   
   create: async (data: any) => {
     try {
       const response = await api.post('/admins', data);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   update: async (id: string, data: any) => {
     try {
       const response = await api.put(`/admins/${id}`, data);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
   
   delete: async (id: string) => {
     try {
       const response = await api.delete(`/admins/${id}`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 };
@@ -818,9 +977,11 @@ export const wahaApi = {
   }) => {
     try {
       const response = await api.post('/sync/messages/contact', data);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
@@ -844,9 +1005,11 @@ export const wahaApi = {
   }) => {
     try {
       const response = await api.post('/sync/messages/all', data);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
@@ -854,9 +1017,11 @@ export const wahaApi = {
   getSyncStatus: async (phoneNumber: string) => {
     try {
       const response = await api.get(`/sync/status/${phoneNumber}`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
@@ -864,9 +1029,11 @@ export const wahaApi = {
   getAllSyncStatuses: async () => {
     try {
       const response = await api.get('/sync/status/all');
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
@@ -874,9 +1041,11 @@ export const wahaApi = {
   getSyncHistory: async (params?: { limit?: number; offset?: number; phone_number?: string }) => {
     try {
       const response = await api.get('/sync/history', { params });
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
@@ -888,9 +1057,11 @@ export const wahaApi = {
   }) => {
     try {
       const response = await api.post('/sync/resolve-conflicts', data);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
@@ -898,9 +1069,11 @@ export const wahaApi = {
   getWahaStatus: async (sessionName: string) => {
     try {
       const response = await api.get(`/waha/sessions/${sessionName}/status`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
@@ -908,9 +1081,11 @@ export const wahaApi = {
   validatePhoneNumber: async (phoneNumber: string) => {
     try {
       const response = await api.post('/sync/validate-phone', { phone_number: phoneNumber });
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 };
@@ -920,63 +1095,76 @@ export const quickReplyApi = {
   getAll: async (params?: { page?: number; per_page?: number; category?: string }) => {
     try {
       const response = await api.get('/quick-replies', { params });
-      return handleApiResponse<PaginatedResponse<any>>(response);
+      return handleArrayResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+      return [];
     }
   },
 
   getById: async (id: string) => {
     try {
       const response = await api.get(`/quick-replies/${id}`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   create: async (data: { title: string; content: string; category: string }) => {
     try {
       const response = await api.post('/quick-replies', data);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   update: async (id: string, data: { title?: string; content?: string; category?: string }) => {
     try {
       const response = await api.put(`/quick-replies/${id}`, data);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   delete: async (id: string) => {
     try {
       const response = await api.delete(`/quick-replies/${id}`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   getByCategory: async (category: string) => {
     try {
       const response = await api.get(`/quick-replies/category/${category}`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   incrementUsage: async (id: string) => {
     try {
       const response = await api.post(`/quick-replies/${id}/increment-usage`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 };
@@ -986,45 +1174,96 @@ export const contactNotesApi = {
   getByContact: async (contactId: string, params?: { page?: number; per_page?: number }) => {
     try {
       const response = await api.get(`/contact-notes/contact/${contactId}`, { params });
-      return handleApiResponse<PaginatedResponse<any>>(response);
+      return handleArrayResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+      return [];
     }
   },
 
   getById: async (id: string) => {
     try {
       const response = await api.get(`/contact-notes/${id}`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   create: async (data: { contact_id: string; content: string; type: 'public' | 'private' }) => {
     try {
       const response = await api.post('/contact-notes', data);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   update: async (id: string, data: { content?: string; type?: 'public' | 'private' }) => {
     try {
       const response = await api.put(`/contact-notes/${id}`, data);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   delete: async (id: string) => {
     try {
       const response = await api.delete(`/contact-notes/${id}`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
+    }
+  },
+};
+
+// Conversations API
+export const conversationsApi = {
+  getAll: async (params?: { page?: number; per_page?: number }) => {
+    try {
+      const response = await api.get('/conversations', { params });
+      return handleArrayResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return [];
+    }
+  },
+
+  getById: async (id: string) => {
+    try {
+      const response = await api.get(`/conversations/${id}`);
+      return handleSingleResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return null;
+    }
+  },
+
+  // New method to get conversation detail with all messages
+  getConversationDetail: async (contactId: string, params?: {
+    mode?: 'unified' | 'ticket-specific';
+    page?: number;
+    limit?: number;
+    include_reactions?: boolean;
+    include_receipts?: boolean;
+    include_history?: boolean;
+    ticket_id?: string;
+  }) => {
+    try {
+      const response = await api.get(`/enhanced-messages/conversation/${contactId}`, { params });
+      return handleSingleResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return null;
     }
   },
 };
@@ -1034,54 +1273,66 @@ export const draftMessagesApi = {
   getByContact: async (contactId: string) => {
     try {
       const response = await api.get(`/draft-messages/contact/${contactId}`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   getById: async (id: string) => {
     try {
       const response = await api.get(`/draft-messages/${id}`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   create: async (data: { contact_id: string; content: string }) => {
     try {
       const response = await api.post('/draft-messages', data);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   update: async (id: string, data: { content: string }) => {
     try {
       const response = await api.put(`/draft-messages/${id}`, data);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   delete: async (id: string) => {
     try {
       const response = await api.delete(`/draft-messages/${id}`);
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 
   autoSave: async (contactId: string, content: string) => {
     try {
       const response = await api.post('/draft-messages/auto-save', { contact_id: contactId, content });
-      return handleApiResponse(response);
+      return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+
+      return null;
     }
   },
 };

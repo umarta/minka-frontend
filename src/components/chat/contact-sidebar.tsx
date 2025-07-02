@@ -26,6 +26,9 @@ export function ContactSidebar() {
     sidebarCollapsed
   } = useChatStore();
 
+  // Tambahkan log debug conversations
+  console.log('ContactSidebar conversations:', conversations);
+
   const [selectedTab, setSelectedTab] = useState<'needReply' | 'automated' | 'completed'>('needReply');
   const [localSearchQuery, setLocalSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'time' | 'unread' | 'name'>('time');
@@ -81,7 +84,8 @@ export function ContactSidebar() {
         convs = [
           ...chatGroups.needReply.urgent,
           ...chatGroups.needReply.normal,
-          ...chatGroups.needReply.overdue
+          ...chatGroups.needReply.overdue,
+          ...conversations.filter(c => c.status === 'pending')
         ];
         break;
       case 'automated':
@@ -131,7 +135,7 @@ export function ContactSidebar() {
   const renderConversation = (conversation: Conversation) => {
     const isActive = activeContact?.id === conversation.contact.id;
     const onlineStatus = getOnlineStatus(conversation.contact.last_seen || '');
-    const priorityIcon = getPriorityIcon(conversation.ticket, conversation.unread_count);
+    const priorityIcon = getPriorityIcon(conversation.active_ticket, conversation.unread_count);
     
     return (
       <div
@@ -236,7 +240,7 @@ export function ContactSidebar() {
                 )}
                 
                 {/* Status indicators */}
-                {conversation.ticket?.priority === 'urgent' && (
+                {conversation.active_ticket?.priority === 'urgent' && (
                   <Circle className="h-2 w-2 fill-red-500 text-red-500" />
                 )}
                 {conversation.assigned_to && (

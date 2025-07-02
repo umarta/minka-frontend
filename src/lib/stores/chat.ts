@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { Contact, Message, Conversation, ChatGroups, MessageForm, Ticket, QuickReplyTemplate, ContactNote, DraftMessage } from '@/types';
-import { contactsApi, messagesApi, ticketsApi, quickReplyApi, contactNotesApi, draftMessagesApi } from '@/lib/api';
+import { contactsApi, messagesApi, ticketsApi, quickReplyApi, contactNotesApi, draftMessagesApi, conversationsApi } from '@/lib/api';
 import { getWebSocketManager } from '@/lib/websocket';
+import { shallow } from 'zustand/shallow';
 
 // New types for contact-based conversations
 interface TicketEpisode {
@@ -72,6 +73,7 @@ interface ChatState {
   // Sidebar state
   sidebarCollapsed: boolean;
   rightSidebarVisible: boolean;
+  rightSidebarMode: 'auto' | 'always' | 'never'; // NEW: mode for info panel
   
   // Search
   searchQuery: string;
@@ -143,6 +145,7 @@ interface ChatActions {
   toggleRightSidebar: () => void;
   setError: (error: string | null) => void;
   clearError: () => void;
+  setRightSidebarMode: (mode: 'auto' | 'always' | 'never') => void; // NEW
 }
 
 type ChatStore = ChatState & ChatActions;
@@ -178,6 +181,7 @@ export const useChatStore = create<ChatStore>()(
     isSendingMessage: false,
     sidebarCollapsed: false,
     rightSidebarVisible: false,
+    rightSidebarMode: 'auto', // NEW
     searchQuery: '',
     searchResults: [],
     isSearching: false,
@@ -188,63 +192,20 @@ export const useChatStore = create<ChatStore>()(
     loadConversations: async () => {
       set({ isLoadingConversations: true, error: null });
       try {
-        // Load tickets from backend - these represent our conversations
-        const response = await ticketsApi.getAll({
-          page: 1,
-          per_page: 100,
-          include: 'contact,messages,assignedAdmin',
-          status: 'OPEN,IN_PROGRESS,RESOLVED'
-        });
-
-        const tickets = response.data || [];
-        
-        // Convert tickets to conversations format
-        const conversations: Conversation[] = tickets.map((ticket: any) => ({
-          id: ticket.id.toString(),
-          contact: {
-            id: ticket.contact?.id?.toString() || ticket.contact_id?.toString(),
-            name: ticket.contact?.name || ticket.contact?.phone || 'Unknown Contact',
-            phone: ticket.contact?.phone || '',
-            avatar_url: ticket.contact?.avatar_url || '',
-            wa_id: ticket.contact?.wa_id || ticket.contact?.phone || '',
-            labels: ticket.contact?.labels || [],
-            is_blocked: ticket.contact?.is_blocked || false,
-            last_seen: ticket.contact?.last_seen || new Date().toISOString(),
-            created_at: ticket.contact?.created_at || new Date().toISOString(),
-            updated_at: ticket.contact?.updated_at || new Date().toISOString(),
-          },
-          ticket_id: ticket.id,
-          last_message: ticket.messages?.[0] ? {
-            id: ticket.messages[0].id?.toString(),
-            content: ticket.messages[0].body || ticket.messages[0].content || '',
-            direction: ticket.messages[0].direction?.toLowerCase() as 'incoming' | 'outgoing',
-            created_at: ticket.messages[0].created_at || new Date().toISOString(),
-          } : null,
-          last_activity: ticket.updated_at || new Date().toISOString(),
-          unread_count: ticket.unread_count || 0,
-          status: ticket.status?.toLowerCase() || 'active',
-          priority: ticket.priority?.toLowerCase() || 'normal',
-          assigned_admin: ticket.assigned_admin ? {
-            id: ticket.assigned_admin.id?.toString(),
-            name: ticket.assigned_admin.name,
-            email: ticket.assigned_admin.email,
-          } : null,
-        }));
-
-        // Group conversations
-        const chatGroups = groupConversationsIntoCategories(conversations);
-
-        set({ 
+        // Load conversations from backend using the API with proper authentication
+        const conversations = await conversationsApi.getAll();
+        console.log('conversations', conversations);
+        set({
           conversations,
-          chatGroups,
           isLoadingConversations: false,
-          error: null 
+          error: null
         });
       } catch (error) {
         console.error('Failed to load conversations:', error);
-        set({ 
+        set({
+          conversations: [],
           error: 'Failed to load conversations',
-          isLoadingConversations: false 
+          isLoadingConversations: false
         });
       }
     },
@@ -264,42 +225,100 @@ export const useChatStore = create<ChatStore>()(
           activeContact: contact,
           activeConversation: conversation || null,
           selectedContactId: contact.id,
+          isLoadingMessages: true,
+          error: null,
         });
         
-        // If we have a conversation with a ticket, load messages
-        if (conversation?.ticket_id) {
-          set({ activeTicket: { id: conversation.ticket_id } as Ticket });
-          await get().loadMessages(conversation.ticket_id.toString());
-        } else {
-          // Create a new ticket for this contact if none exists
-          try {
-            const newTicket = await ticketsApi.create({
-              contact_id: parseInt(contact.id),
-              subject: `Chat with ${contact.name}`,
-              description: 'Auto-created ticket for chat conversation',
-              priority: 'NORMAL',
-              status: 'OPEN',
-            });
-            
-            set({ activeTicket: newTicket });
-            await get().loadMessages(newTicket.id.toString());
-            
-            // Refresh conversations to include the new ticket
-            get().loadConversations();
-          } catch (ticketError) {
-            console.error('Failed to create ticket for contact:', ticketError);
-            set({ error: 'Failed to create conversation' });
+        // Load conversation detail with all messages using the new enhanced endpoint
+        const response = await conversationsApi.getConversationDetail(contact.id, {
+          mode: 'unified',
+          include_reactions: true,
+          include_receipts: true,
+          include_history: true,
+        });
+        const conversationDetail = response.data || response;
+        console.log('conversationDetail before mapping:', conversationDetail);
+        
+        if (conversationDetail) {
+          // Extract messages from the response
+          const messages: Message[] = conversationDetail.messages?.map((msg: any) => ({
+            id: msg.id?.toString(),
+            ticket_id: msg.ticket_id?.toString(),
+            contact_id: msg.contact_id?.toString(),
+            session_id: msg.session_id || 'default',
+            wa_message_id: msg.wa_message_id,
+            direction: msg.direction?.toLowerCase() as 'incoming' | 'outgoing',
+            message_type: msg.message_type || 'text',
+            content: msg.content || msg.body || '',
+            body: msg.content || msg.body || '',
+            status: msg.status?.toLowerCase() || 'sent',
+            media_url: msg.media_url,
+            created_at: msg.created_at || new Date().toISOString(),
+            updated_at: msg.updated_at || new Date().toISOString(),
+            read_at: msg.read_at,
+            // Enhanced fields
+            sequence: msg.sequence,
+            reply_to_message_id: msg.reply_to_message_id,
+            quoted_message: msg.quoted_message,
+            forwarded_from: msg.forwarded_from,
+            reactions: msg.reactions,
+            read_by: msg.read_by,
+            edit_history: msg.edit_history,
+            thread_messages: msg.thread_messages,
+            has_replies: msg.has_replies,
+            file_info: msg.file_info,
+            audio_info: msg.audio_info,
+            location_info: msg.location_info,
+            metadata: msg.metadata,
+          })) || [];
+          console.log('Mapped messages:', messages);
+          
+          // Set active ticket if available
+          const activeTicket = conversationDetail.current_ticket || conversationDetail.tickets?.[0];
+          
+          if (activeTicket && activeTicket.id) {
+            set(state => ({
+              activeTicket,
+              messages: {
+                [activeTicket.id.toString()]: messages,
+              },
+              messagePages: {
+                [activeTicket.id.toString()]: 1,
+              },
+              contactMessages: {
+                ...state.contactMessages,
+                [contact.id]: messages,
+              },
+              isLoadingMessages: false,
+            }));
+          } else {
+            set(state => ({
+              activeTicket: null,
+              messages: {},
+              messagePages: {},
+              contactMessages: {
+                ...state.contactMessages,
+                [contact.id]: messages,
+              },
+              isLoadingMessages: false,
+            }));
           }
+          
+          // Join WebSocket room for real-time updates
+          const ws = getWebSocketManager();
+          if (ws && activeTicket?.id) {
+            ws.joinContactRoom(activeTicket.id.toString());
+          }
+        } else {
+          set({ isLoadingMessages: false });
         }
         
-        // Join WebSocket room for real-time updates
-        const ws = getWebSocketManager();
-        if (ws && conversation?.ticket_id) {
-          ws.joinContactRoom(conversation.ticket_id.toString());
-        }
       } catch (error) {
         console.error('Failed to select conversation:', error);
-        set({ error: 'Failed to select conversation' });
+        set({ 
+          error: 'Failed to load conversation details',
+          isLoadingMessages: false,
+        });
       }
     },
 
@@ -339,8 +358,7 @@ export const useChatStore = create<ChatStore>()(
         set({ isLoadingMessages: true, error: null });
         
         // Load all tickets for this contact
-        const ticketsResponse = await ticketsApi.getByContact(contactId);
-        const tickets = ticketsResponse.data || [];
+        const tickets = await ticketsApi.getByContact(contactId);
         
         // Load all messages for this contact (across all tickets)
         const allMessages: Message[] = [];
@@ -348,8 +366,7 @@ export const useChatStore = create<ChatStore>()(
         
         for (const ticket of tickets) {
           // Load messages for each ticket
-          const messagesResponse = await messagesApi.getByTicket(ticket.id.toString());
-          const ticketMessages = messagesResponse.data || [];
+          const ticketMessages = await messagesApi.getByTicket(ticket.id.toString());
           
           // Add to all messages
           allMessages.push(...ticketMessages.map((msg: any) => ({
@@ -439,8 +456,7 @@ export const useChatStore = create<ChatStore>()(
 
     loadTicketEpisodes: async (contactId: string) => {
       try {
-        const ticketsResponse = await ticketsApi.getByContact(contactId);
-        const tickets = ticketsResponse.data || [];
+        const tickets = await ticketsApi.getByContact(contactId);
         
         const episodes: TicketEpisode[] = tickets.map((ticket: any) => ({
           ticket,
@@ -471,10 +487,10 @@ export const useChatStore = create<ChatStore>()(
       get().loadMessages(ticketId);
       
       // Update active ticket
-      const conversation = get().conversations.find(c => c.ticket_id?.toString() === ticketId);
+      const conversation = get().conversations.find(c => c.active_ticket?.id?.toString() === ticketId);
       if (conversation) {
         set({ 
-          activeTicket: { id: parseInt(ticketId) } as Ticket,
+          activeTicket: conversation.active_ticket,
           activeConversation: conversation,
         });
       }
@@ -497,13 +513,11 @@ export const useChatStore = create<ChatStore>()(
         set({ isLoadingMessages: true, error: null });
         
         // Load messages from backend
-        const response = await messagesApi.getByTicket(ticketId, {
+        const messages = await messagesApi.getByTicket(ticketId, {
           page,
           per_page: 50,
           order: 'created_at ASC'
         });
-        
-        const messages = response.data || [];
         
         // Convert backend messages to frontend format
         const formattedMessages: Message[] = messages.map((msg: any) => ({
@@ -590,14 +604,19 @@ export const useChatStore = create<ChatStore>()(
           direction: 'outgoing',
           message_type: data.message_type || 'text',
           content: data.content,
-          body: data.content,
           status: 'sent',
           media_url: response.media_url,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
 
-        get().addMessage(newMessage);
+        // Add message to contact's message list instead of ticket-based list
+        set((state) => ({
+          messages: {
+            ...state.messages,
+            [activeContact.id]: [...(state.messages[activeContact.id] || []), newMessage],
+          },
+        }));
         
         set({ isSendingMessage: false });
       } catch (error) {
@@ -611,13 +630,13 @@ export const useChatStore = create<ChatStore>()(
     },
 
     addMessage: (message: Message) => {
-      const ticketId = message.ticket_id;
-      if (!ticketId) return;
+      const contactId = message.contact_id;
+      if (!contactId) return;
       
       set((state) => ({
         messages: {
           ...state.messages,
-          [ticketId]: [...(state.messages[ticketId] || []), message],
+          [contactId]: [...(state.messages[contactId] || []), message],
         },
       }));
     },
@@ -626,8 +645,8 @@ export const useChatStore = create<ChatStore>()(
       set((state) => {
         const newMessages: Record<string, Message[]> = {};
         
-        Object.entries(state.messages).forEach(([ticketId, ticketMessages]) => {
-          newMessages[ticketId] = ticketMessages.map(msg =>
+        Object.entries(state.messages).forEach(([contactId, contactMessages]) => {
+          newMessages[contactId] = contactMessages.map(msg =>
             msg.id === messageId ? { ...msg, ...updates } : msg
           );
         });
@@ -652,7 +671,7 @@ export const useChatStore = create<ChatStore>()(
             ) || [],
           },
           conversations: state.conversations.map(conv =>
-            conv.ticket_id?.toString() === ticketId
+            conv.active_ticket?.id?.toString() === ticketId
               ? { ...conv, unread_count: 0 }
               : conv
           ),
@@ -674,14 +693,20 @@ export const useChatStore = create<ChatStore>()(
       if (ticketId) {
         set((state) => ({
           conversations: state.conversations.map(conv =>
-            conv.ticket_id?.toString() === ticketId
+            conv.active_ticket?.id?.toString() === ticketId
               ? {
                   ...conv,
                   last_message: {
                     id: message.id,
-                    content: message.content,
+                    ticket_id: message.ticket_id,
+                    contact_id: message.contact_id,
+                    session_id: message.session_id,
                     direction: message.direction,
+                    message_type: message.message_type,
+                    content: message.content,
+                    status: message.status,
                     created_at: message.created_at,
+                    updated_at: message.updated_at,
                   },
                   unread_count: (conv.unread_count || 0) + 1,
                   last_activity: message.created_at,
@@ -779,8 +804,8 @@ export const useChatStore = create<ChatStore>()(
     // Quick Reply Templates
     loadQuickReplyTemplates: async () => {
       try {
-        const response = await quickReplyApi.getAll();
-        set({ quickReplyTemplates: response.data || [] });
+        const quickReplyTemplates = await quickReplyApi.getAll();
+        set({ quickReplyTemplates });
       } catch (error) {
         console.error('Failed to load quick reply templates:', error);
         set({ error: 'Failed to load quick reply templates' });
@@ -789,8 +814,8 @@ export const useChatStore = create<ChatStore>()(
 
     createQuickReply: async (data) => {
       try {
-        const response = await quickReplyApi.create(data);
-        set({ quickReplyTemplates: [...get().quickReplyTemplates, response.data] });
+        const quickReply = await quickReplyApi.create(data);
+        set({ quickReplyTemplates: [...get().quickReplyTemplates, quickReply] });
       } catch (error) {
         console.error('Failed to create quick reply:', error);
         set({ error: 'Failed to create quick reply' });
@@ -799,9 +824,9 @@ export const useChatStore = create<ChatStore>()(
 
     updateQuickReply: async (id, data) => {
       try {
-        const response = await quickReplyApi.update(id, data);
+        const quickReply = await quickReplyApi.update(id, data);
         set({ quickReplyTemplates: get().quickReplyTemplates.map(qr =>
-          qr.id === id ? response.data : qr
+          qr.id === id ? quickReply : qr
         ) });
       } catch (error) {
         console.error('Failed to update quick reply:', error);
@@ -821,9 +846,9 @@ export const useChatStore = create<ChatStore>()(
 
     useQuickReply: async (id) => {
       try {
-        const response = await quickReplyApi.use(id);
+        const quickReply = await quickReplyApi.incrementUsage(id);
         set({ quickReplyTemplates: get().quickReplyTemplates.map(qr =>
-          qr.id === id ? response.data : qr
+          qr.id === id ? quickReply : qr
         ) });
       } catch (error) {
         console.error('Failed to use quick reply:', error);
@@ -834,8 +859,8 @@ export const useChatStore = create<ChatStore>()(
     // Contact Notes
     loadContactNotes: async (contactId) => {
       try {
-        const response = await contactNotesApi.getAll(contactId);
-        set({ contactNotes: response.data || {} });
+        const contactNotes = await contactNotesApi.getByContact(contactId);
+        set({ contactNotes: { [contactId]: contactNotes } });
       } catch (error) {
         console.error('Failed to load contact notes:', error);
         set({ error: 'Failed to load contact notes' });
@@ -844,8 +869,8 @@ export const useChatStore = create<ChatStore>()(
 
     createContactNote: async (contactId, data) => {
       try {
-        const response = await contactNotesApi.create(contactId, data);
-        set({ contactNotes: { ...get().contactNotes, [contactId]: [...(get().contactNotes[contactId] || []), response.data] } });
+        const contactNote = await contactNotesApi.create({ ...data, contact_id: contactId });
+        set({ contactNotes: { ...get().contactNotes, [contactId]: [...(get().contactNotes[contactId] || []), contactNote] } });
       } catch (error) {
         console.error('Failed to create contact note:', error);
         set({ error: 'Failed to create contact note' });
@@ -854,9 +879,9 @@ export const useChatStore = create<ChatStore>()(
 
     updateContactNote: async (id, data) => {
       try {
-        const response = await contactNotesApi.update(id, data);
+        const contactNote = await contactNotesApi.update(id, data);
         set({ contactNotes: { ...get().contactNotes, [get().activeContactConversation?.contact.id || '']: get().contactNotes[get().activeContactConversation?.contact.id || ''].map(n =>
-          n.id === id ? response.data : n
+          n.id === id ? contactNote : n
         ) } });
       } catch (error) {
         console.error('Failed to update contact note:', error);
@@ -877,8 +902,8 @@ export const useChatStore = create<ChatStore>()(
     // Draft Messages
     loadDraftMessage: async (contactId) => {
       try {
-        const response = await draftMessagesApi.get(contactId);
-        set({ draftMessages: response.data || {} });
+        const draftMessage = await draftMessagesApi.getByContact(contactId);
+        set({ draftMessages: { [contactId]: draftMessage } });
       } catch (error) {
         console.error('Failed to load draft message:', error);
         set({ error: 'Failed to load draft message' });
@@ -887,8 +912,8 @@ export const useChatStore = create<ChatStore>()(
 
     saveDraftMessage: async (contactId, content) => {
       try {
-        const response = await draftMessagesApi.create(contactId, content);
-        set({ draftMessages: { ...get().draftMessages, [contactId]: response.data } });
+        const draftMessage = await draftMessagesApi.create({ contact_id: contactId, content });
+        set({ draftMessages: { ...get().draftMessages, [contactId]: draftMessage } });
       } catch (error) {
         console.error('Failed to save draft message:', error);
         set({ error: 'Failed to save draft message' });
@@ -898,7 +923,8 @@ export const useChatStore = create<ChatStore>()(
     deleteDraftMessage: async (contactId) => {
       try {
         await draftMessagesApi.delete(contactId);
-        set({ draftMessages: { ...get().draftMessages, [contactId]: undefined } });
+        const { [contactId]: deleted, ...remainingDrafts } = get().draftMessages;
+        set({ draftMessages: remainingDrafts });
       } catch (error) {
         console.error('Failed to delete draft message:', error);
         set({ error: 'Failed to delete draft message' });
@@ -907,12 +933,18 @@ export const useChatStore = create<ChatStore>()(
 
     autoSaveDraft: async (contactId, content) => {
       try {
-        const response = await draftMessagesApi.update(contactId, content);
-        set({ draftMessages: { ...get().draftMessages, [contactId]: response.data } });
+        const draftMessage = await draftMessagesApi.update(contactId, { content });
+        set({ draftMessages: { ...get().draftMessages, [contactId]: draftMessage } });
       } catch (error) {
         console.error('Failed to auto-save draft message:', error);
         set({ error: 'Failed to auto-save draft message' });
       }
+    },
+
+    setRightSidebarMode: (mode) => {
+      set({ rightSidebarMode: mode });
+      if (mode === 'always') set({ rightSidebarVisible: true });
+      if (mode === 'never') set({ rightSidebarVisible: false });
     },
   }))
 );
@@ -1084,13 +1116,13 @@ export const useChatSearch = () => useChatStore((state) => ({
   clearSearch: state.clearSearch,
 }));
 
-export const useChatUI = () => useChatStore((state) => ({
-  sidebarCollapsed: state.sidebarCollapsed,
-  rightSidebarVisible: state.rightSidebarVisible,
-  toggleSidebar: state.toggleSidebar,
-  setSidebarCollapsed: state.setSidebarCollapsed,
-  toggleRightSidebar: state.toggleRightSidebar,
-}));
+export const useSidebarCollapsed = () => useChatStore((state) => state.sidebarCollapsed);
+export const useRightSidebarVisible = () => useChatStore((state) => state.rightSidebarVisible);
+export const useToggleSidebar = () => useChatStore((state) => state.toggleSidebar);
+export const useSetSidebarCollapsed = () => useChatStore((state) => state.setSidebarCollapsed);
+export const useToggleRightSidebar = () => useChatStore((state) => state.toggleRightSidebar);
+export const useRightSidebarMode = () => useChatStore((state) => state.rightSidebarMode);
+export const useSetRightSidebarMode = () => useChatStore((state) => state.setRightSidebarMode);
 
 export const useChatError = () => useChatStore((state) => ({
   error: state.error,

@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, Phone, VideoIcon, MoreVertical, Archive, UserCheck, MessageSquare, Settings, User, Ban, Trash2 } from 'lucide-react';
+import { ArrowLeft, Phone, VideoIcon, MoreVertical, Archive, UserCheck, MessageSquare, Settings, User, Ban, Trash2, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -16,7 +16,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { id } from 'date-fns/locale';
 
 export function ChatHeader() {
-  const { activeContact, activeConversation } = useChatStore();
+  const { activeContact, activeConversation, toggleRightSidebar } = useChatStore();
 
   if (!activeContact) {
     return (
@@ -92,6 +92,9 @@ export function ChatHeader() {
         </Button>
         <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-900">
           <VideoIcon className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-900" onClick={toggleRightSidebar} title="Lihat Info Kontak">
+          <Info className="h-4 w-4" />
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

@@ -28,8 +28,10 @@ interface ChatAreaProps {
 export function ChatArea(props: ChatAreaProps) {
   const { activeContact } = useChatStore();
 
+  console.log('activeContact', activeContact);
+
   return (
-    <div className="flex flex-col h-full w-full">
+    <div className="flex flex-col h-full min-w-0 flex-1">
       {!activeContact ? (
         <div className="flex-1 h-full">
           <EmptyChatState />
@@ -40,15 +42,6 @@ export function ChatArea(props: ChatAreaProps) {
           <div className="flex-1 overflow-hidden">
             <MessagesList 
               contactId={activeContact.id}
-              onReact={props.onReact}
-              onEdit={props.onEdit}
-              onReply={props.onReply}
-              onForward={props.onForward}
-              onDelete={props.onDelete}
-              onCopy={props.onCopy}
-              searchResults={props.searchResults}
-              isSearching={props.isSearching}
-              searchQuery={props.searchQuery}
             />
           </div>
           <MessageInput 
