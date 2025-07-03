@@ -120,11 +120,10 @@ export function ContactSidebar() {
     });
   };
 
-  const filteredConversations = getTabConversations().filter(conv =>
-    conv.contact.name.toLowerCase().includes(localSearchQuery.toLowerCase()) ||
-    conv.contact.phone.includes(localSearchQuery) ||
-    (conv.last_message?.content || '').toLowerCase().includes(localSearchQuery.toLowerCase())
-  );
+  // Untuk tes, tampilkan semua
+  const filteredConversations = conversations;
+
+  console.log('Filtered conversations:', filteredConversations);
 
   const handleQuickAction = (e: React.MouseEvent, action: string, conversation: Conversation) => {
     e.stopPropagation();
@@ -133,6 +132,7 @@ export function ContactSidebar() {
   };
 
   const renderConversation = (conversation: Conversation) => {
+    console.log('conversation in renderConversation', conversation);
     const isActive = activeContact?.id === conversation.contact.id;
     const onlineStatus = getOnlineStatus(conversation.contact.last_seen || '');
     const priorityIcon = getPriorityIcon(conversation.active_ticket, conversation.unread_count);
@@ -377,48 +377,49 @@ export function ContactSidebar() {
     );
   }
 
+  // FULL SIDEBAR
   return (
-    <div className="flex flex-col h-full bg-white border-r border-gray-200">
+    <aside className="flex flex-col h-full bg-white border-r border-gray-200 w-80 max-w-xs min-w-[18rem]">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Percakapan</h2>
-          <div className="flex items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" title="Urutkan">
-                  <Clock className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setSortBy('time')}>
-                  <Clock className="h-4 w-4 mr-2" />
-                  Waktu Terbaru
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSortBy('unread')}>
-                  <MessageCircle className="h-4 w-4 mr-2" />
-                  Belum Dibaca
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSortBy('name')}>
-                  <Phone className="h-4 w-4 mr-2" />
-                  Nama A-Z
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={toggleSidebar}
-              title="Collapse sidebar"
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-              </svg>
-            </Button>
-          </div>
+      <header className="p-4 border-b border-gray-200 flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-gray-900">Percakapan</h2>
+        
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" title="Urutkan">
+                <Clock className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setSortBy('time')}>
+                <Clock className="h-4 w-4 mr-2" />
+                Waktu Terbaru
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSortBy('unread')}>
+                <MessageCircle className="h-4 w-4 mr-2" />
+                Belum Dibaca
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSortBy('name')}>
+                <Phone className="h-4 w-4 mr-2" />
+                Nama A-Z
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={toggleSidebar}
+            title="Collapse sidebar"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+            </svg>
+          </Button>
         </div>
-
-        {/* Search */}
+      </header>
+      {/* Search */}
+      <div className="p-4 pb-2 border-b border-gray-200">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
@@ -429,9 +430,8 @@ export function ContactSidebar() {
           />
         </div>
       </div>
-
-      {/* Enhanced Tabs */}
-      <div className="flex border-b border-gray-200">
+      {/* Tabs */}
+      <nav className="flex border-b border-gray-200 bg-white">
         <button
           className={cn(
             "flex-1 py-3 px-2 text-sm font-medium transition-colors relative",
@@ -488,10 +488,9 @@ export function ContactSidebar() {
             )}
           </div>
         </button>
-      </div>
-
+      </nav>
       {/* Conversations List */}
-      <div className="flex-1 overflow-y-auto">
+      <section className="flex-1 overflow-y-auto divide-y divide-gray-100 bg-white">
         {isLoadingConversations ? (
           <div className="flex flex-col items-center justify-center p-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div>
@@ -527,7 +526,7 @@ export function ContactSidebar() {
             )}
           </div>
         )}
-      </div>
-    </div>
+      </section>
+    </aside>
   );
 } 

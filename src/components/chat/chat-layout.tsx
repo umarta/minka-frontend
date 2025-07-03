@@ -297,27 +297,16 @@ export function ChatLayout({ children }: { children?: React.ReactNode }) {
   const isDesktop = useMediaQuery('(min-width: 1024px)');
 
   return (
-    <div className="flex flex-row h-full w-full">
-      {/* Sidebar kiri */}
-      <div className={cn(
-        "bg-white border-r border-gray-200 transition-all duration-300 flex-shrink-0",
-        sidebarCollapsed ? "w-16" : "w-80"
-      )}>
-        <ContactSidebar />
+    <div className="flex h-screen w-full overflow-hidden">
+      <ContactSidebar />
+      <div className="flex flex-1 flex-col h-full min-w-0">
+        <ChatArea {...enhancedChatAreaProps} />
       </div>
-      {/* Chat area */}
-      <div className="flex-1 min-w-0 flex flex-col bg-gray-50">
-        {children}
-      </div>
-      {/* Info panel (push drawer) */}
-      <div
-        className={cn(
-          "transition-all duration-300 bg-white border-l border-gray-200 shadow-lg z-30 overflow-hidden flex-shrink-0",
-          rightSidebarVisible ? "w-80" : "w-0"
-        )}
-      >
-        {rightSidebarVisible && <InfoPanel />}
-      </div>
+      <TicketHistoryPanel 
+        episodes={activeContactConversation?.ticketEpisodes || []}
+        onEpisodeSelect={handleEpisodeSelect}
+        onShowAllMessages={handleShowAllMessages}
+      />
     </div>
   );
 } 

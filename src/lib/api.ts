@@ -394,6 +394,37 @@ export const contactsApi = {
       return null;
     }
   },
+
+  // Takeover management
+  setTakeover: async (contactId: string, adminId: string) => {
+    try {
+      const response = await api.put(`/contacts/${contactId}/takeover`, { admin_id: adminId });
+      return handleSingleResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return null;
+    }
+  },
+
+  releaseTakeover: async (contactId: string) => {
+    try {
+      const response = await api.put(`/contacts/${contactId}/takeover`, { action: 'release' });
+      return handleSingleResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return null;
+    }
+  },
+
+  getTakeoverStatus: async (contactId: string) => {
+    try {
+      const response = await api.get(`/contacts/${contactId}/takeover`);
+      return handleSingleResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return null;
+    }
+  },
 };
 
 // Labels API

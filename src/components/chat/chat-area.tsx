@@ -4,6 +4,7 @@ import { ChatHeader } from './chat-header';
 import { MessagesList } from './messages-list';
 import { MessageInput } from './message-input';
 import { EmptyChatState } from './empty-chat-state';
+import { TakeoverStatus } from './takeover-status';
 import { useChatStore } from '@/lib/stores/chat';
 import { Message } from '@/types';
 
@@ -40,6 +41,7 @@ export function ChatArea(props: ChatAreaProps) {
         <>
           <ChatHeader />
           <div className="flex-1 overflow-hidden">
+            <TakeoverStatus contact={activeContact} />
             <MessagesList 
               contactId={activeContact.id}
             />

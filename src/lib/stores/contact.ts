@@ -55,6 +55,11 @@ interface ContactActions {
   addContactLabel: (contactId: string, labelId: string) => Promise<void>;
   removeContactLabel: (contactId: string, labelId: string) => Promise<void>;
   
+  // Takeover management
+  setTakeover: (contactId: string, adminId: string) => Promise<void>;
+  releaseTakeover: (contactId: string) => Promise<void>;
+  getTakeoverStatus: (contactId: string) => Promise<any>;
+  
   // Label management
   createLabel: (data: { name: string; color: string; description?: string }) => Promise<void>;
   updateLabel: (id: string, data: Partial<{ name: string; color: string; description?: string }>) => Promise<void>;
@@ -433,6 +438,65 @@ export const useContactStore = create<ContactStore>()(
 
     clearError: () => {
       set({ error: null });
+    },
+
+    // Takeover management
+    setTakeover: async (contactId, adminId) => {
+      try {
+        set({ error: null });
+        
+        await contactsApi.setTakeover(contactId, adminId);
+        
+        // Update local state
+        set((state) => ({
+          contacts: state.contacts.map(contact =>
+            contact.id === contactId 
+              ? { ...contact, is_takeover_by_admin: true, takeover_by_admin_id: adminId }
+              : contact
+          ),
+        }));
+      } catch (error) {
+        set({
+          error: error instanceof Error ? error.message : 'Failed to set takeover',
+        });
+        throw error;
+      }
+    },
+
+    releaseTakeover: async (contactId) => {
+      try {
+        set({ error: null });
+        
+        await contactsApi.releaseTakeover(contactId);
+        
+        // Update local state
+        set((state) => ({
+          contacts: state.contacts.map(contact =>
+            contact.id === contactId 
+              ? { ...contact, is_takeover_by_admin: false, takeover_by_admin_id: null }
+              : contact
+          ),
+        }));
+      } catch (error) {
+        set({
+          error: error instanceof Error ? error.message : 'Failed to release takeover',
+        });
+        throw error;
+      }
+    },
+
+    getTakeoverStatus: async (contactId) => {
+      try {
+        set({ error: null });
+        
+        const response = await contactsApi.getTakeoverStatus(contactId);
+        return response;
+      } catch (error) {
+        set({
+          error: error instanceof Error ? error.message : 'Failed to get takeover status',
+        });
+        throw error;
+      }
     },
   }))
 );

@@ -64,16 +64,6 @@ export function MessagesList({ contactId }: MessagesListProps) {
     paginationMeta
   });
 
-  // Auto-scroll to bottom when new messages arrive (but only if user is at bottom)
-  useEffect(() => {
-    if (autoScroll && messagesEndRef.current && hasLoadedMessages) {
-      // Small delay to ensure DOM is updated
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-    }
-  }, [displayMessages, autoScroll, hasLoadedMessages]);
-
   // Load messages when component mounts or contact changes
   useEffect(() => {
     if (contactId) {
@@ -100,6 +90,15 @@ export function MessagesList({ contactId }: MessagesListProps) {
       return () => clearTimeout(timer);
     }
   }, [contactId, loadContactMessages]);
+
+  // Auto-scroll ke bawah hanya saat buka chat baru
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+  }, [contactId]);
 
   // Load messages when ticket changes - use optimized loading
   useEffect(() => {
@@ -216,7 +215,7 @@ export function MessagesList({ contactId }: MessagesListProps) {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto max-h-[82vh] px-2 py-4 pb-24" ref={containerRef} onScroll={handleScroll}>
+    <div className="flex-1 overflow-y-auto max-h-[85vh] px-2 py-4 pb-24" ref={containerRef} onScroll={handleScroll}>
       {/* Loading indicator for older messages */}
       {isLoadingOlder && (
         <div className="flex justify-center py-2">

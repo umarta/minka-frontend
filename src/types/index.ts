@@ -51,6 +51,14 @@ export interface Contact extends BaseEntity {
   last_seen?: string;
   notes?: string;
   metadata?: Record<string, any>;
+  
+  // Takeover fields
+  is_takeover_by_admin?: boolean;
+  takeover_at?: string;
+  takeover_by_admin_id?: string;
+  auto_reply_enabled?: boolean;
+  last_admin_message_at?: string;
+  takeover_admin?: User;
 }
 
 export interface Label extends BaseEntity {

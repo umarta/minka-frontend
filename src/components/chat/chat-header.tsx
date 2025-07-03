@@ -16,6 +16,7 @@ import { useChatStore } from '@/lib/stores/chat';
 import { formatDistanceToNow } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { useState, useCallback, useEffect } from 'react';
+import { TakeoverStatus } from './takeover-status';
 
 export function ChatHeader() {
   const { 
@@ -135,6 +136,7 @@ export function ChatHeader() {
           <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-900" onClick={toggleRightSidebar} title="Lihat Info Kontak">
             <Info className="h-4 w-4" />
           </Button>
+          <TakeoverStatus contact={activeContact} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-900">
