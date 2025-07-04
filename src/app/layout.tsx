@@ -4,11 +4,17 @@ import "./globals.css";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { Toaster } from "@/components/ui/toaster";
 import "@/lib/debug"; // Load debug utilities
+import { createWebSocketManager } from '@/lib/websocket';
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
 });
+
+// Inisialisasi WebSocketManager sekali di root
+if (typeof window !== 'undefined') {
+  createWebSocketManager();
+}
 
 export const metadata: Metadata = {
   title: "WhatsApp Admin CS - Customer Service Management System",

@@ -1,4 +1,3 @@
-import { io, Socket } from 'socket.io-client';
 import { WebSocketEventType } from '@/types';
 import { tokenManager } from './api';
 
@@ -7,164 +6,77 @@ export interface WebSocketConfig {
   auth?: {
     token: string;
   };
-  transports?: string[];
   autoConnect?: boolean;
 }
 
 export class WebSocketManager {
-  private socket: Socket | null = null;
-  private eventListeners: Map<WebSocketEventType, Array<(data: any) => void>> = new Map();
+  private socket: WebSocket | null = null;
+  private eventListeners: Map<string, Array<(data: any) => void>> = new Map();
   private isConnected = false;
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private reconnectDelay = 1000;
 
   constructor(private config: WebSocketConfig) {
     this.initializeSocket();
   }
 
   private initializeSocket() {
-    const token = tokenManager.getToken();
-    
-    this.socket = io(this.config.url, {
-      auth: {
-        token: token,
-      },
-      transports: this.config.transports || ['websocket', 'polling'],
-      autoConnect: this.config.autoConnect !== false,
-    });
-
-    this.setupEventHandlers();
-  }
-
-  private setupEventHandlers() {
-    if (!this.socket) return;
-
-    // Connection events
-    this.socket.on('connect', () => {
-      console.log('WebSocket connected');
-      this.isConnected = true;
-      this.reconnectAttempts = 0;
-      this.emit('connection_established', { connected: true });
-    });
-
-    this.socket.on('disconnect', (reason) => {
-      console.log('WebSocket disconnected:', reason);
-      this.isConnected = false;
-      this.emit('connection_lost', { reason });
-    });
-
-    this.socket.on('connect_error', (error) => {
-      console.error('WebSocket connection error:', error);
-      this.handleReconnection();
-    });
-
-    // Authentication events
-    this.socket.on('auth_error', (error) => {
-      console.error('WebSocket auth error:', error);
-      this.emit('auth_error', error);
-    });
-
-    // Message events
-    this.socket.on('message_received', (data) => {
-      this.emit('message_received', data);
-    });
-
-    this.socket.on('message_sent', (data) => {
-      this.emit('message_sent', data);
-    });
-
-    this.socket.on('message_status_update', (data) => {
-      this.emit('message_status_update', data);
-    });
-
-    // Typing events
-    this.socket.on('typing_start', (data) => {
-      this.emit('typing_start', data);
-    });
-
-    this.socket.on('typing_stop', (data) => {
-      this.emit('typing_stop', data);
-    });
-
-    // User presence events
-    this.socket.on('user_online', (data) => {
-      this.emit('user_online', data);
-    });
-
-    this.socket.on('user_offline', (data) => {
-      this.emit('user_offline', data);
-    });
-
-    // Session events
-    this.socket.on('session_status_update', (data) => {
-      this.emit('session_status_update', data);
-    });
-
-    this.socket.on('qr_code_update', (data) => {
-      this.emit('qr_code_update', data);
-    });
-
-    // Conversation events
-    this.socket.on('conversation_assigned', (data) => {
-      this.emit('conversation_assigned', data);
-    });
-
-    // Ticket events
-    this.socket.on('ticket_created', (data) => {
-      this.emit('ticket_created', data);
-    });
-
-    this.socket.on('ticket_updated', (data) => {
-      this.emit('ticket_updated', data);
-    });
-
-    // Admin activity events
-    this.socket.on('admin_activity', (data) => {
-      this.emit('admin_activity', data);
-    });
-  }
-
-  private handleReconnection() {
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++;
-      const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
-      
-      console.log(`Attempting to reconnect... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-      
-      setTimeout(() => {
-        this.connect();
-      }, delay);
-    } else {
-      console.error('Max reconnection attempts reached');
-      this.emit('max_reconnect_attempts_reached', { attempts: this.reconnectAttempts });
+    let url = this.config.url;
+    // Optionally add token as query param if needed
+    if (this.config.auth?.token) {
+      const sep = url.includes('?') ? '&' : '?';
+      url += `${sep}token=${encodeURIComponent(this.config.auth.token)}`;
     }
+    this.socket = new window.WebSocket(url);
+
+    this.socket.onopen = () => {
+      this.isConnected = true;
+      console.log('[WS] WebSocket connected');
+      this.emit('connection_established', { connected: true });
+    };
+    this.socket.onclose = (event) => {
+      this.isConnected = false;
+      console.log('[WS] WebSocket disconnected:', event.reason);
+      this.emit('connection_lost', { reason: event.reason });
+    };
+    this.socket.onerror = (error) => {
+      console.error('[WS] WebSocket error:', error);
+      this.emit('connection_error', error);
+    };
+    this.socket.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.event) {
+          this.emit(msg.event, msg.data);
+        } else if (msg.type) {
+          this.emit(msg.type, msg.data);
+        }
+      } catch (e) {
+        console.warn('[WS] Received non-JSON message:', event.data);
+      }
+    };
   }
 
-  // Public methods
   connect() {
-    if (this.socket) {
-      this.socket.connect();
+    if (!this.socket || this.socket.readyState === WebSocket.CLOSED) {
+      this.initializeSocket();
     }
   }
 
   disconnect() {
     if (this.socket) {
-      this.socket.disconnect();
+      this.socket.close();
     }
   }
 
-  // Event subscription
-  on(event: WebSocketEventType | 'connection_established' | 'connection_lost' | 'auth_error' | 'max_reconnect_attempts_reached', callback: (data: any) => void) {
-    if (!this.eventListeners.has(event as WebSocketEventType)) {
-      this.eventListeners.set(event as WebSocketEventType, []);
+  on(event: string, callback: (data: any) => void) {
+    if (!this.eventListeners.has(event)) {
+      this.eventListeners.set(event, []);
     }
-    this.eventListeners.get(event as WebSocketEventType)?.push(callback);
+    this.eventListeners.get(event)?.push(callback);
   }
 
-  off(event: WebSocketEventType | 'connection_established' | 'connection_lost' | 'auth_error' | 'max_reconnect_attempts_reached', callback?: (data: any) => void) {
+  off(event: string, callback?: (data: any) => void) {
     if (callback) {
-      const listeners = this.eventListeners.get(event as WebSocketEventType);
+      const listeners = this.eventListeners.get(event);
       if (listeners) {
         const index = listeners.indexOf(callback);
         if (index > -1) {
@@ -172,61 +84,51 @@ export class WebSocketManager {
         }
       }
     } else {
-      this.eventListeners.delete(event as WebSocketEventType);
+      this.eventListeners.delete(event);
     }
   }
 
-  private emit(event: WebSocketEventType | string, data: any) {
-    const listeners = this.eventListeners.get(event as WebSocketEventType);
+  private emit(event: string, data: any) {
+    const listeners = this.eventListeners.get(event);
     if (listeners) {
-      listeners.forEach(callback => callback(data));
+      listeners.forEach(cb => cb(data));
     }
   }
 
   // Room management
   joinRoom(room: string) {
     if (this.socket && this.isConnected) {
-      this.socket.emit('join_room', { room });
-      console.log(`Joined room: ${room}`);
+      this.socket.send(JSON.stringify({ type: 'join_room', room }));
+      console.log('[WS] Sent join_room:', room);
     }
   }
-
   leaveRoom(room: string) {
     if (this.socket && this.isConnected) {
-      this.socket.emit('leave_room', { room });
-      console.log(`Left room: ${room}`);
+      this.socket.send(JSON.stringify({ type: 'leave_room', room }));
+      console.log('[WS] Sent leave_room:', room);
     }
   }
-
-  // Chat specific methods
   joinContactRoom(contactId: string) {
     this.joinRoom(`contact_${contactId}`);
   }
-
   leaveContactRoom(contactId: string) {
     this.leaveRoom(`contact_${contactId}`);
   }
-
   joinSessionRoom(sessionId: string) {
     this.joinRoom(`session_${sessionId}`);
   }
-
   leaveSessionRoom(sessionId: string) {
     this.leaveRoom(`session_${sessionId}`);
   }
-
   joinTicketRoom(ticketId: string) {
     this.joinRoom(`ticket_${ticketId}`);
   }
-
   leaveTicketRoom(ticketId: string) {
     this.leaveRoom(`ticket_${ticketId}`);
   }
-
   joinAdminRoom(adminId: string) {
     this.joinRoom(`admin_${adminId}`);
   }
-
   leaveAdminRoom(adminId: string) {
     this.leaveRoom(`admin_${adminId}`);
   }
@@ -234,57 +136,38 @@ export class WebSocketManager {
   // Typing indicators
   startTyping(contactId: string) {
     if (this.socket && this.isConnected) {
-      this.socket.emit('typing_start', { contact_id: contactId });
+      this.socket.send(JSON.stringify({ type: 'typing_start', contact_id: contactId }));
     }
   }
-
   stopTyping(contactId: string) {
     if (this.socket && this.isConnected) {
-      this.socket.emit('typing_stop', { contact_id: contactId });
+      this.socket.send(JSON.stringify({ type: 'typing_stop', contact_id: contactId }));
     }
   }
-
   // User presence
   setUserOnline() {
     if (this.socket && this.isConnected) {
-      this.socket.emit('user_online');
+      this.socket.send(JSON.stringify({ type: 'user_online' }));
     }
   }
-
   setUserOffline() {
     if (this.socket && this.isConnected) {
-      this.socket.emit('user_offline');
+      this.socket.send(JSON.stringify({ type: 'user_offline' }));
     }
   }
-
   // Message events
   markMessageAsRead(messageId: string) {
     if (this.socket && this.isConnected) {
-      this.socket.emit('message_read', { message_id: messageId });
+      this.socket.send(JSON.stringify({ type: 'message_read', message_id: messageId }));
     }
   }
-
-  // Connection status
   isSocketConnected(): boolean {
-    return this.isConnected && this.socket?.connected === true;
+    return this.isConnected && this.socket?.readyState === WebSocket.OPEN;
   }
-
-  // Update authentication token
-  updateAuth(token: string) {
-    if (this.socket) {
-      this.socket.auth = { token };
-      if (this.isConnected) {
-        this.socket.disconnect();
-        this.socket.connect();
-      }
-    }
-  }
-
   // Cleanup
   destroy() {
     if (this.socket) {
-      this.socket.removeAllListeners();
-      this.socket.disconnect();
+      this.socket.close();
       this.socket = null;
     }
     this.eventListeners.clear();
@@ -292,28 +175,22 @@ export class WebSocketManager {
   }
 }
 
-// Create singleton instance
+// Singleton instance
 let wsManager: WebSocketManager | null = null;
 
 export const createWebSocketManager = (config?: Partial<WebSocketConfig>): WebSocketManager => {
   const defaultConfig: WebSocketConfig = {
-    url: process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080',
-    transports: ['websocket', 'polling'],
+    url: process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080/api/ws/connect',
     autoConnect: true,
   };
-
   const finalConfig = { ...defaultConfig, ...config };
-  
   if (!wsManager) {
     wsManager = new WebSocketManager(finalConfig);
   }
-  
   return wsManager;
 };
 
-export const getWebSocketManager = (): WebSocketManager | null => {
-  return wsManager;
-};
+export const getWebSocketManager = (): WebSocketManager | null => wsManager;
 
 export const destroyWebSocketManager = () => {
   if (wsManager) {

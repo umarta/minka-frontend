@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { Contact, Message, Conversation, ChatGroups, MessageForm, Ticket, QuickReplyTemplate, ContactNote, DraftMessage } from '@/types';
 import { contactsApi, messagesApi, ticketsApi, quickReplyApi, contactNotesApi, draftMessagesApi, conversationsApi } from '@/lib/api';
-import { getWebSocketManager } from '@/lib/websocket';
+import { createWebSocketManager, getWebSocketManager } from '@/lib/websocket';
 import { shallow } from 'zustand/shallow';
 
 /**
@@ -304,7 +304,9 @@ export const useChatStore = create<ChatStore>()(
           // Join WebSocket room for real-time updates
           const ws = getWebSocketManager();
           if (ws) {
-            ws.joinContactRoom(activeTicket.id.toString());
+            console.log('[WS] Join contact room:', contact.id);
+            ws.joinContactRoom(contact.id.toString());
+            console.log(`[WS] User joined chat room: contact_${contact.id}`);
           }
         } else {
           console.warn('No active ticket found for contact:', contact.id);
@@ -944,36 +946,81 @@ export const useChatStore = create<ChatStore>()(
     },
 
     // Real-time handlers
-    handleIncomingMessage: (message) => {
+    handleIncomingMessage: async (message) => {
+      console.log('[WS] handleIncomingMessage called:', message);
       get().addMessage(message);
-      
-      // Update conversation's last message and unread count
-      const ticketId = message.ticket_id;
-      if (ticketId) {
+
+      const contactId = message.contact_id;
+      const state = get();
+      const existingConv = state.conversations.find(conv => conv.contact.id?.toString() === contactId);
+      if (!existingConv) {
+        // Fetch conversation detail dari backend
+        try {
+          const conv = await conversationsApi.getById(contactId);
+          if (conv) {
+            set((state) => ({
+              conversations: [conv, ...state.conversations],
+            }));
+            get().groupConversations();
+          }
+        } catch (err) {
+          console.error('Failed to fetch new conversation:', err);
+        }
+      } else {
+        // Update conversation's last message, unread count, label, contact name, admin incharge, takeover flag
         set((state) => ({
-          conversations: state.conversations.map(conv =>
-            conv.active_ticket?.id?.toString() === ticketId
-              ? {
-                  ...conv,
-                  last_message: {
-                    id: message.id,
-                    ticket_id: message.ticket_id,
-                    contact_id: message.contact_id,
-                    session_id: message.session_id,
-                    direction: message.direction,
-                    message_type: message.message_type,
-                    content: message.content,
-                    status: message.status,
-                    created_at: message.created_at,
-                    updated_at: message.updated_at,
-                  },
-                  unread_count: (conv.unread_count || 0) + 1,
-                  last_activity: message.created_at,
-                }
-              : conv
-          ),
+          conversations: state.conversations.map(conv => {
+            if (conv.contact.id?.toString() === contactId) {
+              // Update last_message
+              const lastMsg = {
+                id: message.id,
+                ticket_id: message.ticket_id,
+                contact_id: message.contact_id,
+                session_id: message.session_id,
+                direction: message.direction,
+                message_type: message.message_type,
+                content: message.content,
+                status: message.status,
+                created_at: message.created_at,
+                updated_at: message.updated_at,
+              };
+              // Update unread_count (hanya untuk incoming)
+              let unread = conv.unread_count || 0;
+              if (message.direction === 'incoming') unread += 1;
+              // Update label jika ada perubahan
+              let labels = conv.labels;
+              if ('labels' in message && Array.isArray((message as any).labels) && (message as any).labels.length) {
+                labels = (message as any).labels;
+              }
+              // Update contact name jika belum ada
+              let contact = { ...conv.contact };
+              const msgContact = (message as any).contact || conv.contact;
+              if ((!contact.name || contact.name === '') && msgContact && msgContact.name && msgContact.name !== '') {
+                contact.name = msgContact.name;
+              }
+              // Update admin incharge dan takeover flag jika ada di message.contact
+              let assigned_to = conv.assigned_to;
+              if (msgContact && msgContact.assigned_to) {
+                assigned_to = msgContact.assigned_to;
+              }
+              let is_takeover_by_bot = false;
+              if (msgContact && typeof msgContact.is_takeover_by_bot !== 'undefined') {
+                is_takeover_by_bot = msgContact.is_takeover_by_bot;
+              }
+              return {
+                ...conv,
+                last_message: lastMsg,
+                unread_count: unread,
+                labels,
+                contact,
+                assigned_to,
+                is_takeover_by_bot,
+                last_activity: message.created_at,
+              };
+            }
+            return conv;
+          }),
         }));
-        
         get().groupConversations();
       }
     },
@@ -1309,23 +1356,83 @@ function calculateConversationAge(startDate?: string): string {
 }
 
 // Setup WebSocket listeners when store is created
-const ws = getWebSocketManager();
-if (ws) {
-  ws.on('message_received', (data) => {
+console.log('[WS] Chat store loaded');
+let ws = getWebSocketManager();
+if (!ws) {
+  ws = createWebSocketManager();
+  console.log('[WS] WebSocketManager auto-created in chat store');
+}
+if (ws && typeof window !== 'undefined') {
+  if (!window.__wsMessageReceivedHandler) {
+    window.__wsMessageReceivedHandler = (data: any) => {
+      console.log('[WS] message_received event:', data);
+      const message = {
+        id: (data.message_id || data.id || Date.now()).toString(),
+        ticket_id: (data.ticket_id || (data.ticket && data.ticket.id) || '').toString(),
+        contact_id: (data.contact_id || (data.contact && data.contact.id) || '').toString(),
+        session_id: data.session_name || 'default',
+        wa_message_id: data.wa_message_id || '',
+        direction: 'incoming' as 'incoming',
+        message_type: data.message_type || 'text',
+        content: data.body || data.content || '',
+        status: data.status || 'received',
+        media_url: data.media_url || '',
+        created_at: data.timestamp || new Date().toISOString(),
+        updated_at: data.timestamp || new Date().toISOString(),
+        read_at: data.read_at || null,
+      };
+      if (!message.content && message.message_type === 'text') {
+        console.warn('[WS] message_received: content kosong!', data);
+      }
+      // Play notification sound hanya untuk pesan incoming
+      if (message.direction === 'incoming') {
+        window.playNotificationSound && window.playNotificationSound();
+      }
+      useChatStore.getState().addMessage(message);
+    };
+    ws.off('message_received');
+    ws.on('message_received', window.__wsMessageReceivedHandler);
+    console.log('[WS] message_received handler registered ONCE (named)');
+  } else {
+    ws.off('message_received', window.__wsMessageReceivedHandler);
+    ws.on('message_received', window.__wsMessageReceivedHandler);
+    console.log('[WS] message_received handler re-registered (named)');
+  }
+  ws.on('message_sent', (data) => {
+    console.log('[WS] message_sent event:', data);
     useChatStore.getState().handleIncomingMessage(data);
   });
-  
   ws.on('message_status_update', (data) => {
-    useChatStore.getState().handleMessageStatusUpdate(data.message_id, data.status);
+    // message_status_update digunakan untuk delivered/read
+    console.log('[WS] message_status_update event:', data);
+    if (data.status === 'delivered') {
+      useChatStore.getState().updateMessage(data.message_id, { status: 'delivered' });
+    } else if (data.status === 'read') {
+      useChatStore.getState().updateMessage(data.message_id, { read_at: new Date().toISOString() });
+    }
   });
-  
   ws.on('typing_start', (data) => {
-    useChatStore.getState().handleTypingStart(data.ticket_id, data.username);
+    console.log('[WS] typing_start event:', data);
+    useChatStore.getState().handleTypingStart(data.ticket_id, data.user_name || data.username);
   });
-  
   ws.on('typing_stop', (data) => {
-    useChatStore.getState().handleTypingStop(data.ticket_id, data.username);
+    console.log('[WS] typing_stop event:', data);
+    useChatStore.getState().handleTypingStop(data.ticket_id, data.user_name || data.username);
   });
+  ws.on('ticket_created', (data) => {
+    console.log('[WS] ticket_created event:', data);
+    // Optionally reload conversations or add ticket to state
+  });
+  ws.on('session_status_update', (data) => {
+    console.log('[WS] session_status_update event:', data);
+    // Optionally update session status in state
+  });
+  ws.on('qr_code_update', (data) => {
+    console.log('[WS] qr_code_update event:', data);
+    // Optionally update QR code state
+  });
+} else {
+  console.warn('[WS] WebSocketManager is null in chat store');
 }
 
 // Selectors
@@ -1395,4 +1502,23 @@ export const useChatError = () => useChatStore((state) => ({
   error: state.error,
   setError: state.setError,
   clearError: state.clearError,
-})); 
+}));
+
+// Tambahkan deklarasi global untuk window.__wsMessageReceivedHandler
+declare global {
+  interface Window {
+    __wsMessageReceivedHandler?: (data: any) => void;
+    playNotificationSound?: () => void;
+  }
+}
+
+if (typeof window !== 'undefined' && !window.playNotificationSound) {
+  window.playNotificationSound = () => {
+    try {
+      const audio = new Audio('/notification.wav');
+      audio.play();
+    } catch (e) {
+      console.warn('Failed to play notification sound', e);
+    }
+  };
+} 

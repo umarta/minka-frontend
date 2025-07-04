@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,6 +23,65 @@ export default function ChatIntegrationTest() {
     error,
     clearError
   } = useChatStore();
+
+  // Tambahan: WebSocket Test State
+  const [wsStatus, setWsStatus] = useState<'idle' | 'connecting' | 'connected' | 'error' | 'closed'>('idle');
+  const [wsLog, setWsLog] = useState<string[]>([]);
+  const wsRef = useRef<WebSocket | null>(null);
+
+  const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080/api/ws/connect';
+
+  const appendLog = (msg: string) => setWsLog((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
+
+  const handleWsConnect = () => {
+    if (wsRef.current) {
+      appendLog('WebSocket already connected.');
+      return;
+    }
+    setWsStatus('connecting');
+    appendLog(`Connecting to ${wsUrl} ...`);
+    const ws = new window.WebSocket(wsUrl);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      setWsStatus('connected');
+      appendLog('WebSocket connected!');
+      // Optionally send join_room/test message
+      ws.send(JSON.stringify({ type: 'join_room', room: 'global' }));
+      appendLog('Sent join_room for room "global"');
+    };
+    ws.onmessage = (event) => {
+      appendLog(`Received: ${event.data}`);
+    };
+    ws.onerror = (event) => {
+      setWsStatus('error');
+      appendLog('WebSocket error');
+    };
+    ws.onclose = (event) => {
+      setWsStatus('closed');
+      appendLog(`WebSocket closed (code: ${event.code})`);
+      wsRef.current = null;
+    };
+  };
+
+  const handleWsDisconnect = () => {
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+      setWsStatus('closed');
+      appendLog('WebSocket manually disconnected.');
+    }
+  };
+
+  const handleWsSendTest = () => {
+    if (wsRef.current && wsStatus === 'connected') {
+      const msg = { type: 'test', data: { hello: 'world' } };
+      wsRef.current.send(JSON.stringify(msg));
+      appendLog('Sent test message: ' + JSON.stringify(msg));
+    } else {
+      appendLog('WebSocket not connected.');
+    }
+  };
 
   const runTest = async (testName: string, testFn: () => Promise<any>) => {
     setTestResults(prev => ({ ...prev, [testName]: { status: 'pending', message: 'Running...' } }));
@@ -220,6 +279,82 @@ export default function ChatIntegrationTest() {
                     </div>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">WebSocket Test</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center space-x-2 mb-2">
+                  <Button onClick={handleWsConnect} disabled={wsStatus === 'connected' || wsStatus === 'connecting'}>Connect</Button>
+                  <Button onClick={handleWsDisconnect} disabled={wsStatus !== 'connected'} variant="destructive">Disconnect</Button>
+                  <Button onClick={handleWsSendTest} disabled={wsStatus !== 'connected'}>Send Test Message</Button>
+                  <span className="ml-4">Status: <span className={
+                    wsStatus === 'connected' ? 'text-green-600' : wsStatus === 'error' ? 'text-red-600' : 'text-gray-600'
+                  }>{wsStatus}</span></span>
+                </div>
+                <div className="bg-gray-100 rounded p-2 h-40 overflow-auto text-xs font-mono">
+                  {wsLog.length === 0 ? <div className="text-gray-400">No log yet.</div> : wsLog.map((l, i) => <div key={i}>{l}</div>)}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">WebSocket Event Playground</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-2">
+                  {[
+                    {event: 'message_received', data: {message_id: 1, ticket_id: 1, session_name: 'default', from: '6281234567890', body: 'Hello!', message_type: 'text', timestamp: new Date().toISOString()}},
+                    {event: 'message_sent', data: {message_id: 2, ticket_id: 1, session_name: 'default', to: '6281234567890', body: 'Hi there!', message_type: 'text', timestamp: new Date().toISOString(), sender_admin_id: 1, sender_name: 'Admin'}},
+                    {event: 'message_read', data: {message_id: 1, user_name: 'Admin'}},
+                    {event: 'message_delivered', data: {message_id: 1, user_name: 'Admin'}},
+                    {event: 'message:reaction_added', data: {message_id: 1, emoji: '👍', user_name: 'Admin', admin_id: 1}},
+                    {event: 'message:reaction_removed', data: {message_id: 1, emoji: '👍', user_name: 'Admin', admin_id: 1}},
+                    {event: 'message:edited', data: {message_id: 1, new_content: 'Edited message', edited_by: 'Admin'}},
+                    {event: 'message:deleted', data: {message_id: 1, deleted_by: 'Admin'}},
+                    {event: 'ticket_created', data: {ticket_id: 1, subject: 'New Ticket', created_by: 'Admin'}},
+                    {event: 'ticket_assigned', data: {ticket_id: 1, assigned_to: 'Agent'}},
+                    {event: 'ticket_status_changed', data: {ticket_id: 1, old_status: 'open', new_status: 'closed'}},
+                    {event: 'ticket_closed', data: {ticket_id: 1, closed_by: 'Admin'}},
+                    {event: 'session_status_changed', data: {session_id: 1, session_name: 'default', old_status: 'offline', new_status: 'online', timestamp: new Date().toISOString()}},
+                    {event: 'session_connected', data: {session_id: 1, session_name: 'default', timestamp: new Date().toISOString()}},
+                    {event: 'session_disconnected', data: {session_id: 1, session_name: 'default', timestamp: new Date().toISOString()}},
+                    {event: 'qr_code_generated', data: {session_id: 1, session_name: 'default', qr_code: 'QR123', expires_at: Date.now() + 60000}},
+                    {event: 'qr_code_scanned', data: {session_id: 1, session_name: 'default', phone_number: '6281234567890', user_name: 'User'}},
+                    {event: 'qr_code_expired', data: {session_id: 1, session_name: 'default'}},
+                    {event: 'typing_start', data: {contact_id: 1, user_name: 'Admin'}},
+                    {event: 'typing_stop', data: {contact_id: 1, user_name: 'Admin'}},
+                    {event: 'typing:started', data: {contact_id: 1, user_name: 'Admin'}},
+                    {event: 'typing:stopped', data: {contact_id: 1, user_name: 'Admin'}},
+                    {event: 'admin_online', data: {admin_id: 1, admin_name: 'Admin', timestamp: new Date().toISOString()}},
+                    {event: 'admin_offline', data: {admin_id: 1, admin_name: 'Admin', timestamp: new Date().toISOString()}},
+                    {event: 'file:upload:progress', data: {file_id: 'file1', file_name: 'test.jpg', progress: 50, status: 'uploading'}},
+                    {event: 'file:upload:complete', data: {file_id: 'file1', file_name: 'test.jpg', file_url: 'https://example.com/test.jpg'}},
+                    {event: 'draft:saved', data: {contact_id: 1, content: 'Draft content', saved_by: 'Admin'}},
+                    {event: 'draft:restored', data: {contact_id: 1, content: 'Draft content'}},
+                    {event: 'test_message', data: {message: 'Test message', sender: 'system', timestamp: new Date().toISOString()}},
+                    {event: 'custom_event', data: {foo: 'bar', time: new Date().toISOString()}},
+                    {event: 'connected', data: {message: 'Connected', admin_id: 1}},
+                    {event: 'error', data: {type: 'error', message: 'Something went wrong', details: 'Test error', timestamp: new Date().toISOString()}}
+                  ].map(({event, data}) => (
+                    <Button key={event} size="sm" variant="outline" disabled={wsStatus !== 'connected'}
+                      onClick={() => {
+                        if (wsRef.current && wsStatus === 'connected') {
+                          const msg = { type: event === 'connected' ? 'success' : event === 'error' ? 'error' : 'event', event, data, room: 'global', timestamp: new Date().toISOString() };
+                          wsRef.current.send(JSON.stringify(msg));
+                          appendLog('Sent event: ' + event + ' | ' + JSON.stringify(msg));
+                        } else {
+                          appendLog('WebSocket not connected.');
+                        }
+                      }}
+                    >{event}</Button>
+                  ))}
+                </div>
+                <div className="text-xs text-gray-500">Klik tombol untuk mengirim event ke WebSocket. Semua payload dikirim ke room global.</div>
               </CardContent>
             </Card>
           </div>

@@ -7,6 +7,8 @@ import { EmptyChatState } from './empty-chat-state';
 import { TakeoverStatus } from './takeover-status';
 import { useChatStore } from '@/lib/stores/chat';
 import { Message } from '@/types';
+import { useEffect } from 'react';
+import { createWebSocketManager } from '@/lib/websocket';
 
 interface ChatAreaProps {
   onReact?: (messageId: string, emoji: string) => void;
@@ -28,6 +30,12 @@ interface ChatAreaProps {
 
 export function ChatArea(props: ChatAreaProps) {
   const { activeContact } = useChatStore();
+
+  // Hapus atau komentari useEffect inisialisasi WebSocketManager di ChatArea
+  // useEffect(() => {
+  //   console.log('[WS] useEffect in ChatArea: initializing WebSocketManager');
+  //   createWebSocketManager();
+  // }, []);
 
   console.log('activeContact', activeContact);
 
