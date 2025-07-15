@@ -1,5 +1,5 @@
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
-import { ApiResponse, PaginatedResponse } from '@/types';
+import { ApiResponse, PaginatedResponse, AntiBlockingValidationResult, AntiBlockingConfig, AntiBlockingStats, ContactRiskAssessment, BulkMessageRequest, BulkMessageResponse, WaMeLinkRequest, WaMeLinkResponse } from '@/types';
 
 // Extend AxiosRequestConfig to include retry flag
 declare module 'axios' {
@@ -1366,6 +1366,62 @@ export const draftMessagesApi = {
 
       return null;
     }
+  },
+};
+
+// --- Anti-Blocking API ---
+export const antiBlockingApi = {
+  validateMessage: async (payload: {
+    contact_id: number;
+    session_name: string;
+    content: string;
+    message_type: string;
+    admin_id?: number;
+  }): Promise<AntiBlockingValidationResult> => {
+    const response = await api.post('/anti-blocking/validate', payload);
+    return handleSingleResponse<AntiBlockingValidationResult>(response);
+  },
+
+  sendWithAntiBlocking: async (payload: {
+    contact_id: number;
+    session_name: string;
+    content: string;
+    message_type: string;
+    admin_id: number;
+    priority?: string;
+  }): Promise<{ success: boolean; message_id?: string; delay_used?: string; risk_level?: string; }> => {
+    const response = await api.post('/anti-blocking/send', payload);
+    return handleSingleResponse(response);
+  },
+
+  getConfig: async (): Promise<AntiBlockingConfig> => {
+    const response = await api.get('/anti-blocking/config');
+    return handleSingleResponse<AntiBlockingConfig>(response);
+  },
+
+  updateConfig: async (config: Partial<AntiBlockingConfig>): Promise<AntiBlockingConfig> => {
+    const response = await api.put('/anti-blocking/config', config);
+    return handleSingleResponse<AntiBlockingConfig>(response);
+  },
+
+  getStats: async (): Promise<AntiBlockingStats> => {
+    const response = await api.get('/anti-blocking/stats');
+    return handleSingleResponse<AntiBlockingStats>(response);
+  },
+
+  getContactRisk: async (contactId: number): Promise<ContactRiskAssessment> => {
+    const response = await api.get(`/anti-blocking/contact-risk/${contactId}`);
+    return handleSingleResponse<ContactRiskAssessment>(response);
+  },
+
+  bulkSend: async (payload: BulkMessageRequest): Promise<BulkMessageResponse> => {
+    const response = await api.post('/anti-blocking/bulk-send', payload);
+    return handleSingleResponse<BulkMessageResponse>(response);
+  },
+
+  generateWaMeLink: async (payload: WaMeLinkRequest): Promise<WaMeLinkResponse> => {
+    const response = await api.post('/anti-blocking/wame-link', payload);
+    return handleSingleResponse<WaMeLinkResponse>(response);
   },
 };
 

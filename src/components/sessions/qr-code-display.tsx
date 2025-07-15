@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { QrCode, RefreshCw, Smartphone, CheckCircle, XCircle } from 'lucide-react';
+import { QrCode, RefreshCw, Smartphone, CheckCircle, XCircle, Play } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,8 +14,9 @@ interface QRCodeDisplayProps {
 }
 
 export function QRCodeDisplay({ session, size = 256 }: QRCodeDisplayProps) {
-  const { getQRCode, qrCodes, error } = useSessionStore();
+  const { getQRCode, qrCodes, error, startSession } = useSessionStore();
   const [isLoading, setIsLoading] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   const qrCode = qrCodes[session.id];
@@ -80,6 +81,15 @@ export function QRCodeDisplay({ session, size = 256 }: QRCodeDisplayProps) {
     }
   };
 
+  const handleStart = async () => {
+    setIsStarting(true);
+    try {
+      await startSession(session.session_name);
+    } finally {
+      setIsStarting(false);
+    }
+  };
+
   // Auto-refresh QR code when status is scan_qr_code
   useEffect(() => {
     if (session.status === 'scan_qr_code' && autoRefresh && !qrCode) {
@@ -134,13 +144,24 @@ export function QRCodeDisplay({ session, size = 256 }: QRCodeDisplayProps) {
         ) : session.status === 'scan_qr_code' ? (
           <div className="text-center space-y-4">
             {qrCode ? (
-              <div className="bg-white p-4 rounded-lg border-2 border-dashed border-gray-300">
-                <img 
-                  src={qrCode} 
-                  alt="WhatsApp QR Code"
-                  className="mx-auto"
-                  style={{ width: size, height: size }}
-                />
+              <div className="relative">
+                <div className="bg-white p-4 rounded-lg border-2 border-dashed border-gray-300">
+                  <img 
+                    src={qrCode} 
+                    alt="WhatsApp QR Code"
+                    className="mx-auto"
+                    style={{ width: size, height: size }}
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="absolute -top-2 -right-2 bg-white hover:bg-gray-100"
+                  onClick={handleRefreshQR}
+                  disabled={isLoading}
+                >
+                  <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                </Button>
               </div>
             ) : (
               <div 
@@ -201,6 +222,26 @@ export function QRCodeDisplay({ session, size = 256 }: QRCodeDisplayProps) {
             <p className="text-sm text-gray-500">
               Unable to establish WhatsApp connection. Please try restarting the session.
             </p>
+            <div className="mt-4">
+              <Button
+                variant="default"
+                onClick={handleStart}
+                disabled={isStarting}
+                className="w-full"
+              >
+                {isStarting ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Starting...
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-4 w-4 mr-2" />
+                    Start Session
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="text-center py-8">
@@ -211,6 +252,26 @@ export function QRCodeDisplay({ session, size = 256 }: QRCodeDisplayProps) {
             <p className="text-sm text-gray-500">
               WhatsApp session is currently stopped. Start the session to begin.
             </p>
+            <div className="mt-4">
+              <Button
+                variant="default"
+                onClick={handleStart}
+                disabled={isStarting}
+                className="w-full"
+              >
+                {isStarting ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Starting...
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-4 w-4 mr-2" />
+                    Start Session
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         )}
 

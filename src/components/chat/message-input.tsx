@@ -26,8 +26,10 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { useChatStore } from '@/lib/stores/chat';
+import { useAntiBlockingStore } from '@/lib/stores/antiBlocking';
 import { MessageType, QuickReplyTemplate, FileUploadProgress } from '@/types';
 import { cn } from '@/lib/utils';
+import { AntiBlockingValidation } from './anti-blocking-validation';
 
 interface MessageInputProps {
   onSearch?: (query: string) => void;
@@ -37,6 +39,7 @@ interface MessageInputProps {
 
 export function MessageInput({ onSearch, onClearSearch, searchQuery }: MessageInputProps) {
   const { activeContact, sendMessage, isSendingMessage } = useChatStore();
+  const { lastValidation, validateMessage, clear } = useAntiBlockingStore();
   
   // Message State
   const [message, setMessage] = useState('');
@@ -60,6 +63,7 @@ export function MessageInput({ onSearch, onClearSearch, searchQuery }: MessageIn
   const [searchLocal, setSearchLocal] = useState('');
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [isDraftSaving, setIsDraftSaving] = useState(false);
+  const [showValidation, setShowValidation] = useState(false);
   
   // Refs
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -115,10 +119,39 @@ export function MessageInput({ onSearch, onClearSearch, searchQuery }: MessageIn
     }
   }, [activeContact.id]);
 
+  // Auto-validate message when typing
+  useEffect(() => {
+    if (message.trim() && activeContact && message.length > 10) {
+      const timer = setTimeout(async () => {
+        try {
+          await validateMessage({
+            contact_id: parseInt(activeContact.id),
+            session_name: 'default',
+            content: message,
+            message_type: 'text',
+            admin_id: 1, // TODO: Get from auth store
+          });
+          setShowValidation(true);
+        } catch (error) {
+          console.error('Validation error:', error);
+        }
+      }, 1000);
+
+      return () => clearTimeout(timer);
+    } else {
+      setShowValidation(false);
+      clear();
+    }
+  }, [message, activeContact, validateMessage, clear]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if ((!message.trim() && attachmentFiles.length === 0 && !recordingBlob) || isSendingMessage) return;
+
+    // Clear validation feedback when sending
+    setShowValidation(false);
+    clear();
 
     try {
       let messageType: MessageType = 'text';
@@ -349,7 +382,18 @@ export function MessageInput({ onSearch, onClearSearch, searchQuery }: MessageIn
   };
 
   return (
-    <div className="border-t border-gray-200 bg-white">
+    <div className="border-t bg-background p-4 space-y-4">
+      {/* Anti-blocking Validation Feedback */}
+      {showValidation && lastValidation && (
+        <AntiBlockingValidation
+          validation={lastValidation}
+          onDismiss={() => {
+            setShowValidation(false);
+            clear();
+          }}
+        />
+      )}
+
       {/* Search Bar */}
       {showSearch && (
         <div className="p-3 border-b border-gray-100 bg-gray-50">

@@ -247,7 +247,7 @@ export default function RealChatPage() {
   };
 
   // Get current messages from store
-  const currentMessages = activeConversation ? (messages[activeConversation.ticket?.id?.toString() || ''] || []) : [];
+  const currentMessages = activeConversation ? (messages[activeConversation.tickets?.[0]?.id?.toString() || ''] || []) : [];
   
   // Get messages based on conversation mode and selected ticket
   const getDisplayMessages = () => {
@@ -298,7 +298,7 @@ export default function RealChatPage() {
     try {
       await sendMessage({
         contact_id: activeConversation.contact.id,
-        session_id: activeConversation.ticket?.id?.toString() || '',
+        session_id: activeConversation.tickets?.[0]?.id?.toString() || '',
         content: content,
         message_type: 'text'
       });
@@ -606,4 +606,4 @@ export default function RealChatPage() {
       </div>
     </div>
   );
-} 
+}

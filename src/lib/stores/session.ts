@@ -235,7 +235,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set({ error: null });
     try {
       const response = await sessionsApi.getQR(sessionName) as any;
-      const qrCode = response?.qr_code || response;
+      const qrCode = response?.qr_data || response?.qr || response;
       
       // Find session by name to get ID
       const session = get().sessions.find(s => s.session_name === sessionName);

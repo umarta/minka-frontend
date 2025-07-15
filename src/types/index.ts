@@ -773,4 +773,111 @@ export interface PhoneNumberValidation {
   type?: 'mobile' | 'landline' | 'voip';
   can_receive_whatsapp: boolean;
   validation_errors?: string[];
+}
+
+// --- Anti-Blocking Types ---
+
+export interface AntiBlockingValidationResult {
+  is_valid: boolean;
+  errors?: string[];
+  warnings?: string[];
+  suggestions?: string[];
+  risk_level?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+}
+
+export interface AntiBlockingConfig {
+  enable_anti_blocking: boolean;
+  max_messages_per_hour: number;
+  max_messages_per_day: number;
+  max_bulk_messages_per_hour: number;
+  min_delay_between_messages: string;
+  max_delay_between_messages: string;
+  typing_duration_min: string;
+  typing_duration_max: string;
+  enable_typing_indicators: boolean;
+  enable_seen_confirmation: boolean;
+  enable_random_delays: boolean;
+  enable_message_variation: boolean;
+  max_message_length: number;
+  forbidden_words: string[];
+  forbidden_domains: string[];
+  require_https_links: boolean;
+  require_contact_consent: boolean;
+  enable_contact_grouping: boolean;
+  max_new_contacts_per_day: number;
+  enable_session_rotation: boolean;
+  max_sessions_per_phone: number;
+  session_cooldown_period: string;
+  enable_blocking_monitoring: boolean;
+  blocking_alert_threshold: number;
+  enable_rate_limit_logging: boolean;
+}
+
+export interface AntiBlockingStats {
+  total_contacts_tracked: number;
+  total_sessions_tracked: number;
+  config: AntiBlockingConfig;
+  contact_stats: Record<string, any>;
+  bulk_stats: Record<string, any>;
+}
+
+export interface ContactRiskAssessment {
+  contact_id: number;
+  wa_id: string;
+  risk_level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  risk_score: number;
+  factors: string[];
+  last_message_at?: string;
+  message_count: number;
+  hourly_count: number;
+  daily_count: number;
+  is_blocking_risk: boolean;
+  recommendations: string[];
+  assessed_at: string;
+}
+
+export interface BulkMessageRequest {
+  contact_ids: number[];
+  session_name: string;
+  content: string;
+  message_type: string;
+  admin_id: number;
+  options: {
+    delay_between_messages?: string;
+    max_concurrent?: number;
+    stop_on_error?: boolean;
+    validate_only?: boolean;
+    priority?: string;
+  };
+}
+
+export interface BulkMessageResult {
+  contact_id: number;
+  success: boolean;
+  error?: string;
+  risk_level?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  message_id?: string;
+  sent_at?: string;
+  validation?: AntiBlockingValidationResult;
+}
+
+export interface BulkMessageResponse {
+  total_contacts: number;
+  successful: number;
+  failed: number;
+  validated: number;
+  rejected: number;
+  results: BulkMessageResult[];
+  total_time: string;
+  average_delay: string;
+  risk_level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+}
+
+export interface WaMeLinkRequest {
+  phone_number: string;
+  message: string;
+}
+
+export interface WaMeLinkResponse {
+  link: string;
 } 

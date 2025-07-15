@@ -4,16 +4,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { X } from 'lucide-react';
+import { X, Send } from 'lucide-react';
 import { useContactStore } from '@/lib/stores/contact';
+import { BulkSendDialog } from '../chat/bulk-send-dialog';
+import { useState } from 'react';
 
 interface ContactFiltersProps {
   filters: any;
   onFiltersChange: (filters: any) => void;
+  contacts: any[];
 }
 
-export function ContactFilters({ filters, onFiltersChange }: ContactFiltersProps) {
+export function ContactFilters({ filters, onFiltersChange, contacts }: ContactFiltersProps) {
   const { labels } = useContactStore();
+  const [showBulkSend, setShowBulkSend] = useState(false);
 
   const handleStatusChange = (status: string) => {
     onFiltersChange({
@@ -124,7 +128,33 @@ export function ContactFilters({ filters, onFiltersChange }: ContactFiltersProps
             </div>
           </div>
         )}
+
+        {/* Bulk Actions */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowBulkSend(true)}
+              disabled={contacts.length === 0}
+            >
+              <Send className="h-4 w-4 mr-2" />
+              Bulk Send
+            </Button>
+          </div>
+        </div>
       </CardContent>
+
+      {/* Bulk Send Dialog */}
+      <BulkSendDialog
+        open={showBulkSend}
+        onOpenChange={setShowBulkSend}
+        contacts={contacts}
+        onSuccess={() => {
+          // TODO: Refresh contacts or show success message
+          console.log('Bulk send completed');
+        }}
+      />
     </Card>
   );
 } 

@@ -188,38 +188,6 @@ const enhancedDemoMessages: EnhancedMessage[] = [
     type: 'text',
     status: 'delivered',
     edited_at: new Date(Date.now() - 500000).toISOString()
-  },
-  {
-    id: "9",
-    content: "Masih menunggu konfirmasi harga produk A (edited)",
-    direction: 'incoming' as const,
-    created_at: new Date(Date.now() - 600000).toISOString(),
-    sender: "Ahmad Syukur",
-    ticket_id: 1
-  },
-  {
-    id: "10",
-    content: "📞 Contact Card", // Contact sharing
-    direction: 'incoming' as const,
-    created_at: new Date(Date.now() - 300000).toISOString(),
-    sender: "Ahmad Syukur",
-    ticket_id: 1
-  },
-  {
-    id: "11",
-    content: "😊 Sticker", // Sticker message
-    direction: 'outgoing' as const,
-    created_at: new Date(Date.now() - 120000).toISOString(),
-    sender: "Admin Budi", 
-    ticket_id: 1
-  },
-  {
-    id: "12",
-    content: "Baik pak, kami akan segera follow up pesanannya. Terima kasih!",
-    direction: 'outgoing' as const,
-    created_at: new Date(Date.now() - 60000).toISOString(),
-    sender: "Admin Budi",
-    ticket_id: 1
   }
 ];
 

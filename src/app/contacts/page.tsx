@@ -437,6 +437,7 @@ export default function ContactsPage() {
           <ContactFilters
             filters={filters}
             onFiltersChange={setFilters}
+            contacts={contacts}
           />
         )}
 

@@ -112,7 +112,6 @@ export const useContactStore = create<ContactStore>()(
           per_page: get().pageSize,
           ...get().filters
         });
-        
         set({
           contacts: (response as any).data || [],
           totalCount: (response as any).pagination?.total || 0,
@@ -473,7 +472,7 @@ export const useContactStore = create<ContactStore>()(
         set((state) => ({
           contacts: state.contacts.map(contact =>
             contact.id === contactId 
-              ? { ...contact, is_takeover_by_admin: false, takeover_by_admin_id: null }
+              ? { ...contact, is_takeover_by_admin: false, takeover_by_admin_id: undefined }
               : contact
           ),
         }));
@@ -507,4 +506,4 @@ export const useContactsLoading = () => useContactStore((state) => state.isLoadi
 export const useContactsError = () => useContactStore((state) => state.error);
 export const useSelectedContacts = () => useContactStore((state) => state.selectedContacts);
 export const useContactFilters = () => useContactStore((state) => state.filters);
-export const useContactLabels = () => useContactStore((state) => state.labels); 
+export const useContactLabels = () => useContactStore((state) => state.labels);

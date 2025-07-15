@@ -1,9 +1,10 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { Contact, Message, Conversation, ChatGroups, MessageForm, Ticket, QuickReplyTemplate, ContactNote, DraftMessage } from '@/types';
-import { contactsApi, messagesApi, ticketsApi, quickReplyApi, contactNotesApi, draftMessagesApi, conversationsApi } from '@/lib/api';
+import { contactsApi, messagesApi, ticketsApi, quickReplyApi, contactNotesApi, draftMessagesApi, conversationsApi, antiBlockingApi } from '@/lib/api';
 import { createWebSocketManager, getWebSocketManager } from '@/lib/websocket';
 import { shallow } from 'zustand/shallow';
+import { useAntiBlockingStore } from './antiBlocking';
 
 /**
  * OPTIMIZED MESSAGE LOADING STRATEGY
@@ -773,74 +774,40 @@ export const useChatStore = create<ChatStore>()(
     sendMessage: async (data) => {
       try {
         set({ isSendingMessage: true, error: null });
-        
         const { activeContact } = get();
         const ticketToUse = get().getActiveTicket();
-        
         if (!ticketToUse || !activeContact) {
-          console.error('Send message failed - missing data:', {
-            activeContact: !!activeContact,
-            ticketToUse: !!ticketToUse,
-            activeTicket: !!get().activeTicket,
-            activeContactConversation: !!get().activeContactConversation,
-            currentTicket: !!get().activeContactConversation?.currentTicket
-          });
           throw new Error('No active conversation or ticket');
         }
-
-        // Get phone number from multiple possible fields
         const phoneNumber = activeContact.phone || activeContact.phone_number || activeContact.PhoneNumber;
-        
-        // Validate phone number
         if (!phoneNumber) {
-          console.error('Send message failed - missing phone number:', {
-            activeContact: activeContact,
-            phone: activeContact.phone,
-            phone_number: activeContact.phone_number,
-            PhoneNumber: activeContact.PhoneNumber,
-            contactId: activeContact.id
-          });
           throw new Error('Contact phone number is required');
         }
-
-        // Prepare message data for backend
-        const messageData = {
-          session_name: 'default', // TODO: Get from session store
-          ticket_id: parseInt(ticketToUse.id.toString()),
-          to: phoneNumber,
-          text: data.content,
+        // --- Anti-blocking validation ---
+        const antiBlocking = useAntiBlockingStore.getState();
+        const validation = await antiBlocking.validateMessage({
+          contact_id: parseInt(activeContact.id),
+          session_name: 'default',
+          content: data.content,
+          message_type: data.message_type || 'text',
           admin_id: 1, // TODO: Get from auth store
-        };
-
-        console.log('🔍 Sending message with data:', {
-          to: messageData.to,
-          ticket_id: messageData.ticket_id,
-          text: messageData.text?.substring(0, 50) + '...',
-          contactId: activeContact.id
         });
-
-        let response;
-        
-        if (data.media_file) {
-          // Send media message
-          const formData = new FormData();
-          formData.append('session_name', messageData.session_name);
-          formData.append('ticket_id', messageData.ticket_id.toString());
-          formData.append('to', messageData.to);
-          formData.append('caption', data.content);
-          formData.append('admin_id', messageData.admin_id.toString());
-          formData.append('media', data.media_file);
-          formData.append('media_type', data.message_type || getMediaType(data.media_file));
-          
-          response = await messagesApi.sendMedia(formData);
-        } else {
-          // Send text message
-          response = await messagesApi.send(messageData);
+        if (!validation?.is_valid) {
+          set({ isSendingMessage: false, error: (validation?.errors || ['Message validation failed']).join(', ') });
+          throw new Error((validation?.errors || ['Message validation failed']).join(', '));
         }
-
-        // The message will be added via WebSocket or we can add it optimistically
+        // --- Send with anti-blocking ---
+        const response = await antiBlockingApi.sendWithAntiBlocking({
+          contact_id: parseInt(activeContact.id),
+          session_name: 'default',
+          content: data.content,
+          message_type: data.message_type || 'text',
+          admin_id: 1, // TODO: Get from auth store
+          priority: 'NORMAL',
+        });
+        // Optimistically add message to UI
         const newMessage: Message = {
-          id: response.id?.toString() || Date.now().toString(),
+          id: response.message_id || Date.now().toString(),
           ticket_id: ticketToUse.id.toString(),
           contact_id: activeContact.id,
           session_id: 'default',
@@ -848,22 +815,15 @@ export const useChatStore = create<ChatStore>()(
           message_type: data.message_type || 'text',
           content: data.content,
           status: 'sent',
-          media_url: response.media_url,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
-
-        // Add message to both contact and ticket message lists
         get().addMessage(newMessage);
-        
-        // Refresh contact messages to ensure the new message appears
         if (activeContact?.id) {
           await get().loadContactMessages(activeContact.id, 1);
         }
-        
         set({ isSendingMessage: false });
       } catch (error) {
-        console.error('Failed to send message:', error);
         set({
           error: error instanceof Error ? error.message : 'Failed to send message',
           isSendingMessage: false,
@@ -1521,4 +1481,4 @@ if (typeof window !== 'undefined' && !window.playNotificationSound) {
       console.warn('Failed to play notification sound', e);
     }
   };
-} 
+}

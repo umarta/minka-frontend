@@ -17,6 +17,8 @@ import { formatDistanceToNow } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { useState, useCallback, useEffect } from 'react';
 import { TakeoverStatus } from './takeover-status';
+import { RiskIndicator } from './risk-indicator';
+import { useAntiBlockingStore } from '@/lib/stores/antiBlocking';
 
 export function ChatHeader() {
   const { 
@@ -31,6 +33,7 @@ export function ChatHeader() {
   } = useChatStore();
   
   const [localSearchQuery, setLocalSearchQuery] = useState('');
+  const { lastRisk, fetchRisk } = useAntiBlockingStore();
 
   const handleSearch = useCallback(async (query: string) => {
     console.log('🔍 Search triggered with query:', query);
@@ -55,6 +58,13 @@ export function ChatHeader() {
       setLocalSearchQuery('');
     }
   }, [searchQuery]);
+
+  // Fetch risk assessment when contact changes
+  useEffect(() => {
+    if (activeContact?.id) {
+      fetchRisk(parseInt(activeContact.id));
+    }
+  }, [activeContact?.id, fetchRisk]);
 
   if (!activeContact) {
     return (
@@ -137,6 +147,14 @@ export function ChatHeader() {
             <Info className="h-4 w-4" />
           </Button>
           <TakeoverStatus contact={activeContact} />
+          <RiskIndicator
+            risk={lastRisk}
+            compact={true}
+            onViewDetails={() => {
+              // TODO: Open risk details modal
+              console.log('View risk details');
+            }}
+          />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-900">
