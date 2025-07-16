@@ -290,6 +290,14 @@ export const useChatStore = create<ChatStore>()(
         // Load all messages for this contact using the unified endpoint
         await get().loadContactMessages(contact.id, 1);
         
+        // Join WebSocket room for real-time updates
+        const ws = getWebSocketManager();
+        if (ws) {
+          console.log('[WS] Join contact room:', contact.id);
+          ws.joinContactRoom(contact.id.toString());
+          console.log(`[WS] User joined chat room: contact_${contact.id}`);
+        }
+        
         // Set active ticket - prioritize from conversation, then from contact conversation
         let activeTicket = conversation?.active_ticket;
         
@@ -301,16 +309,8 @@ export const useChatStore = create<ChatStore>()(
         
         if (activeTicket) {
           set({ activeTicket });
-          
-          // Join WebSocket room for real-time updates
-          const ws = getWebSocketManager();
-          if (ws) {
-            console.log('[WS] Join contact room:', contact.id);
-            ws.joinContactRoom(contact.id.toString());
-            console.log(`[WS] User joined chat room: contact_${contact.id}`);
-          }
         } else {
-          console.warn('No active ticket found for contact:', contact.id);
+          console.log('No active ticket found for contact:', contact.id, '- this is normal for new conversations');
         }
         
         set({ isLoadingMessages: false });
@@ -325,12 +325,13 @@ export const useChatStore = create<ChatStore>()(
     },
 
     clearActiveConversation: () => {
-      const { activeTicket } = get();
+      const { activeContact } = get();
       
       // Leave WebSocket room
       const ws = getWebSocketManager();
-      if (ws && activeTicket) {
-        ws.leaveContactRoom(activeTicket.id.toString());
+      if (ws && activeContact) {
+        ws.leaveContactRoom(activeContact.id.toString());
+        console.log(`[WS] User left chat room: contact_${activeContact.id}`);
       }
       
       set({
@@ -775,40 +776,50 @@ export const useChatStore = create<ChatStore>()(
       try {
         set({ isSendingMessage: true, error: null });
         const { activeContact } = get();
-        const ticketToUse = get().getActiveTicket();
-        if (!ticketToUse || !activeContact) {
-          throw new Error('No active conversation or ticket');
+        let ticketToUse = get().getActiveTicket();
+        
+        if (!activeContact) {
+          throw new Error('No active contact selected');
         }
+
+        // If no active ticket, try to create one or send without ticket
+        if (!ticketToUse) {
+          console.log('[Chat] No active ticket found, attempting to create ticket or send without ticket');
+          
+          // Option 1: Try to create a ticket automatically
+          try {
+            const ticketResponse = await ticketsApi.create({
+              contact_id: parseInt(activeContact.id),
+              session_id: 1, // Default session
+              subject: `Chat with ${activeContact.name || activeContact.phone_number}`,
+              description: 'Auto-created ticket from chat',
+              priority: 'MEDIUM',
+            });
+            
+            if (ticketResponse) {
+              ticketToUse = ticketResponse;
+              // Update active ticket in state
+              set({ activeTicket: ticketResponse });
+              console.log('[Chat] Created new ticket:', ticketResponse.id);
+            }
+          } catch (ticketError) {
+            console.warn('[Chat] Failed to create ticket automatically:', ticketError);
+            // Continue without ticket - will send message without ticket association
+          }
+        }
+
         const phoneNumber = activeContact.phone || activeContact.phone_number || activeContact.PhoneNumber;
         if (!phoneNumber) {
           throw new Error('Contact phone number is required');
         }
-        // --- Anti-blocking validation ---
-        const antiBlocking = useAntiBlockingStore.getState();
-        const validation = await antiBlocking.validateMessage({
-          contact_id: parseInt(activeContact.id),
-          session_name: 'default',
-          content: data.content,
-          message_type: data.message_type || 'text',
-          admin_id: 1, // TODO: Get from auth store
-        });
-        if (!validation?.is_valid) {
-          set({ isSendingMessage: false, error: (validation?.errors || ['Message validation failed']).join(', ') });
-          throw new Error((validation?.errors || ['Message validation failed']).join(', '));
-        }
-        // --- Send with anti-blocking ---
-        const response = await antiBlockingApi.sendWithAntiBlocking({
-          contact_id: parseInt(activeContact.id),
-          session_name: 'default',
-          content: data.content,
-          message_type: data.message_type || 'text',
-          admin_id: 1, // TODO: Get from auth store
-          priority: 'NORMAL',
-        });
-        // Optimistically add message to UI
+
+        // Send message directly without anti-blocking
+        console.log('[Chat] Sending message directly without anti-blocking');
+        
+        // Create message object for UI
         const newMessage: Message = {
-          id: response.message_id || Date.now().toString(),
-          ticket_id: ticketToUse.id.toString(),
+          id: Date.now().toString(),
+          ticket_id: ticketToUse ? ticketToUse.id.toString() : null, // Can be null if no ticket
           contact_id: activeContact.id,
           session_id: 'default',
           direction: 'outgoing',
@@ -818,10 +829,40 @@ export const useChatStore = create<ChatStore>()(
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
+
+        // Add message to UI immediately
         get().addMessage(newMessage);
+        
+        // Send message via regular messages API
+        try {
+          const response = await messagesApi.send({
+            session_name: 'default',
+            ticket_id: ticketToUse ? parseInt(ticketToUse.id.toString()) : 0, // Required field
+            to: phoneNumber, // Required field - phone number
+            text: data.content, // Required field - message content
+            admin_id: 1, // Required field - will be overridden by backend
+          });
+          
+          // Update message with response data if available
+          if (response && response.id) {
+            get().updateMessage(newMessage.id, {
+              id: response.id.toString(),
+              status: response.status || 'sent',
+            });
+          }
+        } catch (sendError) {
+          console.error('[Chat] Failed to send message:', sendError);
+          // Update message status to failed
+          get().updateMessage(newMessage.id, {
+            status: 'failed',
+          });
+          throw new Error('Failed to send message to server');
+        }
+        
         if (activeContact?.id) {
           await get().loadContactMessages(activeContact.id, 1);
         }
+        
         set({ isSendingMessage: false });
       } catch (error) {
         set({
@@ -1323,6 +1364,10 @@ if (!ws) {
   console.log('[WS] WebSocketManager auto-created in chat store');
 }
 if (ws && typeof window !== 'undefined') {
+  // Join global room for notifications
+  ws.joinRoom('global');
+  console.log('[WS] Joined global room for notifications');
+  
   if (!window.__wsMessageReceivedHandler) {
     window.__wsMessageReceivedHandler = (data: any) => {
       console.log('[WS] message_received event:', data);
