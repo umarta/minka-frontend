@@ -215,7 +215,7 @@ export function MessagesList({ contactId }: MessagesListProps) {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto max-h-[85vh] px-2 py-4 pb-24" ref={containerRef} onScroll={handleScroll}>
+    <div className="flex-1 overflow-y-auto max-h-[77vh] px-2 py-4 pb-24" ref={containerRef} onScroll={handleScroll}>
       {/* Loading indicator for older messages */}
       {isLoadingOlder && (
         <div className="flex justify-center py-2">

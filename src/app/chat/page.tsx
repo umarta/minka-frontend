@@ -10,7 +10,7 @@ export default function ChatPage() {
   const rightSidebarVisible = useRightSidebarVisible();
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="h-screen bg-gray-50 flex flex-col">
       {/* Header */}
 
 
@@ -41,4 +41,4 @@ export default function ChatPage() {
       </div>
     </div>
   );
-} 
+}
