@@ -31,8 +31,8 @@ export default function AuthLayout({
               />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">WhatsApp Admin CS</h1>
-          <p className="text-gray-600 mt-2">Customer Service Management System</p>
+          <h1 className="text-2xl font-bold text-gray-900">Kame</h1>
+          <p className="text-gray-600 mt-2">Minka AI</p>
         </div>
 
         {/* Auth Form Container */}

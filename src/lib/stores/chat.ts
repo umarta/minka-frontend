@@ -1391,6 +1391,30 @@ if (ws && typeof window !== 'undefined') {
     console.log('[WS] qr_code_update event:', data);
     // Optionally update QR code state
   });
+  ws.on('conversation_updated', (data) => {
+    console.log('[WS] conversation_updated event:', data);
+    // Update or insert conversation in state
+    useChatStore.setState((state) => {
+      const idx = state.conversations.findIndex(
+        (conv) => conv.id === data.id || conv.contact.id === data.contact_id
+      );
+      let newConversations;
+      if (idx !== -1) {
+        // Update existing conversation
+        newConversations = [...state.conversations];
+        newConversations[idx] = { ...newConversations[idx], ...data };
+      } else {
+        // Insert new conversation
+        newConversations = [data, ...state.conversations];
+      }
+      return {
+        conversations: newConversations,
+        // Optionally, update chatGroups if needed
+      };
+    });
+    // Optionally, re-group conversations
+    useChatStore.getState().groupConversations();
+  });
 } else {
   console.warn('[WS] WebSocketManager is null in chat store');
 }

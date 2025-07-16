@@ -17,7 +17,7 @@ if (typeof window !== 'undefined') {
 }
 
 export const metadata: Metadata = {
-  title: "WhatsApp Admin CS - Customer Service Management System",
+  title: "Kame | Minka  AI",
   description: "Complete WhatsApp Admin Customer Service Management System with real-time chat, session management, and analytics",
   keywords: "WhatsApp, Admin, Customer Service, Chat, Management, WAHA",
   authors: [{ name: "WhatsApp Admin CS Team" }],

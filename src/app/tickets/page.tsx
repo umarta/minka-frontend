@@ -18,8 +18,12 @@ import { formatDistanceToNow } from 'date-fns';
 import { TicketForm } from '@/components/tickets/ticket-form';
 import { TicketFilters } from '@/components/tickets/ticket-filters';
 import { AssignTicketDialog } from '@/components/tickets/assign-ticket-dialog';
+import { useNotificationSound } from '@/hooks/use-notification-sound';
 
 export default function TicketsPage() {
+  // Initialize global notification sound
+  useNotificationSound();
+
   const {
     tickets,
     isLoading,

@@ -4,6 +4,7 @@ import { Menu, Bell, Search } from 'lucide-react';
 import { useAuth } from '@/lib/stores/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { NotificationToggle } from '@/components/ui/notification-toggle';
 
 interface HeaderProps {
   setSidebarOpen: (open: boolean) => void;
@@ -41,6 +42,9 @@ export function Header({ setSidebarOpen }: HeaderProps) {
         </div>
 
         <div className="flex items-center gap-x-4 lg:gap-x-6">
+          {/* Notification Sound Toggle */}
+          <NotificationToggle variant="ghost" size="sm" />
+
           {/* Notifications */}
           <Button
             variant="ghost"

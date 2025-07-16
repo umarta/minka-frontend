@@ -35,8 +35,12 @@ import { CreateSessionDialog } from '@/components/sessions/create-session-dialog
 import { EditSessionDialog } from '@/components/sessions/edit-session-dialog';
 import { useSessionStore } from '@/lib/stores/session';
 import { Session, SessionStatus } from '@/types';
+import { useNotificationSound } from '@/hooks/use-notification-sound';
 
 export default function SessionsPage() {
+  // Initialize global notification sound
+  useNotificationSound();
+
   const { 
     sessions, 
     isLoading, 

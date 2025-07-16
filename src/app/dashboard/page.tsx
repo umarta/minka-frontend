@@ -3,8 +3,12 @@
 import { MainLayout } from '@/components/layout/main-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { MessageSquare, Users, Ticket, TrendingUp, Clock, Activity, AlertCircle, CheckCircle2, Smartphone } from 'lucide-react';
+import { useNotificationSound } from '@/hooks/use-notification-sound';
 
 export default function DashboardPage() {
+  // Initialize global notification sound
+  useNotificationSound();
+
   const stats = [
     {
       title: 'Active Sessions',

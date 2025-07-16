@@ -1,13 +1,32 @@
 "use client";
 
-import { useSidebarCollapsed, useRightSidebarVisible } from '@/lib/stores/chat';
+import { useEffect } from 'react';
+import { useSidebarCollapsed, useRightSidebarVisible, useChatStore } from '@/lib/stores/chat';
+import { getWebSocketManager } from '@/lib/websocket';
 import { ContactSidebar } from '@/components/chat/contact-sidebar';
 import { ChatArea } from '@/components/chat/chat-area';
 import { InfoPanel } from '@/components/chat/info-panel';
+import { useNotificationSound } from '@/hooks/use-notification-sound';
 
 export default function ChatPage() {
   const sidebarCollapsed = useSidebarCollapsed();
   const rightSidebarVisible = useRightSidebarVisible();
+  const { loadConversations } = useChatStore();
+
+  // Initialize global notification sound
+  useNotificationSound();
+
+  useEffect(() => {
+    // Join global room untuk receive semua event conversation_updated
+    const ws = getWebSocketManager();
+    if (ws) {
+      console.log('[WS] Chat page: Joining global room');
+      ws.joinRoom('global');
+      
+      // Load conversations saat halaman dibuka
+      loadConversations();
+    }
+  }, [loadConversations]);
 
   return (
     <div className="h-screen bg-gray-50 flex flex-col">

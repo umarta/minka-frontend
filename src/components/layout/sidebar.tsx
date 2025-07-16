@@ -20,16 +20,17 @@ import { useAuth } from '@/lib/stores/auth';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: BarChart3 },
-  { name: 'Active Sessions', href: '/sessions', icon: Smartphone },
-  { name: 'Messages', href: '/messages', icon: MessageSquare },
+  { name: 'Chat', href: '/chat', icon: MessageSquare },
   { name: 'Contacts', href: '/contacts', icon: Users },
   { name: 'Tickets', href: '/tickets', icon: Ticket },
   { name: 'Labels', href: '/labels', icon: Tags },
   { name: 'Support Agents', href: '/agents', icon: Headphones },
   { name: 'Analytics', href: '/analytics', icon: Activity },
+
 ];
 
 const settingsNavigation = [
+  { name: 'Active Sessions', href: '/sessions', icon: Smartphone },
   { name: 'Profile', href: '/profile', icon: User },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
@@ -47,8 +48,8 @@ export function Sidebar() {
             <MessageSquare className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">WAHA Admin</h1>
-            <p className="text-sm text-gray-500">WhatsApp CS</p>
+            <h1 className="text-xl font-bold text-gray-900">Minka AI</h1>
+            <p className="text-sm text-gray-500">Powered by Kame</p>
           </div>
         </div>
       </div>
