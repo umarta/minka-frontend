@@ -874,46 +874,102 @@ export const ticketsApi = {
 
 // Dashboard API
 export const dashboardApi = {
-  getStats: async () => {
+  getOverview: async () => {
     try {
-      const response = await api.get('/dashboard/stats');
+      const response = await api.get('/dashboards/overview');
       return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
-
       return null;
     }
   },
-  
-  getAgentPerformance: async (params?: any) => {
+
+  getTicketStats: async (days?: number) => {
     try {
-      const response = await api.get('/dashboard/agent-performance', { params });
+      const response = await api.get('/dashboards/tickets', {
+        params: { days: days || 30 }
+      });
       return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
-
       return null;
     }
   },
-  
-  getMessageMetrics: async (params?: any) => {
+
+  getSessionStats: async () => {
     try {
-      const response = await api.get('/dashboard/message-metrics', { params });
+      const response = await api.get('/dashboards/sessions');
       return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
-
       return null;
     }
   },
-  
-  getResponseTimeMetrics: async (params?: any) => {
+
+  getMessageStats: async (days?: number) => {
     try {
-      const response = await api.get('/dashboard/response-time', { params });
+      const response = await api.get('/dashboards/messages', {
+        params: { days: days || 30 }
+      });
       return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+      return null;
+    }
+  },
 
+  getRecentActivity: async (limit?: number) => {
+    try {
+      const response = await api.get('/dashboards/activity', {
+        params: { limit: limit || 10 }
+      });
+      return handleSingleResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return null;
+    }
+  },
+
+  getPerformanceMetrics: async (days?: number) => {
+    try {
+      const response = await api.get('/dashboards/performance', {
+        params: { days: days || 30 }
+      });
+      return handleSingleResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return null;
+    }
+  },
+
+  getTimeBasedStats: async (period?: string, days?: number) => {
+    try {
+      const response = await api.get('/dashboards/time-stats', {
+        params: { period: period || 'daily', days: days || 30 }
+      });
+      return handleSingleResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return null;
+    }
+  },
+
+  getAdminWorkload: async () => {
+    try {
+      const response = await api.get('/dashboards/workload');
+      return handleSingleResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return null;
+    }
+  },
+
+  getSystemStatus: async () => {
+    try {
+      const response = await api.get('/dashboards/system-status');
+      return handleSingleResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
       return null;
     }
   },

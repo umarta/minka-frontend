@@ -1,87 +1,93 @@
 'use client';
 
+import { useEffect } from 'react';
 import { MainLayout } from '@/components/layout/main-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { MessageSquare, Users, Ticket, TrendingUp, Clock, Activity, AlertCircle, CheckCircle2, Smartphone } from 'lucide-react';
 import { useNotificationSound } from '@/hooks/use-notification-sound';
+import { useDashboardStore, useDashboardStats, useRecentActivities, useSystemStatus, useDashboardLoading } from '@/lib/stores/dashboard';
+import { formatDistanceToNow } from 'date-fns';
 
 export default function DashboardPage() {
   // Initialize global notification sound
   useNotificationSound();
 
-  const stats = [
+  const { fetchDashboardStats, fetchRecentActivity, fetchSystemStatus } = useDashboardStore();
+  const stats = useDashboardStats();
+  const recentActivities = useRecentActivities();
+  const systemStatus = useSystemStatus();
+  const isLoading = useDashboardLoading();
+
+  useEffect(() => {
+    fetchDashboardStats();
+    fetchRecentActivity();
+    fetchSystemStatus();
+  }, [fetchDashboardStats, fetchRecentActivity, fetchSystemStatus]);
+
+  const statsData = [
     {
       title: 'Active Sessions',
-      value: '24',
-      description: '+2 from yesterday',
+      value: stats?.active_sessions?.toString() || '0',
+      description: `${stats?.active_sessions || 0} active sessions`,
       icon: MessageSquare,
       trend: 'up',
       color: 'text-green-600'
     },
     {
       title: 'Total Contacts',
-      value: '1,247',
-      description: '+18 from last week',
+      value: stats?.total_contacts?.toLocaleString() || '0',
+      description: `${stats?.new_contacts_today || 0} new today`,
       icon: Users,
       trend: 'up',
       color: 'text-blue-600'
     },
     {
       title: 'Open Tickets',
-      value: '12',
-      description: '-3 from yesterday',
+      value: stats?.open_tickets?.toString() || '0',
+      description: `${stats?.resolved_tickets_today || 0} resolved today`,
       icon: Ticket,
       trend: 'down',
       color: 'text-orange-600'
     },
     {
       title: 'Response Rate',
-      value: '96%',
-      description: '+2% from last week',
+      value: `${stats?.response_rate || 0}%`,
+      description: 'Average response time',
       icon: TrendingUp,
       trend: 'up',
       color: 'text-purple-600'
     }
   ];
 
-  const recentActivities = [
-    {
-      id: 1,
-      type: 'message',
-      title: 'New message from John Doe',
-      description: 'Hello, I need help with my order...',
-      time: '2 minutes ago',
-      icon: MessageSquare,
-      color: 'bg-green-100 text-green-600'
-    },
-    {
-      id: 2,
-      type: 'ticket',
-      title: 'Ticket #1234 resolved',
-      description: 'Payment issue resolved for customer',
-      time: '15 minutes ago',
-      icon: CheckCircle2,
-      color: 'bg-blue-100 text-blue-600'
-    },
-    {
-      id: 3,
-      type: 'session',
-      title: 'New WhatsApp session started',
-      description: 'Session from +1234567890',
-      time: '1 hour ago',
-      icon: Activity,
-      color: 'bg-purple-100 text-purple-600'
-    },
-    {
-      id: 4,
-      type: 'alert',
-      title: 'System notification',
-      description: 'Database backup completed successfully',
-      time: '2 hours ago',
-      icon: AlertCircle,
-      color: 'bg-yellow-100 text-yellow-600'
+  const getActivityIcon = (type: string) => {
+    switch (type) {
+      case 'message':
+        return MessageSquare;
+      case 'ticket':
+        return Ticket;
+      case 'session':
+        return Activity;
+      case 'system':
+        return AlertCircle;
+      default:
+        return Activity;
     }
-  ];
+  };
+
+  const getActivityColor = (type: string) => {
+    switch (type) {
+      case 'message':
+        return 'bg-green-100 text-green-600';
+      case 'ticket':
+        return 'bg-blue-100 text-blue-600';
+      case 'session':
+        return 'bg-purple-100 text-purple-600';
+      case 'system':
+        return 'bg-yellow-100 text-yellow-600';
+      default:
+        return 'bg-gray-100 text-gray-600';
+    }
+  };
 
   return (
     <MainLayout>
@@ -96,7 +102,7 @@ export default function DashboardPage() {
 
         {/* Stats grid */}
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {stats.map((stat) => (
+          {statsData.map((stat) => (
             <Card key={stat.title} className="hover:shadow-md transition-shadow">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-gray-600">
@@ -132,26 +138,48 @@ export default function DashboardPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {recentActivities.map((activity) => (
-                  <div key={activity.id} className="flex items-start space-x-4">
-                    <div className={`p-2 rounded-lg ${activity.color}`}>
-                      <activity.icon className="h-4 w-4" />
+              {isLoading ? (
+                <div className="space-y-4">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="flex items-start space-x-4 animate-pulse">
+                      <div className="w-8 h-8 bg-gray-200 rounded-lg"></div>
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                        <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900">
-                        {activity.title}
-                      </p>
-                      <p className="text-sm text-gray-500 truncate">
-                        {activity.description}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        {activity.time}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : recentActivities.length > 0 ? (
+                <div className="space-y-4">
+                  {recentActivities.slice(0, 4).map((activity) => {
+                    const ActivityIcon = getActivityIcon(activity.type);
+                    return (
+                      <div key={activity.id} className="flex items-start space-x-4">
+                        <div className={`p-2 rounded-lg ${getActivityColor(activity.type)}`}>
+                          <ActivityIcon className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900">
+                            {activity.title}
+                          </p>
+                          <p className="text-sm text-gray-500 truncate">
+                            {activity.description}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500">No recent activity</p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -168,13 +196,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {[
-                  { name: 'WAHA Service', status: 'operational', uptime: '99.9%' },
-                  { name: 'Database', status: 'operational', uptime: '100%' },
-                  { name: 'WebSocket', status: 'operational', uptime: '99.8%' },
-                  { name: 'API Server', status: 'operational', uptime: '99.9%' },
-                  { name: 'n8n Integration', status: 'maintenance', uptime: '95.2%' }
-                ].map((service) => (
+                {systemStatus.map((service) => (
                   <div key={service.name} className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                       <div className={`w-3 h-3 rounded-full ${

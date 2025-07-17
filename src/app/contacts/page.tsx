@@ -147,7 +147,7 @@ export default function ContactsPage() {
                 <TableCell>
                   <div className="flex items-center gap-3">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={contact.avatar_url} />
+                      <AvatarImage src={contact.profile_picture_url || contact.avatar_url} />
                       <AvatarFallback className="bg-gray-200 text-gray-700 text-xs">
                         {getInitials(contact.name)}
                       </AvatarFallback>
@@ -161,7 +161,7 @@ export default function ContactsPage() {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <span className="font-mono text-sm">{contact.phone}</span>
+                  <span className="font-mono text-sm">{contact.phone_number || contact.phone}</span>
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
@@ -261,14 +261,14 @@ export default function ContactsPage() {
                 onCheckedChange={() => selectContact(contact.id)}
               />
               <Avatar className="h-12 w-12">
-                <AvatarImage src={contact.avatar_url} />
+                <AvatarImage src={contact.profile_picture_url || contact.avatar_url} />
                 <AvatarFallback className="bg-gray-200 text-gray-700">
                   {getInitials(contact.name)}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
                 <h3 className="font-medium truncate">{contact.name}</h3>
-                <p className="text-sm text-gray-500 font-mono">{contact.phone}</p>
+                <p className="text-sm text-gray-500 font-mono">{contact.phone_number || contact.phone}</p>
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

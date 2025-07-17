@@ -112,9 +112,12 @@ export const useContactStore = create<ContactStore>()(
           per_page: get().pageSize,
           ...get().filters
         });
+
+        console.log('response', (response as any));
+
         set({
-          contacts: (response as any).data || [],
-          totalCount: (response as any).pagination?.total || 0,
+          contacts: (response as any) || [],
+          totalCount: (response as any).meta?.total || 0,
           isLoading: false,
         });
       } catch (error) {
@@ -128,7 +131,7 @@ export const useContactStore = create<ContactStore>()(
     fetchLabels: async () => {
       try {
         const response = await labelsApi.getAll();
-        set({ labels: (response as any).data || [] });
+        set({ labels: (response as any) || [] });
       } catch (error) {
         console.error('Failed to load labels:', error);
       }

@@ -51,6 +51,7 @@ export interface Contact extends BaseEntity {
   last_seen?: string;
   notes?: string;
   metadata?: Record<string, any>;
+  profile_picture_url?: string; // From backend
   
   // Takeover fields
   is_takeover_by_admin?: boolean;
