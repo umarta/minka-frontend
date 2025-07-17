@@ -352,7 +352,7 @@ export interface Ticket extends BaseEntity {
   assigned_to_id?: string;
   created_by_id: string;
   category?: string;
-  labels: Label[];
+  tags: string[];
   due_date?: string;
   resolved_at?: string;
   first_response_at?: string;
