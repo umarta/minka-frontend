@@ -52,6 +52,7 @@ export interface Contact extends BaseEntity {
   notes?: string;
   metadata?: Record<string, any>;
   profile_picture_url?: string; // From backend
+  wa_id?: string;
   
   // Takeover fields
   is_takeover_by_admin?: boolean;
@@ -60,6 +61,7 @@ export interface Contact extends BaseEntity {
   auto_reply_enabled?: boolean;
   last_admin_message_at?: string;
   takeover_admin?: User;
+
 }
 
 export interface Label extends BaseEntity {
@@ -350,7 +352,7 @@ export interface Ticket extends BaseEntity {
   assigned_to_id?: string;
   created_by_id: string;
   category?: string;
-  tags: string[];
+  labels: Label[];
   due_date?: string;
   resolved_at?: string;
   first_response_at?: string;

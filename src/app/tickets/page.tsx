@@ -280,16 +280,16 @@ export default function TicketsPage() {
                             <p className="text-sm text-gray-500 truncate max-w-xs">
                               {ticket.description}
                             </p>
-                            {ticket.tags.length > 0 && (
+                            {ticket.labels.length > 0 && (
                               <div className="flex gap-1 mt-1">
-                                {ticket.tags.slice(0, 2).map((tag) => (
-                                  <Badge key={tag} variant="outline" className="text-xs">
-                                    {tag}
+                                {ticket.labels.slice(0, 2).map((label) => (
+                                  <Badge key={label.id} variant="outline" className="text-xs">
+                                    {label.name}
                                   </Badge>
                                 ))}
-                                {ticket.tags.length > 2 && (
+                                {ticket.labels.length > 2 && (
                                   <Badge variant="outline" className="text-xs">
-                                    +{ticket.tags.length - 2}
+                                    +{ticket.labels.length - 2}
                                   </Badge>
                                 )}
                               </div>

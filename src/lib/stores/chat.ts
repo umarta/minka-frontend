@@ -782,6 +782,8 @@ export const useChatStore = create<ChatStore>()(
           throw new Error('No active contact selected');
         }
 
+        console.log('activeContact check chat ts', activeContact);
+
         // If no active ticket, try to create one or send without ticket
         if (!ticketToUse) {
           console.log('[Chat] No active ticket found, attempting to create ticket or send without ticket');
@@ -830,6 +832,7 @@ export const useChatStore = create<ChatStore>()(
           updated_at: new Date().toISOString(),
         };
 
+
         // Add message to UI immediately
         get().addMessage(newMessage);
         
@@ -838,7 +841,7 @@ export const useChatStore = create<ChatStore>()(
           const response = await messagesApi.send({
             session_name: 'default',
             ticket_id: ticketToUse ? parseInt(ticketToUse.id.toString()) : 0, // Required field
-            to: phoneNumber, // Required field - phone number
+            to: activeContact.wa_id, // Required field - phone number
             text: data.content, // Required field - message content
             admin_id: 1, // Required field - will be overridden by backend
           });

@@ -113,7 +113,7 @@ export const useTicketStore = create<TicketStore>()(
         });
         
         set({
-          tickets: (response as any).data || [],
+          tickets: (response as any) || [],
           totalCount: (response as any).pagination?.total || 0,
           isLoading: false,
         });

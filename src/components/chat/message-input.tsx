@@ -175,6 +175,7 @@ export function MessageInput({ onSearch, onClearSearch, searchQuery }: MessageIn
         reply_to_message_id: replyToMessage?.id
       });
 
+      console.log('activeContact check', activeContact);
       // Reset form
       resetForm();
       console.log('✅ Message sent successfully');
