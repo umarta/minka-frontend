@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { Contact, Message, Conversation, ChatGroups, MessageForm, Ticket, QuickReplyTemplate, ContactNote, DraftMessage } from '@/types';
 import { contactsApi, messagesApi, ticketsApi, quickReplyApi, contactNotesApi, draftMessagesApi, conversationsApi, antiBlockingApi } from '@/lib/api';
+import { uploadMediaWithProgress, uploadWithRetry, validateFile } from '@/lib/utils/upload';
 import { createWebSocketManager, getWebSocketManager } from '@/lib/websocket';
 import { shallow } from 'zustand/shallow';
 import { useAntiBlockingStore } from './antiBlocking';
@@ -119,6 +120,15 @@ interface ChatState {
   isLoadingMessages: boolean;
   isSendingMessage: boolean;
   
+  // Upload progress
+  uploadProgress: Record<string, {
+    messageId: string;
+    fileName: string;
+    progress: number;
+    status: 'uploading' | 'complete' | 'error';
+    error?: string;
+  }>; // fileId -> upload progress
+  
   // Sidebar state
   sidebarCollapsed: boolean;
   rightSidebarVisible: boolean;
@@ -192,6 +202,11 @@ interface ChatActions {
   searchMessages: (query: string) => Promise<void>;
   clearSearch: () => void;
   
+  // Upload progress
+  setUploadProgress: (fileId: string, progress: { messageId: string; fileName: string; progress: number; status: 'uploading' | 'complete' | 'error'; error?: string }) => void;
+  removeUploadProgress: (fileId: string) => void;
+  clearUploadProgress: () => void;
+  
   // UI actions
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
@@ -233,6 +248,7 @@ export const useChatStore = create<ChatStore>()(
     isLoadingConversations: false,
     isLoadingMessages: false,
     isSendingMessage: false,
+    uploadProgress: {},
     sidebarCollapsed: false,
     rightSidebarVisible: false,
     rightSidebarMode: 'auto', // NEW
@@ -772,7 +788,7 @@ export const useChatStore = create<ChatStore>()(
       });
     },
 
-    sendMessage: async (data) => {
+    sendMessage: async (data: MessageForm) => {
       try {
         set({ isSendingMessage: true, error: null });
         const { activeContact } = get();
@@ -782,7 +798,9 @@ export const useChatStore = create<ChatStore>()(
           throw new Error('No active contact selected');
         }
 
-        console.log('activeContact check chat ts', activeContact);
+        console.log('[Chat] Active contact:', activeContact);
+
+        console.log('[Chat] Sending message to contact:', activeContact.id);
 
         // If no active ticket, try to create one or send without ticket
         if (!ticketToUse) {
@@ -815,46 +833,131 @@ export const useChatStore = create<ChatStore>()(
           throw new Error('Contact phone number is required');
         }
 
-        // Send message directly without anti-blocking
-        console.log('[Chat] Sending message directly without anti-blocking');
-        
+        console.log('[Chat] Sending message to phone number:', activeContact.phone_number);
+
         // Create message object for UI
         const newMessage: Message = {
           id: Date.now().toString(),
           ticket_id: ticketToUse ? ticketToUse.id.toString() : null, // Can be null if no ticket
           contact_id: activeContact.id,
-          session_id: 'default',
+          session_id: data.session_id || 'default',
           direction: 'outgoing',
           message_type: data.message_type || 'text',
           content: data.content,
-          status: 'sent',
+          status: 'pending', // Start with pending status
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
 
-
         // Add message to UI immediately
         get().addMessage(newMessage);
         
-        // Send message via regular messages API
         try {
-          const response = await messagesApi.send({
-            session_name: 'default',
-            ticket_id: ticketToUse ? parseInt(ticketToUse.id.toString()) : 0, // Required field
-            to: activeContact.wa_id, // Required field - phone number
-            text: data.content, // Required field - message content
-            admin_id: 1, // Required field - will be overridden by backend
-          });
+          let response = null;
+          
+          // Handle different message types
+          if (data.media_file && ['image', 'video', 'audio', 'document'].includes(data.message_type)) {
+            console.log('[Chat] Sending media message with presigned URL flow');
+            
+            // Validate file before upload
+            const validation = validateFile(data.media_file, {
+              maxSize: 50 * 1024 * 1024, // 50MB
+              allowedTypes: ['image/*', 'video/*', 'audio/*', 'application/*']
+            });
+            
+            if (!validation.valid) {
+              throw new Error(validation.error || 'Invalid file');
+            }
+            
+            // Set a custom property in the upload progress to track status
+            // We'll use the standard message status for the message itself
+            
+            // Track upload progress
+            const updateProgress = (progress: number) => {
+              // Update progress in store
+              set((state) => ({
+                uploadProgress: {
+                  ...state.uploadProgress,
+                  [newMessage.id]: {
+                    messageId: newMessage.id,
+                    fileName: data.media_file?.name || 'unknown',
+                    progress: progress,
+                    status: 'uploading'
+                  }
+                }
+              }));
+            };
+            
+            // Send media message using presigned URL flow
+            response = await messagesApi.sendMedia({
+              file: data.media_file,
+              contact_id: activeContact.id,
+              session_id: data.session_id || 'default',
+              content: data.content || '',
+              message_type: data.message_type,
+              reply_to_message_id: data.reply_to_message_id,
+              phone_number: activeContact.phone_number, // Pass the phone number we already have
+              // Ticket is optional in our system, but backend requires it
+              // We'll handle this in the API layer
+            }, updateProgress);
+            
+            // Update progress to complete
+            set((state) => ({
+              uploadProgress: {
+                ...state.uploadProgress,
+                [newMessage.id]: {
+                  messageId: newMessage.id,
+                  fileName: data.media_file?.name || 'unknown',
+                  progress: 100,
+                  status: 'complete'
+                }
+              }
+            }));
+          } else {
+            // Send text message
+            console.log('[Chat] Sending text message');
+            response = await messagesApi.send({
+              contact_id: activeContact.id,
+              session_id: data.session_id || 'default',
+              content: data.content,
+              message_type: 'text',
+              to: activeContact.wa_id || activeContact.phone_number || activeContact.phone || '',
+              reply_to_message_id: data.reply_to_message_id,
+              ticket_id: ticketToUse ? ticketToUse.id.toString() : undefined, // Pass ticket ID if available
+            });
+          }
           
           // Update message with response data if available
           if (response && response.id) {
             get().updateMessage(newMessage.id, {
               id: response.id.toString(),
               status: response.status || 'sent',
+              media_url: response.media_url || undefined,
+              thumbnail_url: response.thumbnail_url || undefined,
             });
+          } else {
+            // Update status to sent if no response ID
+            get().updateMessage(newMessage.id, { status: 'sent' });
           }
         } catch (sendError) {
           console.error('[Chat] Failed to send message:', sendError);
+          
+          // Update upload progress to error if it was a media message
+          if (data.media_file) {
+            set((state) => ({
+              uploadProgress: {
+                ...state.uploadProgress,
+                [newMessage.id]: {
+                  messageId: newMessage.id,
+                  fileName: data.media_file?.name || 'unknown',
+                  progress: 0,
+                  status: 'error',
+                  error: sendError instanceof Error ? sendError.message : 'Upload failed'
+                }
+              }
+            }));
+          }
+          
           // Update message status to failed
           get().updateMessage(newMessage.id, {
             status: 'failed',
@@ -862,6 +965,7 @@ export const useChatStore = create<ChatStore>()(
           throw new Error('Failed to send message to server');
         }
         
+        // Refresh messages to ensure we have the latest data
         if (activeContact?.id) {
           await get().loadContactMessages(activeContact.id, 1);
         }
@@ -1084,6 +1188,27 @@ export const useChatStore = create<ChatStore>()(
         searchResults: [],
         isSearching: false,
       });
+    },
+
+    // Upload progress actions
+    setUploadProgress: (fileId: string, progress) => {
+      set((state) => ({
+        uploadProgress: {
+          ...state.uploadProgress,
+          [fileId]: progress,
+        },
+      }));
+    },
+
+    removeUploadProgress: (fileId: string) => {
+      set((state) => {
+        const { [fileId]: removed, ...rest } = state.uploadProgress;
+        return { uploadProgress: rest };
+      });
+    },
+
+    clearUploadProgress: () => {
+      set({ uploadProgress: {} });
     },
 
     // UI actions
@@ -1534,6 +1659,13 @@ export const useChatError = () => useChatStore((state) => ({
   error: state.error,
   setError: state.setError,
   clearError: state.clearError,
+}));
+
+export const useUploadProgress = () => useChatStore((state) => ({
+  uploadProgress: state.uploadProgress,
+  setUploadProgress: state.setUploadProgress,
+  removeUploadProgress: state.removeUploadProgress,
+  clearUploadProgress: state.clearUploadProgress,
 }));
 
 // Tambahkan deklarasi global untuk window.__wsMessageReceivedHandler

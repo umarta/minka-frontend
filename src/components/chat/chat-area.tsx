@@ -31,6 +31,27 @@ interface ChatAreaProps {
 export function ChatArea(props: ChatAreaProps) {
   const { activeContact } = useChatStore();
 
+  // Prevent default browser drag and drop behavior
+  useEffect(() => {
+    const preventDefault = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    // Add event listeners to prevent default browser behavior
+    document.addEventListener('dragover', preventDefault);
+    document.addEventListener('drop', preventDefault);
+    document.addEventListener('dragenter', preventDefault);
+    document.addEventListener('dragleave', preventDefault);
+
+    return () => {
+      document.removeEventListener('dragover', preventDefault);
+      document.removeEventListener('drop', preventDefault);
+      document.removeEventListener('dragenter', preventDefault);
+      document.removeEventListener('dragleave', preventDefault);
+    };
+  }, []);
+
   // Hapus atau komentari useEffect inisialisasi WebSocketManager di ChatArea
   // useEffect(() => {
   //   console.log('[WS] useEffect in ChatArea: initializing WebSocketManager');

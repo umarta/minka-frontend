@@ -646,6 +646,95 @@ export const sessionsApi = {
 };
 
 // Messages API
+// Files API
+export const filesApi = {
+  // Get presigned URL for direct client-side upload to storage
+  getPresignedUrl: async (fileData: { filename: string; content_type: string; size: number; phone_number: string }) => {
+    try {
+      // Map to the format expected by the backend
+      const requestData = {
+        phone_number: fileData.phone_number,
+        file_name: fileData.filename,
+        file_type: fileData.content_type,
+        // Optional: expiry_hours: 1
+      };
+      
+      const response = await api.post('/files/presigned', requestData);
+      const responseData = handleSingleResponse<{ presigned_url: string; public_url: string }>(response);
+      
+      // Map response fields to match what our code expects
+      return responseData ? {
+        url: responseData.presigned_url,
+        file_path: responseData.public_url,
+        presignedURL: responseData.presigned_url,
+        publicURL: responseData.public_url
+      } : null;
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return null;
+    }
+  },
+  
+  // Upload file directly to storage using presigned URL
+  uploadWithPresignedUrl: async (presignedUrl: string, file: File, onProgress?: (progress: number) => void): Promise<boolean> => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable && onProgress) {
+          const progress = Math.round((event.loaded / event.total) * 100);
+          onProgress(progress);
+        }
+      });
+      
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(true);
+        } else {
+          reject(new Error(`Upload failed with status ${xhr.status}`));
+        }
+      });
+      
+      xhr.addEventListener('error', () => {
+        reject(new Error('Upload failed due to network error'));
+      });
+      
+      xhr.addEventListener('abort', () => {
+        reject(new Error('Upload aborted'));
+      });
+      
+      xhr.open('PUT', presignedUrl);
+      xhr.setRequestHeader('Content-Type', file.type);
+      xhr.send(file);
+    });
+  },
+  
+  // Upload file to backend directly (legacy method)
+  upload: async (file: File, onProgress?: (progress: number) => void) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await api.post('/files/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent.total && onProgress) {
+            const progress = Math.round((progressEvent.loaded / progressEvent.total) * 100);
+            onProgress(progress);
+          }
+        },
+      });
+      
+      return handleSingleResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return null;
+    }
+  },
+};
+
 export const messagesApi = {
   getByContact: async (contactId: string, params?: { page?: number; limit?: number; query?: string; order?: string }) => {
     const searchParams = new URLSearchParams();
@@ -670,18 +759,109 @@ export const messagesApi = {
   
   send: async (data: any) => {
     try {
-      const response = await api.post('/messages/send/text', data);
+      // Map the data to match the backend's SendTextMessageRequest structure
+      const messageData = {
+        session_name: data.session_id || 'default',
+        ticket_id: data.ticket_id ? parseInt(data.ticket_id) : undefined, // Optional field
+        to: data.to, // Required field
+        text: data.content, // Required field
+        // AdminID is set by the backend from the JWT token
+      };
+      
+      console.log('[API] Sending text message with data:', messageData);
+      const response = await api.post('/messages/send/text', messageData);
       return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
-
       return null;
     }
   },
   
-  sendMedia: async (data: FormData) => {
+  // Send media message using presigned URL flow
+  sendMedia: async (data: { 
+    file: File; 
+    contact_id: string; 
+    session_id: string; 
+    content?: string; 
+    message_type: string;
+    reply_to_message_id?: string;
+    phone_number?: string; // Added phone number parameter
+    ticket_id?: string; // Added ticket ID parameter
+  }, onProgress?: (progress: number) => void) => {
     try {
-      const response = await api.post('/messages/send/media', data, {
+      // Get phone number from contact if not provided directly
+      let phoneNumber = data.phone_number;
+      
+      if (!phoneNumber) {
+        // Try to get contact details if phone number not provided
+        try {
+          const contactResponse = await api.get(`/contacts/${data.contact_id}`);
+          const contact = handleSingleResponse<any>(contactResponse);
+          phoneNumber = contact?.phone_number || contact?.phone || contact?.wa_id;
+          
+          if (!phoneNumber) {
+            throw new Error('Could not determine phone number for contact');
+          }
+        } catch (contactError) {
+          console.error('Error fetching contact details:', contactError);
+          throw new Error('Phone number is required for media upload');
+        }
+      }
+      
+      // Step 1: Get presigned URL for file upload
+      const presignedUrlData = await filesApi.getPresignedUrl({
+        filename: data.file.name,
+        content_type: data.file.type,
+        size: data.file.size,
+        phone_number: phoneNumber
+      });
+      
+      if (!presignedUrlData?.url) {
+        throw new Error('Failed to get presigned URL for file upload');
+      }
+      
+      // Step 2: Upload file directly to storage using presigned URL
+      const uploadSuccess = await filesApi.uploadWithPresignedUrl(
+        presignedUrlData.url, 
+        data.file,
+        onProgress
+      );
+      
+      if (!uploadSuccess) {
+        throw new Error('Failed to upload file to storage');
+      }
+      
+      // Step 3: Send message with media URL to backend
+      // Map our data to match the backend's SendMediaMessageRequest structure
+      // Use the correct media_type to determine which WAHA endpoint to use
+      const mediaType = data.message_type || 'document';
+      
+      // Prepare the message data according to the new WAHA API format
+      const messageData = {
+        session_name: data.session_id || 'default',
+        ticket_id: data.ticket_id ? parseInt(data.ticket_id) : 1, // Use default ticket ID (1) when no ticket available
+        to: phoneNumber, // Required field
+        media_type: mediaType, // image, video, audio, document
+        media_url: presignedUrlData.publicURL || presignedUrlData.file_path, // Use clean URL from backend response
+        caption: data.content || '',
+        // AdminID is set by the backend from the JWT token
+      };
+      
+      console.log('[API] Using ticket_id:', messageData.ticket_id, 'for media message');
+      
+      console.log('[API] Sending media message with data:', messageData);
+      const response = await api.post('/messages/send/media', messageData);
+      return handleSingleResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return null;
+    }
+  },
+  
+  // Legacy method for direct upload to backend (fallback)
+  sendMediaDirect: async (data: FormData) => {
+    try {
+      const response = await api.post('/message/send/media-upload', data, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -689,7 +869,6 @@ export const messagesApi = {
       return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
-
       return null;
     }
   },

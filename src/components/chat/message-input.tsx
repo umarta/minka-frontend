@@ -25,11 +25,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { useChatStore } from '@/lib/stores/chat';
+import { useChat, useChatStore } from '@/lib/stores/chat';
 import { useAntiBlockingStore } from '@/lib/stores/antiBlocking';
 import { MessageType, QuickReplyTemplate, FileUploadProgress } from '@/types';
 import { cn } from '@/lib/utils';
 import { AntiBlockingValidation } from './anti-blocking-validation';
+import { useDragAndDrop } from '@/lib/hooks/useDragAndDrop';
+import { validateFile } from '@/lib/utils/upload';
 
 interface MessageInputProps {
   onSearch?: (query: string) => void;
@@ -38,7 +40,7 @@ interface MessageInputProps {
 }
 
 export function MessageInput({ onSearch, onClearSearch, searchQuery }: MessageInputProps) {
-  const { activeContact, sendMessage, isSendingMessage } = useChatStore();
+  const { activeContact, sendMessage, isSendingMessage, uploadProgress } = useChatStore();
   const { lastValidation, validateMessage, clear } = useAntiBlockingStore();
   
   // Message State
@@ -48,7 +50,6 @@ export function MessageInput({ onSearch, onClearSearch, searchQuery }: MessageIn
   // File Upload State
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [attachmentPreviews, setAttachmentPreviews] = useState<string[]>([]);
-  const [uploadProgress, setUploadProgress] = useState<FileUploadProgress[]>([]);
   
   // Voice Recording State
   const [isRecording, setIsRecording] = useState(false);
@@ -72,6 +73,21 @@ export function MessageInput({ onSearch, onClearSearch, searchQuery }: MessageIn
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+  
+  // Drag and Drop
+  const { isDragging, setDropRef } = useDragAndDrop({
+    onFilesDropped: (files) => {
+      console.log('✅ Files dropped successfully:', files.map(f => f.name));
+      handleFileSelect({ length: files.length, item: (i) => files[i] } as FileList);
+    },
+    acceptedTypes: ['image/*', 'video/*', 'audio/*', 'application/*'],
+    maxFiles: 5,
+    maxSize: 50 * 1024 * 1024, // 50MB
+    onError: (error) => {
+      console.error('❌ Drag & Drop Error:', error);
+      // You could show a toast notification here
+    }
+  });
   
   // Demo quick reply templates
   const quickTemplates: QuickReplyTemplate[] = [
@@ -225,39 +241,11 @@ export function MessageInput({ onSearch, onClearSearch, searchQuery }: MessageIn
         reader.readAsDataURL(file);
       }
 
-      // Simulate upload progress
-      simulateUploadProgress(file);
+      // Upload progress will be handled by chat store when message is sent
     });
   };
 
-  const simulateUploadProgress = (file: File) => {
-    const fileId = `${Date.now()}_${file.name}`;
-    setUploadProgress(prev => [...prev, {
-      fileId,
-      fileName: file.name,
-      progress: 0,
-      status: 'uploading'
-    }]);
 
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += Math.random() * 20;
-      if (progress >= 100) {
-        progress = 100;
-        clearInterval(interval);
-        setUploadProgress(prev => 
-          prev.map(p => p.fileId === fileId ? {...p, progress, status: 'complete'} : p)
-        );
-        setTimeout(() => {
-          setUploadProgress(prev => prev.filter(p => p.fileId !== fileId));
-        }, 2000);
-      } else {
-        setUploadProgress(prev => 
-          prev.map(p => p.fileId === fileId ? {...p, progress} : p)
-        );
-      }
-    }, 200);
-  };
 
   const removeAttachment = (index: number) => {
     setAttachmentFiles(prev => prev.filter((_, i) => i !== index));
@@ -383,7 +371,25 @@ export function MessageInput({ onSearch, onClearSearch, searchQuery }: MessageIn
   };
 
   return (
-    <div className="border-t bg-background p-4 space-y-4">
+    <div 
+      ref={setDropRef}
+      className={cn(
+        "border-t bg-background p-4 space-y-4 relative transition-all duration-200",
+        isDragging && "bg-blue-50 border-blue-300 border-2 border-dashed"
+      )}
+    >
+      {/* Drag & Drop Overlay */}
+      {isDragging && (
+        <div className="absolute inset-0 bg-blue-500 bg-opacity-10 flex items-center justify-center z-10 rounded-lg">
+          <div className="bg-white rounded-lg p-6 shadow-lg border-2 border-blue-300 border-dashed">
+            <div className="flex flex-col items-center gap-3 text-blue-600">
+              <Upload className="w-12 h-12" />
+              <p className="text-lg font-semibold">Drop files here</p>
+              <p className="text-sm text-gray-600">Support images, videos, audio, and documents</p>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Anti-blocking Validation Feedback */}
       {showValidation && lastValidation && (
         <AntiBlockingValidation
@@ -440,15 +446,18 @@ export function MessageInput({ onSearch, onClearSearch, searchQuery }: MessageIn
       )}
 
       {/* Upload Progress */}
-      {uploadProgress.length > 0 && (
+      {Object.keys(uploadProgress).length > 0 && (
         <div className="p-3 border-b border-gray-100 bg-blue-50">
-          {uploadProgress.map((progress) => (
-            <div key={progress.fileId} className="mb-2">
+          {Object.entries(uploadProgress).map(([fileId, progress]) => (
+            <div key={fileId} className="mb-2">
               <div className="flex justify-between items-center mb-1">
                 <span className="text-sm font-medium">{progress.fileName}</span>
                 <span className="text-sm text-gray-500">{progress.progress}%</span>
               </div>
               <Progress value={progress.progress} className="h-2" />
+              {progress.status === 'error' && progress.error && (
+                <p className="text-xs text-red-500 mt-1">{progress.error}</p>
+              )}
             </div>
           ))}
         </div>
