@@ -1505,7 +1505,7 @@ if (ws && typeof window !== 'undefined') {
         contact_id: (data.contact_id || (data.contact && data.contact.id) || '').toString(),
         session_id: data.session_name || 'default',
         wa_message_id: data.wa_message_id || '',
-        direction: 'incoming' as 'incoming',
+        direction: data.direction,
         message_type: data.message_type || 'text',
         content: data.body || data.content || '',
         status: data.status || 'received',
