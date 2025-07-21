@@ -997,6 +997,24 @@ export const useChatStore = create<ChatStore>()(
       if (ticketId) {
         get().addSingleMessage(ticketId, message);
       }
+      
+      // Move conversation to top when new message is added
+      set((state) => {
+        const existingConvIndex = state.conversations.findIndex(
+          (conv) => conv.contact.id?.toString() === contactId
+        );
+        
+        if (existingConvIndex !== -1) {
+          const updatedConversation = { ...state.conversations[existingConvIndex] };
+          const otherConversations = state.conversations.filter((_, i) => i !== existingConvIndex);
+          
+          return {
+            conversations: [updatedConversation, ...otherConversations],
+          };
+        }
+        
+        return state;
+      });
     },
 
     updateMessage: (messageId: string, updates: Partial<Message>) => {
@@ -1076,8 +1094,10 @@ export const useChatStore = create<ChatStore>()(
         }
       } else {
         // Update conversation's last message, unread count, label, contact name, admin incharge, takeover flag
-        set((state) => ({
-          conversations: state.conversations.map(conv => {
+        // and move it to the top
+        set((state) => {
+          let updatedConversation = null;
+          const otherConversations = state.conversations.filter(conv => {
             if (conv.contact.id?.toString() === contactId) {
               // Update last_message
               const lastMsg = {
@@ -1115,7 +1135,7 @@ export const useChatStore = create<ChatStore>()(
               if (msgContact && typeof msgContact.is_takeover_by_bot !== 'undefined') {
                 is_takeover_by_bot = msgContact.is_takeover_by_bot;
               }
-              return {
+              updatedConversation = {
                 ...conv,
                 last_message: lastMsg,
                 unread_count: unread,
@@ -1125,10 +1145,16 @@ export const useChatStore = create<ChatStore>()(
                 is_takeover_by_bot,
                 last_activity: message.created_at,
               };
+              return false; // Remove from this position
             }
-            return conv;
-          }),
-        }));
+            return true; // Keep other conversations
+          });
+          
+          // Place updated conversation at the top
+          return {
+            conversations: updatedConversation ? [updatedConversation, ...otherConversations] : state.conversations,
+          };
+        });
         get().groupConversations();
       }
     },
@@ -1566,18 +1592,19 @@ if (ws && typeof window !== 'undefined') {
   });
   ws.on('conversation_updated', (data) => {
     console.log('[WS] conversation_updated event:', data);
-    // Update or insert conversation in state
+    // Update or insert conversation in state and move to top
     useChatStore.setState((state) => {
       const idx = state.conversations.findIndex(
         (conv) => conv.id === data.id || conv.contact.id === data.contact_id
       );
       let newConversations;
       if (idx !== -1) {
-        // Update existing conversation
-        newConversations = [...state.conversations];
-        newConversations[idx] = { ...newConversations[idx], ...data };
+        // Update existing conversation and move to top
+        const updatedConversation = { ...state.conversations[idx], ...data };
+        const otherConversations = state.conversations.filter((_, i) => i !== idx);
+        newConversations = [updatedConversation, ...otherConversations];
       } else {
-        // Insert new conversation
+        // Insert new conversation at top
         newConversations = [data, ...state.conversations];
       }
       return {
