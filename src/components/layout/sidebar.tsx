@@ -14,13 +14,15 @@ import {
   Smartphone,
   Activity,
   User,
-  LogOut
+  LogOut,
+  Zap
 } from 'lucide-react';
 import { useAuth } from '@/lib/stores/auth';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: BarChart3 },
   { name: 'Chat', href: '/chat', icon: MessageSquare },
+  { name: 'Quick Replies', href: '/quick-replies', icon: Zap },
   { name: 'Contacts', href: '/contacts', icon: Users },
   { name: 'Tickets', href: '/tickets', icon: Ticket },
   { name: 'Labels', href: '/labels', icon: Tags },
@@ -155,4 +157,4 @@ export function Sidebar() {
       </nav>
     </div>
   );
-} 
+}

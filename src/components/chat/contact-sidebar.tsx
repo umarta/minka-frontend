@@ -1,12 +1,16 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, Phone, MessageCircle, Clock, MoreVertical, Star, Archive, Trash2, CheckCheck, Circle } from 'lucide-react';
+import { Search, Phone, MessageCircle, Clock, MoreVertical, Star, Archive, Trash2, CheckCheck, Circle, Tag } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { ConversationUnreadBadge } from '@/components/UnreadCountBadge';
+import { LabelBadgeInline } from '@/components/LabelBadgeDisplay';
+import { ConversationStatusDot } from '@/components/ConversationStatusIndicator';
+import { ContactLabelManager } from '@/components/ContactLabelManager';
 import { useChatStore } from '@/lib/stores/chat';
 import { Conversation } from '@/types';
 import { formatDistanceToNow, format, isToday, isYesterday, isThisWeek } from 'date-fns';
@@ -32,6 +36,8 @@ export function ContactSidebar() {
   const [selectedTab, setSelectedTab] = useState<'needReply' | 'automated' | 'completed'>('needReply');
   const [localSearchQuery, setLocalSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'time' | 'unread' | 'name'>('time');
+  const [labelManagerOpen, setLabelManagerOpen] = useState(false);
+  const [selectedConversationForLabels, setSelectedConversationForLabels] = useState<Conversation | null>(null);
 
   useEffect(() => {
     loadConversations();
@@ -127,8 +133,31 @@ export function ContactSidebar() {
 
   const handleQuickAction = (e: React.MouseEvent, action: string, conversation: Conversation) => {
     e.stopPropagation();
-    // Implement quick actions here
-    console.log(`Quick action: ${action}`, conversation);
+    
+    switch (action) {
+      case 'contactLabel':
+        setSelectedConversationForLabels(conversation);
+        setLabelManagerOpen(true);
+        break;
+      case 'markRead':
+        // TODO: Implement mark as read
+        console.log('Mark as read:', conversation);
+        break;
+      case 'star':
+        // TODO: Implement star/unstar
+        console.log('Star conversation:', conversation);
+        break;
+      case 'archive':
+        // TODO: Implement archive
+        console.log('Archive conversation:', conversation);
+        break;
+      case 'delete':
+        // TODO: Implement delete
+        console.log('Delete conversation:', conversation);
+        break;
+      default:
+        console.log(`Quick action: ${action}`, conversation);
+    }
   };
 
   const renderConversation = (conversation: Conversation) => {
@@ -190,6 +219,10 @@ export function ContactSidebar() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-40">
+                    <DropdownMenuItem onClick={(e) => handleQuickAction(e, 'contactLabel', conversation)}>
+                      <Tag className="h-4 w-4 mr-2" />
+                      Contact Label
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={(e) => handleQuickAction(e, 'markRead', conversation)}>
                       <CheckCheck className="h-4 w-4 mr-2" />
                       Tandai Dibaca
@@ -233,13 +266,10 @@ export function ContactSidebar() {
               </div>
               
               <div className="flex items-center gap-1 flex-shrink-0">
-                {conversation.unread_count > 0 && (
-                  <Badge className="bg-red-500 text-white text-xs min-w-[20px] h-5 flex items-center justify-center rounded-full">
-                    {conversation.unread_count > 99 ? '99+' : conversation.unread_count}
-                  </Badge>
-                )}
+                <ConversationUnreadBadge conversation={conversation} />
                 
                 {/* Status indicators */}
+                <ConversationStatusDot status={conversation.status} />
                 {conversation.active_ticket?.priority === 'urgent' && (
                   <Circle className="h-2 w-2 fill-red-500 text-red-500" />
                 )}
@@ -252,14 +282,19 @@ export function ContactSidebar() {
                 )}
               </div>
             </div>
+            
+            {/* Labels display */}
+            {conversation.labels && conversation.labels.length > 0 && (
+              <div className="mt-1">
+                <LabelBadgeInline labels={conversation.labels} maxVisible={3} />
+              </div>
+            )}
           </div>
         )}
 
         {sidebarCollapsed && conversation.unread_count > 0 && (
           <div className="absolute -top-1 -right-1">
-            <Badge className="bg-red-500 text-white text-xs min-w-[18px] h-[18px] flex items-center justify-center rounded-full">
-              {conversation.unread_count > 9 ? '9+' : conversation.unread_count}
-            </Badge>
+            <ConversationUnreadBadge conversation={conversation} className="h-4 min-w-4 text-xs" />
           </div>
         )}
       </div>
@@ -527,6 +562,19 @@ export function ContactSidebar() {
           </div>
         )}
       </section>
+      
+      {/* Contact Label Manager Modal */}
+       {labelManagerOpen && selectedConversationForLabels && (
+         <ContactLabelManager
+           contactId={selectedConversationForLabels.contact.id.toString()}
+           contactName={selectedConversationForLabels.contact.name}
+           isOpen={labelManagerOpen}
+           onClose={() => {
+             setLabelManagerOpen(false);
+             setSelectedConversationForLabels(null);
+           }}
+         />
+       )}
     </aside>
   );
-} 
+}

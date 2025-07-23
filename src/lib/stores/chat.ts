@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { Contact, Message, Conversation, ChatGroups, MessageForm, Ticket, QuickReplyTemplate, ContactNote, DraftMessage } from '@/types';
-import { contactsApi, messagesApi, ticketsApi, quickReplyApi, contactNotesApi, draftMessagesApi, conversationsApi, antiBlockingApi } from '@/lib/api';
+import { contactsApi, messagesApi, ticketsApi, quickReplyApi, contactNotesApi, draftMessagesApi, conversationsApi, antiBlockingApi, labelsApi } from '@/lib/api';
 import { uploadMediaWithProgress, uploadWithRetry, validateFile } from '@/lib/utils/upload';
 import { createWebSocketManager, getWebSocketManager } from '@/lib/websocket';
 import { shallow } from 'zustand/shallow';
@@ -115,6 +115,20 @@ interface ChatState {
   draftMessages: Record<string, DraftMessage>; // contactId -> draft
   isLoadingDraftMessages: boolean;
   
+  // Label Management
+  labels: any[]; // Available labels
+  conversationLabels: Record<string, any[]>; // contactId -> labels
+  isLoadingLabels: boolean;
+  
+  // Bulk Operations
+  bulkOperations: {
+    selectedConversations: string[];
+    isProcessing: boolean;
+  };
+  
+  // Response Time Metrics
+  responseTimeMetrics: Record<string, number>; // conversationId -> response time
+  
   // UI state
   isLoadingConversations: boolean;
   isLoadingMessages: boolean;
@@ -192,6 +206,26 @@ interface ChatActions {
   deleteDraftMessage: (contactId: string) => Promise<void>;
   autoSaveDraft: (contactId: string, content: string) => Promise<void>;
   
+  // Label Management
+  loadLabels: () => Promise<void>;
+  createLabel: (data: { name: string; color: string; description?: string }) => Promise<any>;
+  updateLabel: (id: string, data: { name?: string; color?: string; description?: string }) => Promise<any>;
+  deleteLabel: (id: string) => Promise<void>;
+  
+  // Conversation Label Management
+  addLabelsToConversation: (conversationId: string, labelIds: string[]) => Promise<void>;
+  removeLabelsFromConversation: (conversationId: string, labelIds: string[]) => Promise<void>;
+  
+  // Bulk Operations
+  selectConversationForBulk: (id: string) => void;
+  selectAllConversations: () => void;
+  clearBulkSelection: () => void;
+  bulkUpdateConversations: (updates: any) => Promise<void>;
+  
+  // Response Time Tracking
+  loadResponseTimeMetrics: () => Promise<void>;
+  trackResponseTime: (conversationId: string, responseTime: number) => void;
+  
   // Real-time updates
   handleIncomingMessage: (message: Message) => void;
   handleMessageStatusUpdate: (messageId: string, status: string) => void;
@@ -245,6 +279,14 @@ export const useChatStore = create<ChatStore>()(
     isLoadingContactNotes: false,
     draftMessages: {},
     isLoadingDraftMessages: false,
+    labels: [],
+    conversationLabels: {},
+    isLoadingLabels: false,
+    bulkOperations: {
+      selectedConversations: [],
+      isProcessing: false,
+    },
+    responseTimeMetrics: {},
     isLoadingConversations: false,
     isLoadingMessages: false,
     isSendingMessage: false,
@@ -1264,12 +1306,13 @@ export const useChatStore = create<ChatStore>()(
 
     // Quick Reply Templates
     loadQuickReplyTemplates: async () => {
+      set({ isLoadingQuickReplies: true, error: null });
       try {
         const quickReplyTemplates = await quickReplyApi.getAll();
-        set({ quickReplyTemplates });
+        set({ quickReplyTemplates, isLoadingQuickReplies: false });
       } catch (error) {
         console.error('Failed to load quick reply templates:', error);
-        set({ error: 'Failed to load quick reply templates' });
+        set({ error: 'Failed to load quick reply templates', isLoadingQuickReplies: false });
       }
     },
 
@@ -1400,6 +1443,182 @@ export const useChatStore = create<ChatStore>()(
         console.error('Failed to auto-save draft message:', error);
         set({ error: 'Failed to auto-save draft message' });
       }
+    },
+
+    // Label Management
+    loadLabels: async () => {
+      set({ isLoadingLabels: true, error: null });
+      try {
+        const labels = await labelsApi.getAll();
+        set({ labels, isLoadingLabels: false });
+      } catch (error) {
+        console.error('Failed to load labels:', error);
+        set({ error: 'Failed to load labels', isLoadingLabels: false });
+      }
+    },
+
+    createLabel: async (data) => {
+      try {
+        const newLabel = await labelsApi.create(data);
+        set({ labels: [...get().labels, newLabel] });
+        return newLabel;
+      } catch (error) {
+        console.error('Failed to create label:', error);
+        set({ error: 'Failed to create label' });
+        throw error;
+      }
+    },
+
+    updateLabel: async (id, data) => {
+      try {
+        const updatedLabel = await labelsApi.update(id, data);
+        set({
+          labels: get().labels.map(label => 
+            label.id === id ? updatedLabel : label
+          )
+        });
+        return updatedLabel;
+      } catch (error) {
+        console.error('Failed to update label:', error);
+        set({ error: 'Failed to update label' });
+        throw error;
+      }
+    },
+
+    deleteLabel: async (id) => {
+      try {
+        await labelsApi.delete(id);
+        set({ labels: get().labels.filter(label => label.id !== id) });
+      } catch (error) {
+        console.error('Failed to delete label:', error);
+        set({ error: 'Failed to delete label' });
+      }
+    },
+
+    // Conversation Label Management
+    addLabelsToConversation: async (conversationId, labelIds) => {
+      try {
+        await conversationsApi.addLabels(conversationId, labelIds);
+        // Update local state
+        const labels = get().labels.filter(label => labelIds.includes(label.id));
+        set({
+          conversationLabels: {
+            ...get().conversationLabels,
+            [conversationId]: [...(get().conversationLabels[conversationId] || []), ...labels]
+          }
+        });
+      } catch (error) {
+        console.error('Failed to add labels to conversation:', error);
+        set({ error: 'Failed to add labels to conversation' });
+      }
+    },
+
+    removeLabelsFromConversation: async (conversationId, labelIds) => {
+      try {
+        await conversationsApi.removeLabels(conversationId, labelIds);
+        // Update local state
+        const currentLabels = get().conversationLabels[conversationId] || [];
+        const updatedLabels = currentLabels.filter(label => !labelIds.includes(label.id));
+        set({
+          conversationLabels: {
+            ...get().conversationLabels,
+            [conversationId]: updatedLabels
+          }
+        });
+      } catch (error) {
+        console.error('Failed to remove labels from conversation:', error);
+        set({ error: 'Failed to remove labels from conversation' });
+      }
+    },
+
+    // Bulk Operations
+    selectConversationForBulk: (id) => {
+      const { selectedConversations } = get().bulkOperations;
+      const isSelected = selectedConversations.includes(id);
+      
+      set({
+        bulkOperations: {
+          ...get().bulkOperations,
+          selectedConversations: isSelected
+            ? selectedConversations.filter(convId => convId !== id)
+            : [...selectedConversations, id]
+        }
+      });
+    },
+
+    selectAllConversations: () => {
+      const allConversationIds = get().conversations.map(conv => conv.id);
+      set({
+        bulkOperations: {
+          ...get().bulkOperations,
+          selectedConversations: allConversationIds
+        }
+      });
+    },
+
+    clearBulkSelection: () => {
+      set({
+        bulkOperations: {
+          ...get().bulkOperations,
+          selectedConversations: []
+        }
+      });
+    },
+
+    bulkUpdateConversations: async (updates) => {
+      const { selectedConversations } = get().bulkOperations;
+      if (selectedConversations.length === 0) return;
+
+      set({ bulkOperations: { ...get().bulkOperations, isProcessing: true } });
+      
+      try {
+        await conversationsApi.bulkUpdate(selectedConversations, updates);
+        
+        // Update local state based on the updates
+        if (updates.status) {
+          set({
+            conversations: get().conversations.map(conv =>
+              selectedConversations.includes(conv.id)
+                ? { ...conv, status: updates.status }
+                : conv
+            )
+          });
+        }
+        
+        // Clear selection after successful update
+        get().clearBulkSelection();
+        
+        // Re-group conversations
+        get().groupConversations();
+        
+      } catch (error) {
+        console.error('Failed to bulk update conversations:', error);
+        set({ error: 'Failed to bulk update conversations' });
+      } finally {
+        set({ bulkOperations: { ...get().bulkOperations, isProcessing: false } });
+      }
+    },
+
+    // Response Time Tracking
+    loadResponseTimeMetrics: async () => {
+      try {
+        // This would typically load from an analytics endpoint
+        // For now, we'll use placeholder data
+        const metrics = {}; // await analyticsApi.getResponseTimeMetrics();
+        set({ responseTimeMetrics: metrics });
+      } catch (error) {
+        console.error('Failed to load response time metrics:', error);
+        set({ error: 'Failed to load response time metrics' });
+      }
+    },
+
+    trackResponseTime: (conversationId, responseTime) => {
+      set({
+        responseTimeMetrics: {
+          ...get().responseTimeMetrics,
+          [conversationId]: responseTime
+        }
+      });
     },
 
     setRightSidebarMode: (mode) => {
@@ -1614,6 +1833,72 @@ if (ws && typeof window !== 'undefined') {
     });
     // Optionally, re-group conversations
     useChatStore.getState().groupConversations();
+  });
+  
+  // Label management events
+  ws.on('label_created', (data) => {
+    console.log('[WS] label_created event:', data);
+    useChatStore.setState((state) => ({
+      labels: [...state.labels, data]
+    }));
+  });
+  
+  ws.on('label_updated', (data) => {
+    console.log('[WS] label_updated event:', data);
+    useChatStore.setState((state) => ({
+      labels: state.labels.map(label => 
+        label.id === data.id ? { ...label, ...data } : label
+      )
+    }));
+  });
+  
+  ws.on('label_deleted', (data) => {
+    console.log('[WS] label_deleted event:', data);
+    useChatStore.setState((state) => ({
+      labels: state.labels.filter(label => label.id !== data.id)
+    }));
+  });
+  
+  ws.on('conversation_labels_updated', (data) => {
+    console.log('[WS] conversation_labels_updated event:', data);
+    useChatStore.setState((state) => ({
+      conversationLabels: {
+        ...state.conversationLabels,
+        [data.conversation_id]: data.labels
+      }
+    }));
+  });
+  
+  // Status update events
+  ws.on('conversation_status_updated', (data) => {
+    console.log('[WS] conversation_status_updated event:', data);
+    useChatStore.setState((state) => ({
+      conversations: state.conversations.map(conv =>
+        conv.id === data.conversation_id
+          ? { ...conv, status: data.status }
+          : conv
+      )
+    }));
+    // Re-group conversations after status change
+    useChatStore.getState().groupConversations();
+  });
+  
+  // Bulk operation events
+  ws.on('bulk_operation_completed', (data) => {
+    console.log('[WS] bulk_operation_completed event:', data);
+    // Reload conversations to reflect bulk changes
+    useChatStore.getState().loadConversations();
+  });
+  
+  // Response time tracking events
+  ws.on('response_time_tracked', (data) => {
+    console.log('[WS] response_time_tracked event:', data);
+    useChatStore.setState((state) => ({
+      responseTimeMetrics: {
+        ...state.responseTimeMetrics,
+        [data.conversation_id]: data.response_time
+      }
+    }));
   });
 } else {
   console.warn('[WS] WebSocketManager is null in chat store');

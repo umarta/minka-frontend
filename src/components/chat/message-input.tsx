@@ -89,15 +89,8 @@ export function MessageInput({ onSearch, onClearSearch, searchQuery }: MessageIn
     }
   });
   
-  // Demo quick reply templates
-  const quickTemplates: QuickReplyTemplate[] = [
-    { id: '1', title: 'Greeting', content: '👋 Hello! How can I help you today?', category: 'greeting', usage_count: 45, admin_id: '1', created_at: '', updated_at: '' },
-    { id: '2', title: 'Thank You', content: 'Thank you for your message! I\'ll get back to you shortly.', category: 'response', usage_count: 32, admin_id: '1', created_at: '', updated_at: '' },
-    { id: '3', title: 'Working Hours', content: '🕒 Our working hours are Mon-Fri 9AM-6PM. We\'ll respond to your message during business hours.', category: 'info', usage_count: 28, admin_id: '1', created_at: '', updated_at: '' },
-    { id: '4', title: 'Contact Info', content: '📞 You can reach us at:\n📧 Email: support@company.com\n📱 Phone: +1 234 567 8900', category: 'contact', usage_count: 22, admin_id: '1', created_at: '', updated_at: '' },
-    { id: '5', title: 'Follow Up', content: '🔄 I\'m following up on your previous inquiry. Is there anything else I can help you with?', category: 'followup', usage_count: 18, admin_id: '1', created_at: '', updated_at: '' },
-    { id: '6', title: 'Escalation', content: '⬆️ I\'m escalating your case to our specialist team. They\'ll contact you within 2 hours.', category: 'support', usage_count: 15, admin_id: '1', created_at: '', updated_at: '' }
-  ];
+  // Get quick reply templates from store
+  const { quickReplyTemplates, loadQuickReplyTemplates, useQuickReply } = useChatStore();
 
   // Emoji categories
   const emojiCategories = {
@@ -108,6 +101,11 @@ export function MessageInput({ onSearch, onClearSearch, searchQuery }: MessageIn
   };
 
   if (!activeContact) return null;
+
+  // Load quick reply templates on mount
+  useEffect(() => {
+    loadQuickReplyTemplates();
+  }, [loadQuickReplyTemplates]);
 
   // Auto-save draft
   useEffect(() => {
@@ -313,12 +311,20 @@ export function MessageInput({ onSearch, onClearSearch, searchQuery }: MessageIn
     setIsPlayingPreview(false);
   };
 
-  const insertTemplate = (template: QuickReplyTemplate) => {
+  const insertTemplate = async (template: QuickReplyTemplate) => {
+    // Insert template content
     setMessage(prev => prev + (prev ? '\n\n' : '') + template.content);
     setShowTemplates(false);
     
-    // Update usage count
-    console.log('📋 Template used:', template.title);
+    // Track usage via API
+    try {
+      await useQuickReply(template.id);
+      console.log('📋 Template used and tracked:', template.title);
+    } catch (error) {
+      console.error('Failed to track template usage:', error);
+      // Still log locally for debugging
+      console.log('📋 Template used (tracking failed):', template.title);
+    }
     
     // Focus textarea
     textareaRef.current?.focus();
@@ -716,23 +722,30 @@ export function MessageInput({ onSearch, onClearSearch, searchQuery }: MessageIn
                 <div className="p-3">
                   <h4 className="font-medium mb-3">Quick Reply Templates</h4>
                   <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {quickTemplates.map((template) => (
-                      <div
-                        key={template.id}
-                        className="p-2 hover:bg-gray-100 rounded cursor-pointer"
-                        onClick={() => insertTemplate(template)}
-                      >
-                        <div className="flex justify-between items-start mb-1">
-                          <span className="font-medium text-sm">{template.title}</span>
-                          <Badge variant="secondary" className="text-xs">
-                            {template.usage_count}
-                          </Badge>
+                    {quickReplyTemplates.length > 0 ? (
+                      quickReplyTemplates.map((template) => (
+                        <div
+                          key={template.id}
+                          className="p-2 hover:bg-gray-100 rounded cursor-pointer"
+                          onClick={() => insertTemplate(template)}
+                        >
+                          <div className="flex justify-between items-start mb-1">
+                            <span className="font-medium text-sm">{template.title}</span>
+                            <Badge variant="secondary" className="text-xs">
+                              {template.usage_count}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-gray-600 line-clamp-2">
+                            {template.content}
+                          </p>
                         </div>
-                        <p className="text-xs text-gray-600 line-clamp-2">
-                          {template.content}
-                        </p>
+                      ))
+                    ) : (
+                      <div className="p-4 text-center text-gray-500 text-sm">
+                        <p>No quick reply templates available.</p>
+                        <p className="text-xs mt-1">Create templates in the Quick Replies page.</p>
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
               </PopoverContent>
@@ -769,4 +782,4 @@ export function MessageInput({ onSearch, onClearSearch, searchQuery }: MessageIn
       </form>
     </div>
   );
-} 
+}

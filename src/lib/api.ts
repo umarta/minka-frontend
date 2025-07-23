@@ -429,35 +429,42 @@ export const contactsApi = {
 
 // Labels API
 export const labelsApi = {
-  getAll: async () => {
+  getAll: async (params?: { page?: number; limit?: number }) => {
     try {
-      const response = await api.get('/labels');
-      return handleSingleResponse<any>(response);
+      const response = await api.get('/labels', { params });
+      return handleArrayResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
-
-      return null;
+      return [];
     }
   },
 
-  create: async (data: any) => {
+  search: async (query: string, params?: { page?: number; limit?: number }) => {
+    try {
+      const response = await api.get('/labels/search', { params: { query, ...params } });
+      return handleArrayResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return [];
+    }
+  },
+
+  create: async (data: { name: string; color: string; description?: string }) => {
     try {
       const response = await api.post('/labels', data);
       return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
-
       return null;
     }
   },
 
-  update: async (id: string, data: any) => {
+  update: async (id: string, data: { name?: string; color?: string; description?: string }) => {
     try {
       const response = await api.put(`/labels/${id}`, data);
       return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
-
       return null;
     }
   },
@@ -468,7 +475,46 @@ export const labelsApi = {
       return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
+      return null;
+    }
+  },
 
+  getStats: async () => {
+    try {
+      const response = await api.get('/labels/stats');
+      return handleSingleResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return null;
+    }
+  },
+
+  createSystemLabels: async () => {
+    try {
+      const response = await api.post('/labels/system/create');
+      return handleSingleResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return null;
+    }
+  },
+
+  cleanup: async () => {
+    try {
+      const response = await api.post('/labels/cleanup');
+      return handleSingleResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return null;
+    }
+  },
+
+  recalculateUsage: async () => {
+    try {
+      const response = await api.post('/labels/recalculate');
+      return handleSingleResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
       return null;
     }
   },
@@ -1493,6 +1539,8 @@ export const contactNotesApi = {
   },
 };
 
+
+
 // Conversations API
 export const conversationsApi = {
   getAll: async (params?: { page?: number; per_page?: number }) => {
@@ -1527,6 +1575,64 @@ export const conversationsApi = {
   }) => {
     try {
       const response = await api.get(`/enhanced-messages/conversation/${contactId}`, { params });
+      return handleSingleResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return null;
+    }
+  },
+
+  // Update conversation status
+  updateStatus: async (id: string, status: string) => {
+    try {
+      const response = await api.put(`/conversations/${id}/status`, { status });
+      return handleSingleResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return null;
+    }
+  },
+
+  // Add labels to conversation
+  addLabels: async (id: string, labelIds: string[]) => {
+    try {
+      const response = await api.post(`/conversations/${id}/labels`, { label_ids: labelIds });
+      return handleSingleResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return null;
+    }
+  },
+
+  // Remove labels from conversation
+  removeLabels: async (id: string, labelIds: string[]) => {
+    try {
+      const response = await api.delete(`/conversations/${id}/labels`, { data: { label_ids: labelIds } });
+      return handleSingleResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return null;
+    }
+  },
+
+  // Bulk update conversations
+  bulkUpdate: async (conversationIds: string[], updates: any) => {
+    try {
+      const response = await api.post('/conversations/bulk-update', {
+        conversation_ids: conversationIds,
+        updates
+      });
+      return handleSingleResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return null;
+    }
+  },
+
+  // Get unread counts
+  getUnreadCounts: async () => {
+    try {
+      const response = await api.get('/conversations/unread-counts');
       return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
@@ -1660,4 +1766,4 @@ export const antiBlockingApi = {
   },
 };
 
-export default api; 
+export default api;

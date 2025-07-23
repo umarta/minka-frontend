@@ -46,7 +46,7 @@ export interface Contact extends BaseEntity {
   PhoneNumber?: string; // Alternative backend field name
   email?: string;
   avatar_url?: string;
-  labels: Label[];
+  labels?: Label[];
   is_blocked: boolean;
   last_seen?: string;
   notes?: string;
@@ -385,7 +385,7 @@ export interface Conversation {
   last_activity: string;
   priority?: 'urgent' | 'high' | 'normal' | 'low';
   online_status?: 'online' | 'recent' | 'offline';
-  labels: string[];
+  labels: Label[];
   assigned_to?: User;
   active_ticket?: Ticket;
   
