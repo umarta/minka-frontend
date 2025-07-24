@@ -139,6 +139,19 @@ export interface Message extends BaseEntity {
   // External IDs
   waha_message_id?: string;
   
+  // Sender information
+  sender_id?: string;
+  sender?: {
+    id: string;
+    name: string;
+    username?: string;
+    email?: string;
+    role?: string;
+    avatar?: string;
+  };
+  sender_name?: string;
+  sender_avatar?: string;
+  
   // Metadata
   metadata?: Record<string, any>;
   edit_history?: EditHistory[];
@@ -883,4 +896,4 @@ export interface WaMeLinkRequest {
 
 export interface WaMeLinkResponse {
   link: string;
-} 
+}

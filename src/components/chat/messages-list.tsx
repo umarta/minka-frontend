@@ -61,6 +61,7 @@ export function MessagesList({ contactId }: MessagesListProps) {
     contactId,
     currentPage,
     hasNext: paginationMeta?.has_next,
+    messages: displayMessages,
     paginationMeta
   });
 
@@ -180,6 +181,8 @@ export function MessagesList({ contactId }: MessagesListProps) {
     if (!groups[dateKey]) {
       groups[dateKey] = [];
     }
+
+    console.log('message in buble', message);
     groups[dateKey].push(message);
     return groups;
   }, {});
@@ -231,14 +234,28 @@ export function MessagesList({ contactId }: MessagesListProps) {
         </div>
       )}
       
-      {displayMessages.map((message: Message) => (
-        <MessageBubble
-          key={message.id}
-          message={message}
-          isSearchResult={!!searchQuery}
-        />
-      ))}
+      {Object.entries(groupedMessages)
+        .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
+        .map(([dateKey, messages]) => (
+          <div key={dateKey}>
+            {/* Date Header */}
+            <div className="flex justify-center my-4">
+              <div className="bg-gray-100 text-gray-600 text-xs px-3 py-1 rounded-full font-medium">
+                {formatMessageDate(messages[0].created_at)}
+              </div>
+            </div>
+            
+            {/* Messages for this date */}
+            {messages.map((message: Message) => (
+              <MessageBubble
+                key={message.id}
+                message={message}
+                isSearchResult={!!searchQuery}
+              />
+            ))}
+          </div>
+        ))}
       <div ref={messagesEndRef} />
     </div>
   );
-} 
+}

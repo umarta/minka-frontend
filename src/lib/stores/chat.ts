@@ -515,7 +515,10 @@ export const useChatStore = create<ChatStore>()(
           created_at: msg.timestamp || msg.created_at || new Date().toISOString(),
           updated_at: msg.updated_at || new Date().toISOString(),
           read_at: msg.read_at,
+          sender_name: msg.sender?.username,
         }));
+
+        console.log('🔍 Formatted messages:', formattedMessages);
         
         // For reverse pagination: reverse the messages to show oldest to newest
         const reversedMessages = formattedMessages.reverse();

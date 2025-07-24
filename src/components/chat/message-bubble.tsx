@@ -59,6 +59,33 @@ export function MessageBubble({
   // Ambil mode percakapan
   const conversationMode = useChatStore((state) => state.conversationMode);
   const showAdminName = isOutgoing && (message as any).admin_name;
+  
+  // Get sender name for outgoing messages
+  const getSenderName = () => {
+    console.log('message', message);
+    if (!isOutgoing) return null;
+    
+    // Check for sender_name field first
+    if (message.sender_name) {
+      return message.sender_name;
+    }
+    
+    // Check for sender object with username
+    if ((message as any).sender?.username) {
+      return (message as any).sender.username;
+    }
+    
+    // Check for admin_name (legacy)
+    if ((message as any).username) {
+      return (message as any).username;
+    }
+
+    
+    
+    return null;
+  };
+  
+  const senderName = getSenderName();
 
   // Badge color per ticket
   const getTicketBadgeColor = (ticketId: any) => {
@@ -140,9 +167,9 @@ export function MessageBubble({
 
     return (
       <div className="flex gap-1 mt-2 flex-wrap">
-        {Object.entries(groupedReactions).map(([emoji, data]) => (
+        {Object.entries(groupedReactions).map(([emoji, data], index) => (
           <button
-            key={emoji}
+            key={`${message.id}-reaction-${emoji}-${index}`}
             className="flex items-center gap-1 px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-full text-xs transition-colors"
             onClick={() => onReact?.(message.id, emoji)}
             title={`${data.users.join(', ')} reacted with ${emoji}`}
@@ -160,8 +187,8 @@ export function MessageBubble({
 
     return (
       <div className="flex -space-x-1 mt-1">
-        {message.read_by.slice(0, 3).map((receipt) => (
-          <Avatar key={receipt.id} className="h-4 w-4 border border-white">
+        {message.read_by.slice(0, 3).map((receipt, index) => (
+          <Avatar key={`${message.id}-receipt-${receipt.id || index}`} className="h-4 w-4 border border-white">
             <AvatarImage src={receipt.user_avatar} />
             <AvatarFallback className="text-xs">
               {receipt.user_name.charAt(0)}
@@ -169,7 +196,7 @@ export function MessageBubble({
           </Avatar>
         ))}
         {message.read_by.length > 3 && (
-          <div className="h-4 w-4 bg-gray-300 rounded-full flex items-center justify-center text-xs text-gray-600">
+          <div key={`${message.id}-receipt-more`} className="h-4 w-4 bg-gray-300 rounded-full flex items-center justify-center text-xs text-gray-600">
             +{message.read_by.length - 3}
           </div>
         )}
@@ -184,7 +211,7 @@ export function MessageBubble({
       <div className="flex items-center gap-1 h-8">
         {message.waveform.map((height, index) => (
           <div
-            key={index}
+            key={`${message.id}-waveform-${index}`}
             className={cn(
               "w-1 bg-green-500 rounded-full transition-all",
               isPlaying && index < 10 ? "bg-green-600" : "bg-green-300"
@@ -538,12 +565,14 @@ export function MessageBubble({
   const quickReactions = ['👍', '❤️', '😊', '😮', '😢', '😡'];
 
   return (
-    <div className={cn(
-      'flex',
-      isOutgoing ? 'justify-end' : 'justify-start',
-      'mb-3',
-      isSearchResult && 'ring-2 ring-yellow-200 bg-yellow-50 rounded-lg p-2'
-    )}>
+    <div 
+      key={`message-bubble-${message.id}`}
+      className={cn(
+        'flex',
+        isOutgoing ? 'justify-end' : 'justify-start',
+        'mb-3',
+        isSearchResult && 'ring-2 ring-yellow-200 bg-yellow-50 rounded-lg p-2'
+      )}>
 
         
         {/* Bubble */}
@@ -568,6 +597,15 @@ export function MessageBubble({
         {/* Nama Admin */}
         {showAdminName && (
           <div className="text-xs text-blue-700 font-semibold mb-1 text-left">{(message as any).admin_name || 'Admin'}</div>
+        )}
+        
+        {/* Sender Name for Outgoing Messages */}
+        {senderName && (
+          <div className={cn(
+            "text-xs text-bold font-medium mb-1 text-gray-600" 
+          )}>
+            {senderName}
+          </div>
         )}
           {/* Reply indicator */}
           {message.quoted_message && (
@@ -635,4 +673,4 @@ export function MessageBubble({
         </div>
       </div>
   );
-} 
+}

@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Search, Phone, MessageCircle, Clock, MoreVertical, Star, Archive, Trash2, CheckCheck, Circle, Tag } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Search, Phone, MessageCircle, Clock, MoreVertical, Star, Archive, Trash2, CheckCheck, Circle, Tag, Filter, X } from 'lucide-react';
+import { useDebounce } from '@/hooks/use-debounce';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -38,6 +39,12 @@ export function ContactSidebar() {
   const [sortBy, setSortBy] = useState<'time' | 'unread' | 'name'>('time');
   const [labelManagerOpen, setLabelManagerOpen] = useState(false);
   const [selectedConversationForLabels, setSelectedConversationForLabels] = useState<Conversation | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  
+  // Debounced search query
+  const debouncedSearchQuery = useDebounce(localSearchQuery, 300);
 
   useEffect(() => {
     loadConversations();
@@ -83,37 +90,76 @@ export function ContactSidebar() {
     return null;
   };
 
-  const getTabConversations = () => {
-    let convs = [];
+  // Enhanced search and filtering logic
+  const filteredConversations = useMemo(() => {
+    let filteredByTab: Conversation[] = [];
+    
+    // Get conversations based on selected tab
     switch (selectedTab) {
       case 'needReply':
-        convs = [
+        filteredByTab = [
           ...chatGroups.needReply.urgent,
           ...chatGroups.needReply.normal,
           ...chatGroups.needReply.overdue,
-          ...conversations.filter(c => c.status === 'pending')
+          ...conversations.filter(c => c.status === 'pending' || c.status === 'active')
         ];
         break;
       case 'automated':
-        convs = [
+        filteredByTab = [
           ...chatGroups.automated.botHandled,
           ...chatGroups.automated.autoReply,
           ...chatGroups.automated.workflow
         ];
         break;
       case 'completed':
-        convs = [
+        filteredByTab = [
           ...chatGroups.completed.resolved,
           ...chatGroups.completed.closed,
-          ...chatGroups.completed.archived
+          ...chatGroups.completed.archived,
+          ...conversations.filter(c => c.status === 'resolved' || c.status === 'archived')
         ];
         break;
       default:
-        convs = conversations;
+        filteredByTab = conversations;
+    }
+
+    // Remove duplicates
+    const uniqueConvs = filteredByTab.filter((conv, index, self) => 
+      index === self.findIndex(c => c.contact.id === conv.contact.id)
+    );
+
+    // Apply search filter
+    let searchFiltered = uniqueConvs;
+    if (debouncedSearchQuery.trim()) {
+      const query = debouncedSearchQuery.toLowerCase();
+      searchFiltered = uniqueConvs.filter(conv => {
+        // Search in contact name
+        const nameMatch = conv.contact.name.toLowerCase().includes(query);
+        
+        // Search in phone number
+        const phoneMatch = conv.contact.phone_number?.toLowerCase().includes(query);
+        
+        // Search in last message content
+        const messageMatch = conv.last_message?.content?.toLowerCase().includes(query);
+        
+        return nameMatch || phoneMatch || messageMatch;
+      });
+    }
+
+    // Apply label filter
+    if (selectedLabels.length > 0) {
+      searchFiltered = searchFiltered.filter(conv => 
+        conv.labels?.some(label => selectedLabels.includes(label.name))
+      );
+    }
+
+    // Apply status filter
+    if (statusFilter !== 'all') {
+      searchFiltered = searchFiltered.filter(conv => conv.status === statusFilter);
     }
 
     // Apply sorting
-    return convs.sort((a, b) => {
+    return searchFiltered.sort((a, b) => {
       switch (sortBy) {
         case 'unread':
           return b.unread_count - a.unread_count;
@@ -124,10 +170,24 @@ export function ContactSidebar() {
           return new Date(b.last_activity).getTime() - new Date(a.last_activity).getTime();
       }
     });
-  };
+  }, [conversations, chatGroups, selectedTab, debouncedSearchQuery, selectedLabels, statusFilter, sortBy]);
 
-  // Untuk tes, tampilkan semua
-  const filteredConversations = conversations;
+  // Get all available labels for filter
+  const availableLabels = useMemo(() => {
+    const labels = new Set<string>();
+    conversations.forEach(conv => {
+      conv.labels?.forEach(label => labels.add(label.name));
+    });
+    return Array.from(labels);
+  }, [conversations]);
+
+  // Clear all filters
+  const clearFilters = useCallback(() => {
+    setLocalSearchQuery('');
+    setSelectedLabels([]);
+    setStatusFilter('all');
+    setShowFilters(false);
+  }, []);
 
   console.log('Filtered conversations:', filteredConversations);
 
@@ -453,16 +513,113 @@ export function ContactSidebar() {
           </Button>
         </div>
       </header>
-      {/* Search */}
+      {/* Search and Filters */}
       <div className="p-4 pb-2 border-b border-gray-200">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder="Cari kontak atau pesan..."
-            value={localSearchQuery}
-            onChange={(e) => setLocalSearchQuery(e.target.value)}
-            className="pl-10"
-          />
+        <div className="space-y-3">
+          {/* Search Input */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Cari kontak atau pesan..."
+              value={localSearchQuery}
+              onChange={(e) => setLocalSearchQuery(e.target.value)}
+              className="pl-10 pr-20"
+            />
+            <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowFilters(!showFilters)}
+                className={cn(
+                  "h-6 w-6 p-0",
+                  (selectedLabels.length > 0 || statusFilter !== 'all') && "text-blue-600"
+                )}
+                title="Filter"
+              >
+                <Filter className="h-3 w-3" />
+              </Button>
+              {(localSearchQuery || selectedLabels.length > 0 || statusFilter !== 'all') && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearFilters}
+                  className="h-6 w-6 p-0 text-gray-400 hover:text-gray-600"
+                  title="Clear filters"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Filter Options */}
+          {showFilters && (
+            <div className="space-y-3 p-3 bg-gray-50 rounded-lg">
+              {/* Status Filter */}
+              <div>
+                <label className="text-xs font-medium text-gray-700 mb-2 block">Status</label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-full text-sm border border-gray-200 rounded px-2 py-1"
+                >
+                  <option value="all">Semua Status</option>
+                  <option value="pending">Pending</option>
+                   <option value="active">Active</option>
+                   <option value="resolved">Resolved</option>
+                   <option value="archived">Archived</option>
+                </select>
+              </div>
+
+              {/* Label Filter */}
+              {availableLabels.length > 0 && (
+                <div>
+                  <label className="text-xs font-medium text-gray-700 mb-2 block">Labels</label>
+                  <div className="flex flex-wrap gap-1">
+                    {availableLabels.map(label => (
+                      <button
+                        key={label}
+                        onClick={() => {
+                          setSelectedLabels(prev => 
+                            prev.includes(label)
+                              ? prev.filter(l => l !== label)
+                              : [...prev, label]
+                          );
+                        }}
+                        className={cn(
+                          "text-xs px-2 py-1 rounded-full border transition-colors",
+                          selectedLabels.includes(label)
+                            ? "bg-blue-100 border-blue-300 text-blue-700"
+                            : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Active Filters Summary */}
+              {(selectedLabels.length > 0 || statusFilter !== 'all') && (
+                <div className="pt-2 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-600">
+                      {selectedLabels.length + (statusFilter !== 'all' ? 1 : 0)} filter aktif
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearFilters}
+                      className="text-xs h-6 px-2"
+                    >
+                      Reset
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
       {/* Tabs */}

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth/auth-provider";
@@ -21,7 +21,11 @@ export const metadata: Metadata = {
   description: "Complete WhatsApp Admin Customer Service Management System with real-time chat, session management, and analytics",
   keywords: "WhatsApp, Admin, Customer Service, Chat, Management, WAHA",
   authors: [{ name: "WhatsApp Admin CS Team" }],
-  viewport: "width=device-width, initial-scale=1",
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
 };
 
 export default function RootLayout({
