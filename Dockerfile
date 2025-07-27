@@ -1,9 +1,6 @@
 # Build stage
-FROM node:20-alpine AS builder
-
-# Use official Alpine mirrors with retry logic
-RUN echo 'https://dl-cdn.alpinelinux.org/alpine/v3.18/main' > /etc/apk/repositories && \
-    echo 'https://dl-cdn.alpinelinux.org/alpine/v3.18/community' >> /etc/apk/repositories
+# Use a specific Alpine version for better reliability
+FROM node:20.11.1-alpine3.18 AS builder
 
 # Install dependencies needed for building with retry logic
 RUN for i in 1 2 3 4 5; do \
@@ -29,11 +26,8 @@ COPY . .
 RUN npm run build
 
 # Production stage
-FROM node:20-alpine AS runner
-
-# Use official Alpine mirrors with retry logic
-RUN echo 'https://dl-cdn.alpinelinux.org/alpine/v3.18/main' > /etc/apk/repositories && \
-    echo 'https://dl-cdn.alpinelinux.org/alpine/v3.18/community' >> /etc/apk/repositories
+# Use the same specific Alpine version for consistency
+FROM node:20.11.1-alpine3.18 AS runner
 
 # Install dumb-init and wget with retry logic
 RUN for i in 1 2 3 4 5; do \
