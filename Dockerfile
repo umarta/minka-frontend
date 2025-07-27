@@ -1,19 +1,17 @@
 # Build stage
 FROM node:20-alpine AS builder
 
-# Accept build arguments for Alpine mirror and proxies
-ARG ALPINE_MIRROR
-ARG HTTP_PROXY
-ARG HTTPS_PROXY
+# Use official Alpine mirrors with retry logic
+RUN echo 'https://dl-cdn.alpinelinux.org/alpine/v3.18/main' > /etc/apk/repositories && \
+    echo 'https://dl-cdn.alpinelinux.org/alpine/v3.18/community' >> /etc/apk/repositories
 
-# Configure Alpine repositories if mirror is provided
-RUN if [ -n "$ALPINE_MIRROR" ]; then \
-    echo "Using Alpine mirror: $ALPINE_MIRROR"; \
-    sed -i "s|https://dl-cdn.alpinelinux.org/alpine|$ALPINE_MIRROR|g" /etc/apk/repositories; \
-    fi
-
-# Install dependencies needed for building
-RUN apk add --no-cache libc6-compat
+# Install dependencies needed for building with retry logic
+RUN for i in 1 2 3 4 5; do \
+      echo "Attempt $i to install packages..." && \
+      apk update && apk add --no-cache libc6-compat && break || \
+      echo "Package installation failed, retrying in 5 seconds..." && \
+      sleep 5; \
+    done
 
 # Set working directory
 WORKDIR /app
@@ -33,19 +31,17 @@ RUN npm run build
 # Production stage
 FROM node:20-alpine AS runner
 
-# Accept build arguments for Alpine mirror and proxies
-ARG ALPINE_MIRROR
-ARG HTTP_PROXY
-ARG HTTPS_PROXY
+# Use official Alpine mirrors with retry logic
+RUN echo 'https://dl-cdn.alpinelinux.org/alpine/v3.18/main' > /etc/apk/repositories && \
+    echo 'https://dl-cdn.alpinelinux.org/alpine/v3.18/community' >> /etc/apk/repositories
 
-# Configure Alpine repositories if mirror is provided
-RUN if [ -n "$ALPINE_MIRROR" ]; then \
-    echo "Using Alpine mirror: $ALPINE_MIRROR"; \
-    sed -i "s|https://dl-cdn.alpinelinux.org/alpine|$ALPINE_MIRROR|g" /etc/apk/repositories; \
-    fi
-
-# Install dumb-init and wget for proper signal handling and health checks
-RUN apk add --no-cache dumb-init wget
+# Install dumb-init and wget with retry logic
+RUN for i in 1 2 3 4 5; do \
+      echo "Attempt $i to install packages..." && \
+      apk update && apk add --no-cache dumb-init wget && break || \
+      echo "Package installation failed, retrying in 5 seconds..." && \
+      sleep 5; \
+    done
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
