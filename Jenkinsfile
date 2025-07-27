@@ -163,7 +163,7 @@ spec:
         GCR_PROJECT = 'production-411607'
         IMAGE_NAME = 'minka-frontend'
         WORKSPACE = "${WORKSPACE}"
-        HELM_CHART_PATH = "/Users/umarta/Works/kame/k3s/config/helm/minka-frontend"
+        HELM_CHART_PATH = "${WORKSPACE}/k3s/config/helm/minka-frontend"
         BRANCH_NAME = "${env.BRANCH_NAME}"
         HELM_RELEASE = "minka-frontend-${params.ENVIRONMENT}"
         VALUES_FILE = "${HELM_CHART_PATH}/values/values-${params.ENVIRONMENT}.yaml"
