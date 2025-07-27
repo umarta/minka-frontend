@@ -269,7 +269,12 @@ spec:
                         
                         sh """
                             echo "Building Docker image: ${imageName}:${imageTag}"
-                            docker build -t ${imageName}:${imageTag} .
+                            # Use Google's proxy for Alpine packages to avoid stuck builds
+                            docker build \
+                              --build-arg ALPINE_MIRROR=https://asia-southeast2-apt-mirror.googleusercontent.com/alpine \
+                              --build-arg HTTP_PROXY=http://asia-southeast2-apt-mirror.googleusercontent.com \
+                              --build-arg HTTPS_PROXY=http://asia-southeast2-apt-mirror.googleusercontent.com \
+                              -t ${imageName}:${imageTag} .
                         """
                         
                         // Push Docker image with retry mechanism

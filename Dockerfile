@@ -1,6 +1,17 @@
 # Build stage
 FROM node:20-alpine AS builder
 
+# Accept build arguments for Alpine mirror and proxies
+ARG ALPINE_MIRROR
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+
+# Configure Alpine repositories if mirror is provided
+RUN if [ -n "$ALPINE_MIRROR" ]; then \
+    echo "Using Alpine mirror: $ALPINE_MIRROR"; \
+    sed -i "s|https://dl-cdn.alpinelinux.org/alpine|$ALPINE_MIRROR|g" /etc/apk/repositories; \
+    fi
+
 # Install dependencies needed for building
 RUN apk add --no-cache libc6-compat
 
@@ -21,6 +32,17 @@ RUN npm run build
 
 # Production stage
 FROM node:20-alpine AS runner
+
+# Accept build arguments for Alpine mirror and proxies
+ARG ALPINE_MIRROR
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+
+# Configure Alpine repositories if mirror is provided
+RUN if [ -n "$ALPINE_MIRROR" ]; then \
+    echo "Using Alpine mirror: $ALPINE_MIRROR"; \
+    sed -i "s|https://dl-cdn.alpinelinux.org/alpine|$ALPINE_MIRROR|g" /etc/apk/repositories; \
+    fi
 
 # Install dumb-init and wget for proper signal handling and health checks
 RUN apk add --no-cache dumb-init wget
