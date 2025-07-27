@@ -258,6 +258,60 @@ spec:
         //         }
         //     }
         // }
+        stage('Prepare Environment File') {
+            steps {
+                timeout(time: 3, unit: 'MINUTES') {
+                    container('kubectl') {
+                    script {
+                        def secretName = "minka-frontend-${params.ENVIRONMENT}-secrets"
+                        def namespace = getEnvironmentConfig(params.ENVIRONMENT).namespace
+                        
+                        echo "Installing kubectl and jq..."
+                        sh '''
+                            apk add --no-cache kubectl jq
+                            kubectl version --client
+                            jq --version
+                        '''
+                        
+                        // Check if secret exists and create .env file
+                        def secretExists = sh(
+                            script: "kubectl get secret ${secretName} -n ${namespace} > /dev/null 2>&1",
+                            returnStatus: true
+                        ) == 0
+                        
+                        if (secretExists) {
+                            echo "Creating .env file from Kubernetes Secret: ${secretName} in namespace ${namespace}"
+                            sh """
+                                # Extract secrets using jq
+                                kubectl get secret ${secretName} -n ${namespace} -o json | \
+                                jq -r '.data | to_entries[] | .key + "=" + (.value | @base64d)' > .env
+                                
+                                echo "✅ Environment variables loaded from secret"
+                                echo "📄 .env file contents:"
+                                cat .env
+                            """
+                        } else {
+                            echo "WARNING: Secret ${secretName} not found in namespace ${namespace}"
+                            echo "Creating default .env file"
+                            sh '''
+                            cat > .env << EOF
+NEXT_PUBLIC_API_URL=https://api-staging.minka.co.id/
+NEXT_PUBLIC_WS_URL=wss://staging-minka-api.kame.co.id/api/ws/connect
+NEXT_PUBLIC_APP_NAME=Minka FE
+NEXT_PUBLIC_ENVIRONMENT=staging
+NODE_ENV=staging
+EOF
+                            '''
+                            echo "✅ Default .env file created"
+                        }
+                        
+                        // Verify .env file was created
+                        sh 'ls -la .env && echo "📄 .env file size: $(wc -l < .env) lines"'
+                    }
+                }
+                }
+            }
+        }
 
         stage('Docker Build and Push') {
             steps {
@@ -273,6 +327,7 @@ spec:
                             DOCKER_BUILDKIT=1 docker build \
                               --progress=plain \
                               --no-cache \
+                              --build-arg NEXT_PUBLIC_API_URL=${envConfig.api_url} \
                               -t ${imageName}:${imageTag} .
                         """
                         
