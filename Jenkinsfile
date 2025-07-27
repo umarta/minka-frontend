@@ -251,9 +251,9 @@ spec:
                 container('node') {
                     script {
                         // Set NODE_OPTIONS to increase memory limit
-                        sh 'export NODE_OPTIONS="--max-old-space-size=3072"'
-                        sh 'npm ci'
-                        sh 'npm run build'
+                        // sh 'export NODE_OPTIONS="--max-old-space-size=3072"'
+                        // sh 'npm ci'
+                        // sh 'npm run build'
                     }
                 }
             }
