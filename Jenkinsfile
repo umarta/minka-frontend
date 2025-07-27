@@ -264,12 +264,12 @@ spec:
                 timeout(time: 15, unit: 'MINUTES') {
                     container('docker') {
                         script {
-                        def imageTag = env.GIT_COMMIT.take(7)
-                        def imageName = "gcr.io/${GCR_PROJECT}/${IMAGE_NAME}"
-                        def envConfig = getEnvironmentConfig(params.ENVIRONMENT)
+                            def imageTag = env.GIT_COMMIT.take(7)
+                            def imageName = "gcr.io/${GCR_PROJECT}/${IMAGE_NAME}"
+                            def envConfig = getEnvironmentConfig(params.ENVIRONMENT)
                         
-                        // Add debug information
-                        sh """
+                            // Add debug information
+                            sh """
                             echo "=== DEBUG: Environment Information ==="
                             echo "Docker version:"
                             docker version
@@ -293,10 +293,10 @@ spec:
                             
                             echo "\n=== Docker build completed, checking log for common issues ==="
                             grep -i "error|warning|failed|timeout" docker_build.log || echo "No common error patterns found"
-                        """
+                            """
                         
-                        // Push Docker image with retry mechanism
-                        sh """
+                            // Push Docker image with retry mechanism
+                            sh """
                             MAX_RETRIES=3
                             RETRY_COUNT=0
                             PUSH_SUCCESS=false
@@ -317,20 +317,20 @@ spec:
                                     fi
                                 fi
                             done
-                        """
+                            """
                         
-                        // Tag as latest if configured
-                        if (envConfig.tag_latest) {
-                            sh """
+                            // Tag as latest if configured
+                            if (envConfig.tag_latest) {
+                                sh """
                                 docker tag ${imageName}:${imageTag} ${imageName}:latest
                                 docker push ${imageName}:latest
-                            """
-                        }
+                                """
+                            }
                         
-                        // Clean up .env file for security
-                        sh 'rm -f .env'
-                        
-                        echo "✅ Successfully built and pushed image: ${imageName}:${imageTag}"
+                            // Clean up .env file for security
+                            sh 'rm -f .env'
+                            
+                            echo "✅ Successfully built and pushed image: ${imageName}:${imageTag}"
                     }
                 }
             }
