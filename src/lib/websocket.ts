@@ -1,5 +1,6 @@
 import { WebSocketEventType } from '@/types';
 import { tokenManager } from './api';
+import { getMockWebSocketSimulator } from './mocks/websocket-events';
 
 export interface WebSocketConfig {
   url: string;
@@ -7,15 +8,41 @@ export interface WebSocketConfig {
     token: string;
   };
   autoConnect?: boolean;
+  useMockEvents?: boolean; // New option for development
 }
 
 export class WebSocketManager {
   private socket: WebSocket | null = null;
   private eventListeners: Map<string, Array<(data: any) => void>> = new Map();
   private isConnected = false;
+  private mockSimulator: any = null; // Mock WebSocket simulator for development
 
   constructor(private config: WebSocketConfig) {
-    this.initializeSocket();
+    // Use mock events in development or when explicitly enabled
+    if (config.useMockEvents || (process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_USE_REAL_WS !== 'true')) {
+      this.initializeMockWebSocket();
+    } else {
+      this.initializeSocket();
+    }
+  }
+
+  private initializeMockWebSocket() {
+    console.log('[WS] Using mock WebSocket events for development');
+    this.mockSimulator = getMockWebSocketSimulator();
+    this.isConnected = true;
+    
+    // Set up mock event forwarding
+    const agentEvents = ['agent_online', 'agent_offline', 'agent_status_change', 'agent_activity', 'performance_update'];
+    agentEvents.forEach(event => {
+      this.mockSimulator.on(event, (data: any) => {
+        this.emit(event, data);
+      });
+    });
+    
+    // Simulate connection established
+    setTimeout(() => {
+      this.emit('connection_established', { connected: true, mock: true });
+    }, 100);
   }
 
   private initializeSocket() {
@@ -56,12 +83,20 @@ export class WebSocketManager {
   }
 
   connect() {
+    if (this.mockSimulator) {
+      // Mock WebSocket is always "connected"
+      return;
+    }
     if (!this.socket || this.socket.readyState === WebSocket.CLOSED) {
       this.initializeSocket();
     }
   }
 
   disconnect() {
+    if (this.mockSimulator) {
+      this.mockSimulator.stop();
+      return;
+    }
     if (this.socket) {
       this.socket.close();
     }
@@ -97,12 +132,20 @@ export class WebSocketManager {
 
   // Room management
   joinRoom(room: string) {
+    if (this.mockSimulator) {
+      console.log('[Mock WS] Joined room:', room);
+      return;
+    }
     if (this.socket && this.isConnected) {
       this.socket.send(JSON.stringify({ type: 'join_room', room }));
       console.log('[WS] Sent join_room:', room);
     }
   }
   leaveRoom(room: string) {
+    if (this.mockSimulator) {
+      console.log('[Mock WS] Left room:', room);
+      return;
+    }
     if (this.socket && this.isConnected) {
       this.socket.send(JSON.stringify({ type: 'leave_room', room }));
       console.log('[WS] Sent leave_room:', room);
@@ -162,10 +205,17 @@ export class WebSocketManager {
     }
   }
   isSocketConnected(): boolean {
+    if (this.mockSimulator) {
+      return true; // Mock WebSocket is always "connected"
+    }
     return this.isConnected && this.socket?.readyState === WebSocket.OPEN;
   }
   // Cleanup
   destroy() {
+    if (this.mockSimulator) {
+      this.mockSimulator.stop();
+      this.mockSimulator = null;
+    }
     if (this.socket) {
       this.socket.close();
       this.socket = null;
@@ -182,6 +232,7 @@ export const createWebSocketManager = (config?: Partial<WebSocketConfig>): WebSo
   const defaultConfig: WebSocketConfig = {
     url: process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080/api/ws/connect',
     autoConnect: true,
+    useMockEvents: process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_USE_REAL_WS !== 'true',
   };
   const finalConfig = { ...defaultConfig, ...config };
   if (!wsManager) {

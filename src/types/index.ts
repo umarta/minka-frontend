@@ -897,3 +897,5 @@ export interface WaMeLinkRequest {
 export interface WaMeLinkResponse {
   link: string;
 }
+// Export agent types
+export * from './agent';
