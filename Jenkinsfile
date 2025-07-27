@@ -166,7 +166,7 @@ spec:
         HELM_CHART_PATH = "${WORKSPACE}/k3s/config/helm/minka-frontend"
         BRANCH_NAME = "${env.BRANCH_NAME}"
         HELM_RELEASE = "minka-frontend-${params.ENVIRONMENT}"
-        VALUES_FILE = "${HELM_CHART_PATH}/values/values-${params.ENVIRONMENT}.yaml"
+        VALUES_FILE = "./k3s-repo/config/helm/minka-frontend/values/values-${params.ENVIRONMENT}.yaml"
         API_URL = "${getEnvironmentConfig(params.ENVIRONMENT).api_url}"
         DOCKER_BUILDKIT = '1'
         NODE_ENV = 'production'
