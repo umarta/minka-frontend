@@ -1,70 +1,69 @@
-# Build stage
-# Use a specific Alpine version for better reliability
-FROM node:20.11.1-alpine3.18 AS builder
+FROM node:18.14.0 as builds
 
-# Install dependencies needed for building with retry logic
-RUN for i in 1 2 3 4 5; do \
-      echo "Attempt $i to install packages..." && \
-      apk update && apk add --no-cache libc6-compat && break || \
-      echo "Package installation failed, retrying in 5 seconds..." && \
-      sleep 5; \
-    done
+# argument for copy sitemaps
+ARG env
 
-# Set working directory
-WORKDIR /app
+# Labels
+LABEL Name="cb-web-discovery" \
+    Version="1.0"
 
-# Copy package files first for better caching
-COPY package*.json ./
+# Create app directory
+WORKDIR /usr/src/app
 
-# Install all dependencies (including devDependencies for build)
-RUN npm ci
+COPY package.json ./
+COPY yarn.lock ./
 
-# Copy source code
+RUN yarn install --frozen-lockfile --ignore-engines --network-timeout 600000
+
 COPY . .
-
-# Build the application
-RUN npm run build
-
-# Production stage
-# Use the same specific Alpine version for consistency
-FROM node:20.11.1-alpine3.18 AS runner
-
-# Install dumb-init and wget with retry logic
-RUN for i in 1 2 3 4 5; do \
-      echo "Attempt $i to install packages..." && \
-      apk update && apk add --no-cache dumb-init wget && break || \
-      echo "Package installation failed, retrying in 5 seconds..." && \
-      sleep 5; \
-    done
-
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nextjs -u 1001
-
-# Set working directory
-WORKDIR /app
-
-# Copy necessary files from builder
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-# Switch to non-root user
-USER nextjs
-
-# Expose port
-EXPOSE 3000
-
-# Set environment variables
+# RUN npm install
 ENV NODE_ENV=production
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
-ENV NEXT_TELEMETRY_DISABLED=1
+RUN yarn build
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:3000 || exit 1
+### RUnning copy sitemaps ####
+RUN echo $env
+RUN if [ "$env" = "production" ]; then echo "#### Copy sitemap PROD ###" && cp /usr/src/app/sitemap-base.xml /usr/src/app/public/sitemap.xml && ls /usr/src/app/public/sitemap.xml; else echo "#### sitemap UAT ###"; fi
 
-# Run the application with dumb-init
-ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "server.js"]
+# FROM node:18.14.0
+
+# WORKDIR /usr/src/app
+
+# COPY --from=builds /app/package*.json ./
+# COPY --from=builds /app/.next ./.next
+# COPY --from=builds /app/public ./public
+# COPY --from=builds /app/node_modules ./node_modules
+# ENV NODE_ENV=production
+
+# use alpine for last container
+FROM node:18.14.0-alpine
+
+WORKDIR /usr/src/app
+
+## update apk and install ca-certificates for S3 upload
+# Add DNS resolver and retry mechanism to fix stuck issues
+# Alternative: Use more reliable mirror if needed
+# Note: ca-certificates and tzdata might already be included in base image
+RUN echo "nameserver 8.8.8.8" > /etc/resolv.conf && \
+    echo "nameserver 8.8.4.4" >> /etc/resolv.conf && \
+    apk update && \
+    apk add -U --no-cache ca-certificates tzdata --retries 3 || \
+    (echo "http://dl-cdn.alpinelinux.org/alpine/v3.18/main" > /etc/apk/repositories && \
+     echo "http://dl-cdn.alpinelinux.org/alpine/v3.18/community" >> /etc/apk/repositories && \
+     apk update && \
+     apk add -U --no-cache ca-certificates tzdata) || \
+    echo "Skipping ca-certificates and tzdata installation - using base image packages"
+
+####### COPYING to DOCKER CONTAINER #######
+### COPY timezone
+ENV TZ=Asia/Jakarta
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ >/etc/timezone
+
+#RUN apk add --no-cache nodejs
+
+COPY --from=builds /usr/src/app .
+
+# Service and Management ports
+#EXPOSE 81/tcp 82/tcp
+
+EXPOSE 3000
+CMD [ "yarn", "run", "start" ]
