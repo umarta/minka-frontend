@@ -261,19 +261,38 @@ spec:
 
         stage('Docker Build and Push') {
             steps {
-                container('docker') {
-                    script {
+                timeout(time: 15, unit: 'MINUTES') {
+                    container('docker') {
+                        script {
                         def imageTag = env.GIT_COMMIT.take(7)
                         def imageName = "gcr.io/${GCR_PROJECT}/${IMAGE_NAME}"
                         def envConfig = getEnvironmentConfig(params.ENVIRONMENT)
                         
+                        // Add debug information
                         sh """
+                            echo "=== DEBUG: Environment Information ==="
+                            echo "Docker version:"
+                            docker version
+                            echo "\nDocker info:"
+                            docker info
+                            echo "\nDisk space:"
+                            df -h
+                            echo "\nNetwork connectivity test:"
+                            ping -c 3 dl-cdn.alpinelinux.org || echo "Ping failed but continuing"
+                            echo "\nDNS resolution test:"
+                            nslookup dl-cdn.alpinelinux.org || echo "DNS lookup failed but continuing"
+                            echo "=== END DEBUG INFO ===\n"
+                            
                             echo "Building Docker image: ${imageName}:${imageTag}"
-                            # Build with DOCKER_BUILDKIT enabled for better performance
+                            # Build with DOCKER_BUILDKIT enabled for better performance and detailed logs
                             DOCKER_BUILDKIT=1 docker build \
                               --progress=plain \
                               --no-cache \
-                              -t ${imageName}:${imageTag} .
+                              --network=host \
+                              -t ${imageName}:${imageTag} . 2>&1 | tee docker_build.log
+                            
+                            echo "\n=== Docker build completed, checking log for common issues ==="
+                            grep -i "error\|warning\|failed\|timeout" docker_build.log || echo "No common error patterns found"
                         """
                         
                         // Push Docker image with retry mechanism
@@ -315,6 +334,7 @@ spec:
                     }
                 }
             }
+        
         }
 
         stage('Approval') {
