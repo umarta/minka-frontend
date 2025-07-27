@@ -292,7 +292,7 @@ spec:
                               -t ${imageName}:${imageTag} . 2>&1 | tee docker_build.log
                             
                             echo "\n=== Docker build completed, checking log for common issues ==="
-                            grep -i "error\|warning\|failed\|timeout" docker_build.log || echo "No common error patterns found"
+                            grep -i "error|warning|failed|timeout" docker_build.log || echo "No common error patterns found"
                         """
                         
                         // Push Docker image with retry mechanism
