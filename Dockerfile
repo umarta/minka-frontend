@@ -1,4 +1,4 @@
-FROM node:18.14.0 as builds
+FROM node:20-slim as builds
 
 # argument for copy sitemaps
 ARG env
@@ -24,7 +24,7 @@ RUN yarn build
 RUN echo $env
 RUN if [ "$env" = "production" ]; then echo "#### Copy sitemap PROD ###" && cp /usr/src/app/sitemap-base.xml /usr/src/app/public/sitemap.xml && ls /usr/src/app/public/sitemap.xml; else echo "#### sitemap UAT ###"; fi
 
-# FROM node:18.14.0
+# FROM node:20-slim
 
 # WORKDIR /usr/src/app
 
@@ -35,7 +35,7 @@ RUN if [ "$env" = "production" ]; then echo "#### Copy sitemap PROD ###" && cp /
 # ENV NODE_ENV=production
 
 # use alpine for last container
-FROM node:18.14.0-alpine
+FROM node:20-alpine
 
 WORKDIR /usr/src/app
 
