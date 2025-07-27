@@ -246,18 +246,18 @@ spec:
             }
         }
 
-        stage('Build') {
-            steps {
-                container('node') {
-                    script {
-                        // Set NODE_OPTIONS to increase memory limit
-                        // sh 'export NODE_OPTIONS="--max-old-space-size=3072"'
-                        // sh 'npm ci'
-                        // sh 'npm run build'
-                    }
-                }
-            }
-        }
+        // stage('Build') {
+        //     steps {
+        //         container('node') {
+        //             script {
+        //                 // Set NODE_OPTIONS to increase memory limit
+        //                 // sh 'export NODE_OPTIONS="--max-old-space-size=3072"'
+        //                 // sh 'npm ci'
+        //                 // sh 'npm run build'
+        //             }
+        //         }
+        //     }
+        // }
 
         stage('Docker Build and Push') {
             steps {
