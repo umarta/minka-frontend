@@ -341,6 +341,7 @@ EOF
                         
                         // Verify .env file was created
                         sh 'ls -la .env && echo "📄 .env file size: $(wc -l < .env) lines"'
+                        sh 'ls -al'
                     }
                 }
                 }
