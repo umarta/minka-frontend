@@ -195,7 +195,7 @@ spec:
     
     environment {
         GCR_PROJECT = 'production-411607'
-        IMAGE_NAME = 'kame-fe'
+        IMAGE_NAME = 'minka-frontend'
         WORKSPACE = "${WORKSPACE}"
         HELM_CHART_PATH = "./config/helm/minka-frontend"
         BRANCH_NAME = "${env.BRANCH_NAME}"
@@ -453,7 +453,7 @@ EOF
                     kubectl logs -l app.kubernetes.io/name=${IMAGE_NAME} -n ${getEnvironmentConfig(params.ENVIRONMENT).namespace}
 
                     Rollback command:
-                    helm rollback kame-fe-${params.ENVIRONMENT} -n ${getEnvironmentConfig(params.ENVIRONMENT).namespace}
+                    helm rollback minka-frontend-${params.ENVIRONMENT} -n ${getEnvironmentConfig(params.ENVIRONMENT).namespace}
                 """
             }
         }
