@@ -306,17 +306,17 @@ spec:
                             sh """
                                 # Extract secrets using jq
                                 kubectl get secret ${secretName} -n ${namespace} -o json | \
-                                jq -r '.data | to_entries[] | .key + "=" + (.value | @base64d)' > .env
+                                jq -r '.data | to_entries[] | .key + "=" + (.value | @base64d)' > .env.production
                                 
                                 echo "✅ Environment variables loaded from secret"
                                 echo "📄 .env file contents:"
-                                cat .env
+                                cat .env.production
                             """
                         } else {
                             echo "WARNING: Secret ${secretName} not found in namespace ${namespace}"
                             echo "Creating default .env file"
                             sh '''
-                            cat > .env << EOF
+                            cat > .env.production << EOF
 # API Configuration
 NEXT_PUBLIC_API_URL=https://staging-minka-api.kame.co.id/api
 NEXT_PUBLIC_WS_URL=wss://staging-minka-api.kame.co.id/api/ws/connect
@@ -340,7 +340,10 @@ EOF
                         }
                         
                         // Verify .env file was created
-                        sh 'ls -la .env && echo "📄 .env file size: $(wc -l < .env) lines"'
+                        sh 'ls -la .env.production && echo "📄 .env file size: $(wc -l < .env.production) lines"'
+                        
+                        // Fix permissions for .env file
+                        sh 'chmod 644 .env.production && chown cloudsdk:cloudsdk .env.production || true'
                         sh 'ls -al'
                     }
                 }
@@ -369,7 +372,7 @@ EOF
                         }
                         
                         // Clean up .env file for security
-                        sh 'rm -f .env'
+                        sh 'rm -f .env.production'
                         
                         echo "✅ Successfully built and pushed image: ${imageName}:${imageTag}"
                     }
