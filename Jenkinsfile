@@ -423,74 +423,38 @@ EOF
   post {
         success {
             script {
-                if (params.ENVIRONMENT == 'production') {
-                    def inst = getEnvironmentConfig(params.ENVIRONMENT).gcp_instance
-                                            echo """
-                            🎉 PRODUCTION Deployment to GCP Instance successful!
-                            • Application: ${IMAGE_NAME}
-                            • Environment: ${params.ENVIRONMENT}
-                            • Platform: GCP VM Instance
-                            • Instance: ${inst.instance_name}
-                            • Zone: ${inst.zone}
-                            • Port: ${inst.port}
-                            • Domain: https://${inst.domain}
-                            • Image: gcr.io/${GCR_PROJECT}/${IMAGE_NAME}:${env.GIT_COMMIT.take(7)}
+                
+                echo """
+                    ✅ ${params.ENVIRONMENT} Deployment to Kubernetes successful!
+                    • Application: ${IMAGE_NAME}
+                    • Environment: ${params.ENVIRONMENT}
+                    • Platform: Kubernetes
+                    • Namespace: ${getEnvironmentConfig(params.ENVIRONMENT).namespace}
+                    • Image: gcr.io/${GCR_PROJECT}/${IMAGE_NAME}:${env.GIT_COMMIT.take(7)}
 
-                            Monitor the deployment:
-                            gcloud compute ssh ${inst.user}@${inst.instance_name} --zone=${inst.zone} --command=\"docker ps --filter name=kame-fe-production\"
-                        """
-                } else {
-                    echo """
-                        ✅ ${params.ENVIRONMENT} Deployment to Kubernetes successful!
-                        • Application: ${IMAGE_NAME}
-                        • Environment: ${params.ENVIRONMENT}
-                        • Platform: Kubernetes
-                        • Namespace: ${getEnvironmentConfig(params.ENVIRONMENT).namespace}
-                        • Image: gcr.io/${GCR_PROJECT}/${IMAGE_NAME}:${env.GIT_COMMIT.take(7)}
-
-                        Monitor the deployment:
-                        kubectl get pods -n ${getEnvironmentConfig(params.ENVIRONMENT).namespace} -w
-                    """
-                }
+                    Monitor the deployment:
+                    kubectl get pods -n ${getEnvironmentConfig(params.ENVIRONMENT).namespace} -w
+                """
             }
         }
         failure {
             script {
-                if (params.ENVIRONMENT == 'production') {
-                    def inst = getEnvironmentConfig(params.ENVIRONMENT).gcp_instance
-                                            echo """
-                            ❌ PRODUCTION Deployment to GCP Instance failed!
-                            • Application: ${IMAGE_NAME}
-                            • Environment: ${params.ENVIRONMENT}
-                            • Platform: GCP VM Instance
-                            • Instance: ${inst.instance_name}
-                            • Zone: ${inst.zone}
-                            • Port: ${inst.port}
-                            • Domain: https://${inst.domain}
-                            • Image: gcr.io/${GCR_PROJECT}/${IMAGE_NAME}:${env.GIT_COMMIT.take(7)}
+                echo """
+                    ❌ ${params.ENVIRONMENT} Deployment to Kubernetes failed!
+                    • Application: ${IMAGE_NAME}
+                    • Environment: ${params.ENVIRONMENT}
+                    • Platform: Kubernetes
+                    • Namespace: ${getEnvironmentConfig(params.ENVIRONMENT).namespace}
+                    • Image: gcr.io/${GCR_PROJECT}/${IMAGE_NAME}:${env.GIT_COMMIT.take(7)}
 
-                            Troubleshooting commands:
-                            gcloud compute ssh ${inst.user}@${inst.instance_name} --zone=${inst.zone} --command=\"docker logs kame-fe-production\"
-                            gcloud compute ssh ${inst.user}@${inst.instance_name} --zone=${inst.zone} --command=\"docker ps -a\"
-                        """
-                } else {
-                    echo """
-                        ❌ ${params.ENVIRONMENT} Deployment to Kubernetes failed!
-                        • Application: ${IMAGE_NAME}
-                        • Environment: ${params.ENVIRONMENT}
-                        • Platform: Kubernetes
-                        • Namespace: ${getEnvironmentConfig(params.ENVIRONMENT).namespace}
-                        • Image: gcr.io/${GCR_PROJECT}/${IMAGE_NAME}:${env.GIT_COMMIT.take(7)}
+                    Troubleshooting commands:
+                    kubectl get pods -n ${getEnvironmentConfig(params.ENVIRONMENT).namespace}
+                    kubectl describe pods -l app.kubernetes.io/name=${IMAGE_NAME} -n ${getEnvironmentConfig(params.ENVIRONMENT).namespace}
+                    kubectl logs -l app.kubernetes.io/name=${IMAGE_NAME} -n ${getEnvironmentConfig(params.ENVIRONMENT).namespace}
 
-                        Troubleshooting commands:
-                        kubectl get pods -n ${getEnvironmentConfig(params.ENVIRONMENT).namespace}
-                        kubectl describe pods -l app.kubernetes.io/name=${IMAGE_NAME} -n ${getEnvironmentConfig(params.ENVIRONMENT).namespace}
-                        kubectl logs -l app.kubernetes.io/name=${IMAGE_NAME} -n ${getEnvironmentConfig(params.ENVIRONMENT).namespace}
-
-                        Rollback command:
-                        helm rollback kame-fe-${params.ENVIRONMENT} -n ${getEnvironmentConfig(params.ENVIRONMENT).namespace}
-                    """
-                }
+                    Rollback command:
+                    helm rollback kame-fe-${params.ENVIRONMENT} -n ${getEnvironmentConfig(params.ENVIRONMENT).namespace}
+                """
             }
         }
         always {
