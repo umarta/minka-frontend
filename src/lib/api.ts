@@ -398,7 +398,7 @@ export const contactsApi = {
   // Takeover management
   setTakeover: async (contactId: string, adminId: string) => {
     try {
-      const response = await api.put(`/contacts/${contactId}/takeover`, { admin_id: adminId });
+      const response = await api.put(`/contacts/${contactId}/takeover`, { admin_id: adminId,mode: 'takeover' });
       return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
@@ -406,9 +406,9 @@ export const contactsApi = {
     }
   },
 
-  releaseTakeover: async (contactId: string) => {
+  releaseTakeover: async (contactId: string, adminId: string) => {
     try {
-      const response = await api.put(`/contacts/${contactId}/takeover`, { action: 'release' });
+      const response = await api.put(`/contacts/${contactId}/takeover`, { admin_id: adminId, mode: 'release' });
       return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);

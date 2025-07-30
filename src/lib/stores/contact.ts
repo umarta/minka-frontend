@@ -57,7 +57,7 @@ interface ContactActions {
   
   // Takeover management
   setTakeover: (contactId: string, adminId: string) => Promise<void>;
-  releaseTakeover: (contactId: string) => Promise<void>;
+  releaseTakeover: (contactId: string, adminId: string) => Promise<void>;
   getTakeoverStatus: (contactId: string) => Promise<any>;
   
   // Label management
@@ -465,11 +465,11 @@ export const useContactStore = create<ContactStore>()(
       }
     },
 
-    releaseTakeover: async (contactId) => {
+    releaseTakeover: async (contactId, adminId) => {
       try {
         set({ error: null });
         
-        await contactsApi.releaseTakeover(contactId);
+        await contactsApi.releaseTakeover(contactId, adminId);
         
         // Update local state
         set((state) => ({

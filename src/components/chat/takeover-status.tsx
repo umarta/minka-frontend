@@ -44,7 +44,13 @@ export function TakeoverStatus({ contact, onTakeoverChange }: TakeoverStatusProp
     
     setIsLoading(true);
     try {
-      await setTakeover(contact.id, user.id);
+
+      // mode takeover
+      if (takeoverStatus?.is_takeover) {
+        await releaseTakeover(contact.id, user.id);
+      } else {
+        await setTakeover(contact.id, user.id);
+      }
       await loadTakeoverStatus();
       onTakeoverChange?.();
     } catch (error) {
@@ -56,8 +62,9 @@ export function TakeoverStatus({ contact, onTakeoverChange }: TakeoverStatusProp
 
   const handleReleaseTakeover = async () => {
     setIsLoading(true);
+    if (!user?.id) return;
     try {
-      await releaseTakeover(contact.id);
+      await releaseTakeover(contact.id, user.id);
       await loadTakeoverStatus();
       onTakeoverChange?.();
     } catch (error) {
@@ -74,12 +81,12 @@ export function TakeoverStatus({ contact, onTakeoverChange }: TakeoverStatusProp
   // BADGE + MODAL (untuk header)
   let badgeIcon, badgeColor, badgeText, tooltipText;
   if (!isInTakeover) {
-    badgeIcon = <Shield className="h-4 w-4 text-blue-600" />;
+    badgeIcon = <Shield className="w-4 h-4 text-blue-600" />;
     badgeColor = 'bg-blue-100 text-blue-700';
     badgeText = 'AI';
     tooltipText = 'Auto-Reply AI Active';
   } else {
-    badgeIcon = <User className="h-4 w-4 text-orange-600" />;
+    badgeIcon = <User className="w-4 h-4 text-orange-600" />;
     badgeColor = 'bg-orange-100 text-orange-700';
     badgeText = takeoverStatus?.takeover_admin?.username || 'Admin';
     tooltipText = isCurrentUserTakeover ? 'Anda takeover' : `Ditakeover oleh ${badgeText}`;
@@ -91,7 +98,7 @@ export function TakeoverStatus({ contact, onTakeoverChange }: TakeoverStatusProp
         <Tooltip>
           <TooltipTrigger asChild>
             <button
-              className={`ml-2 flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${badgeColor}`}
+              className={`flex gap-1 items-center px-2 py-1 ml-2 text-xs font-medium rounded-full ${badgeColor}`}
               onClick={() => setModalOpen(true)}
               style={{ minWidth: 32 }}
               type="button"
@@ -109,33 +116,33 @@ export function TakeoverStatus({ contact, onTakeoverChange }: TakeoverStatusProp
           </DialogClose>
           {!isInTakeover ? (
             <div>
-              <h3 className="font-bold mb-2 flex items-center gap-2"><Shield className="h-4 w-4 text-blue-600" />Auto-Reply Aktif</h3>
-              <p className="text-sm text-gray-600 mb-3">Pesan sedang dijawab otomatis oleh AI. Klik Take Over untuk handle manual.</p>
+              <h3 className="flex gap-2 items-center mb-2 font-bold"><Shield className="w-4 h-4 text-blue-600" />Auto-Reply Aktif</h3>
+              <p className="mb-3 text-sm text-gray-600">Pesan sedang dijawab otomatis oleh AI. Klik Take Over untuk handle manual.</p>
               <Button onClick={handleSetTakeover} disabled={isLoading} size="sm" className="bg-blue-600 hover:bg-blue-700">
-                <User className="h-4 w-4 mr-2" />Take Over
+                <User className="mr-2 w-4 h-4" />Take Over
               </Button>
             </div>
           ) : (
             <div>
-              <h3 className="font-bold mb-2 flex items-center gap-2"><User className="h-4 w-4 text-orange-600" />Manual Takeover Aktif</h3>
-              <div className="flex items-center gap-2 mb-2">
-                <Badge variant="secondary" className="bg-orange-100 text-orange-800">{isCurrentUserTakeover ? 'You' : badgeText}</Badge>
+              <h3 className="flex gap-2 items-center mb-2 font-bold"><User className="w-4 h-4 text-orange-600" />Manual Takeover Aktif</h3>
+              <div className="flex gap-2 items-center mb-2">
+                <Badge variant="secondary" className="text-orange-800 bg-orange-100">{isCurrentUserTakeover ? 'You' : badgeText}</Badge>
                 <span className="text-sm text-gray-600">sedang handle chat ini</span>
               </div>
               {takeoverStatus?.takeover_at && (
-                <div className="flex items-center gap-1 text-xs text-gray-500 mb-2">
-                  <Clock className="h-3 w-3" />{new Date(takeoverStatus.takeover_at).toLocaleTimeString()}
+                <div className="flex gap-1 items-center mb-2 text-xs text-gray-500">
+                  <Clock className="w-3 h-3" />{new Date(takeoverStatus.takeover_at).toLocaleTimeString()}
                 </div>
               )}
               {takeoverStatus?.expires_at && (
-                <Alert className="border-orange-200 bg-orange-50 mb-2">
-                  <Clock className="h-4 w-4 text-orange-600" />
+                <Alert className="mb-2 bg-orange-50 border-orange-200">
+                  <Clock className="w-4 h-4 text-orange-600" />
                   <AlertDescription className="text-orange-800">Takeover expires at {new Date(takeoverStatus.expires_at).toLocaleTimeString()}</AlertDescription>
                 </Alert>
               )}
               {isCurrentUserTakeover ? (
-                <Button onClick={handleReleaseTakeover} disabled={isLoading} size="sm" variant="outline" className="border-orange-300 text-orange-700 hover:bg-orange-100">
-                  <MessageSquare className="h-4 w-4 mr-2" />Release Takeover
+                <Button onClick={handleReleaseTakeover} disabled={isLoading} size="sm" variant="outline" className="text-orange-700 border-orange-300 hover:bg-orange-100">
+                  <MessageSquare className="mr-2 w-4 h-4" />Release Takeover
                 </Button>
               ) : (
                 <p className="text-sm text-gray-600">Admin lain sedang handle chat ini. Anda bisa takeover jika sudah dilepas.</p>
