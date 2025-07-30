@@ -393,6 +393,10 @@ EOF
                         sh """
                             echo "🔄 Deploying ${helmRelease} to Kubernetes namespace: ${namespace}"
                             
+                            # Check resource quota before deployment
+                            echo "Checking resource quota..."
+                            kubectl get resourcequota -n ${namespace} -o wide || echo "No resource quota found"
+                            
                             helm upgrade --install ${helmRelease} ./k3s-repo/config/helm/minka-frontend \
                                 -f ${valuesFile} \
                                 --set image.tag=${params.ENVIRONMENT} \
@@ -403,6 +407,10 @@ EOF
                                 --set autoscaling.enabled=false \
                                 --set ingress.enabled=false \
                                 --set config.secrets.create=true \
+                                --set resources.limits.cpu=500m \
+                                --set resources.requests.cpu=200m \
+                                --set resources.limits.memory=512Mi \
+                                --set resources.requests.memory=256Mi \
                                 --namespace=${namespace} \
                                 --timeout ${envConfig.deployment_timeout}
                             

@@ -13,7 +13,7 @@ import { LabelBadgeInline } from '@/components/LabelBadgeDisplay';
 import { ConversationStatusDot } from '@/components/ConversationStatusIndicator';
 import { ContactLabelManager } from '@/components/ContactLabelManager';
 import { useChatStore } from '@/lib/stores/chat';
-import { Conversation } from '@/types';
+import { Conversation, ConversationGroup } from '@/types';
 import { formatDistanceToNow, format, isToday, isYesterday, isThisWeek } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -28,13 +28,17 @@ export function ContactSidebar() {
     searchQuery,
     isLoadingConversations,
     toggleSidebar,
-    sidebarCollapsed
+    sidebarCollapsed,
+    selectedGroup,
+    loadConversationsByGroup,
+    moveConversationToGroup,
+    setSelectedGroup
   } = useChatStore();
 
   // Tambahkan log debug conversations
   console.log('ContactSidebar conversations:', conversations);
 
-  const [selectedTab, setSelectedTab] = useState<'needReply' | 'automated' | 'completed'>('needReply');
+  const [selectedTab, setSelectedTab] = useState<ConversationGroup>('ai_agent');
   const [localSearchQuery, setLocalSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'time' | 'unread' | 'name'>('time');
   const [labelManagerOpen, setLabelManagerOpen] = useState(false);
@@ -49,6 +53,11 @@ export function ContactSidebar() {
   useEffect(() => {
     loadConversations();
   }, [loadConversations]);
+
+  // Load conversations by group when tab changes
+  useEffect(() => {
+    loadConversationsByGroup(selectedTab);
+  }, [selectedTab, loadConversationsByGroup]);
 
   const getInitials = (name: string) => {
     return name
@@ -96,31 +105,22 @@ export function ContactSidebar() {
     
     // Get conversations based on selected tab
     switch (selectedTab) {
-      case 'needReply':
-        filteredByTab = [
-          ...chatGroups.needReply.urgent,
-          ...chatGroups.needReply.normal,
-          ...chatGroups.needReply.overdue,
-          ...conversations.filter(c => c.status === 'pending' || c.status === 'active')
-        ];
+      case 'advisor':
+        filteredByTab = chatGroups.advisor || [];
         break;
-      case 'automated':
-        filteredByTab = [
-          ...chatGroups.automated.botHandled,
-          ...chatGroups.automated.autoReply,
-          ...chatGroups.automated.workflow
-        ];
+      case 'ai_agent':
+        filteredByTab = chatGroups.ai_agent || [];
         break;
-      case 'completed':
-        filteredByTab = [
-          ...chatGroups.completed.resolved,
-          ...chatGroups.completed.closed,
-          ...chatGroups.completed.archived,
-          ...conversations.filter(c => c.status === 'resolved' || c.status === 'archived')
-        ];
+      case 'done':
+        filteredByTab = chatGroups.done || [];
         break;
       default:
         filteredByTab = conversations;
+    }
+    
+    // Fallback to all conversations if chatGroups is empty
+    if (filteredByTab.length === 0) {
+      filteredByTab = conversations;
     }
 
     // Remove duplicates
@@ -190,6 +190,9 @@ export function ContactSidebar() {
   }, []);
 
   console.log('Filtered conversations:', filteredConversations);
+  console.log('ChatGroups:', chatGroups);
+  console.log('SelectedTab:', selectedTab);
+  console.log('Conversations count:', conversations.length);
 
   const handleQuickAction = (e: React.MouseEvent, action: string, conversation: Conversation) => {
     e.stopPropagation();
@@ -214,6 +217,15 @@ export function ContactSidebar() {
       case 'delete':
         // TODO: Implement delete
         console.log('Delete conversation:', conversation);
+        break;
+      case 'moveToAdvisor':
+        moveConversationToGroup(conversation.id, 'advisor');
+        break;
+      case 'moveToAIAgent':
+        moveConversationToGroup(conversation.id, 'ai_agent');
+        break;
+      case 'moveToDone':
+        moveConversationToGroup(conversation.id, 'done');
         break;
       default:
         console.log(`Quick action: ${action}`, conversation);
@@ -287,6 +299,27 @@ export function ContactSidebar() {
                       <CheckCheck className="h-4 w-4 mr-2" />
                       Tandai Dibaca
                     </DropdownMenuItem>
+                    
+                    {/* Group management actions */}
+                    {selectedTab !== 'advisor' && (
+                      <DropdownMenuItem onClick={(e) => handleQuickAction(e, 'moveToAdvisor', conversation)}>
+                        <MessageCircle className="h-4 w-4 mr-2" />
+                        Move to Advisor
+                      </DropdownMenuItem>
+                    )}
+                    {selectedTab !== 'ai_agent' && (
+                      <DropdownMenuItem onClick={(e) => handleQuickAction(e, 'moveToAIAgent', conversation)}>
+                        <MessageCircle className="h-4 w-4 mr-2" />
+                        Move to AI Agent
+                      </DropdownMenuItem>
+                    )}
+                    {selectedTab !== 'done' && (
+                      <DropdownMenuItem onClick={(e) => handleQuickAction(e, 'moveToDone', conversation)}>
+                        <CheckCheck className="h-4 w-4 mr-2" />
+                        Mark as Done
+                      </DropdownMenuItem>
+                    )}
+                    
                     <DropdownMenuItem onClick={(e) => handleQuickAction(e, 'star', conversation)}>
                       <Star className="h-4 w-4 mr-2" />
                       Beri Bintang
@@ -363,15 +396,9 @@ export function ContactSidebar() {
 
   // Get tab counts
   const getTabCounts = () => ({
-    needReply: chatGroups.needReply.urgent.length + 
-               chatGroups.needReply.normal.length + 
-               chatGroups.needReply.overdue.length,
-    automated: chatGroups.automated.botHandled.length + 
-               chatGroups.automated.autoReply.length + 
-               chatGroups.automated.workflow.length,
-    completed: chatGroups.completed.resolved.length + 
-               chatGroups.completed.closed.length + 
-               chatGroups.completed.archived.length
+    advisor: chatGroups.advisor?.length || 0,
+    ai_agent: chatGroups.ai_agent?.length || 0,
+    done: chatGroups.done?.length || 0
   });
 
   const tabCounts = getTabCounts();
@@ -400,35 +427,17 @@ export function ContactSidebar() {
           <button
             className={cn(
               "p-3 text-xs font-medium transition-colors relative",
-              selectedTab === 'needReply'
+              selectedTab === 'advisor'
                 ? "text-blue-600 bg-blue-50 border-r-2 border-blue-600"
                 : "text-gray-600 hover:text-gray-900"
             )}
-            onClick={() => setSelectedTab('needReply')}
-            title="Perlu Dibalas"
+            onClick={() => setSelectedTab('advisor')}
+            title="Advisor"
           >
-            PR
-            {tabCounts.needReply > 0 && (
-              <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs min-w-[16px] h-[16px] flex items-center justify-center rounded-full">
-                {tabCounts.needReply > 99 ? '99+' : tabCounts.needReply}
-              </div>
-            )}
-          </button>
-          
-          <button
-            className={cn(
-              "p-3 text-xs font-medium transition-colors relative",
-              selectedTab === 'automated'
-                ? "text-blue-600 bg-blue-50 border-r-2 border-blue-600"
-                : "text-gray-600 hover:text-gray-900"
-            )}
-            onClick={() => setSelectedTab('automated')}
-            title="Otomatis"
-          >
-            OT
-            {tabCounts.automated > 0 && (
+            AD
+            {tabCounts.advisor > 0 && (
               <div className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs min-w-[16px] h-[16px] flex items-center justify-center rounded-full">
-                {tabCounts.automated > 99 ? '99+' : tabCounts.automated}
+                {tabCounts.advisor > 99 ? '99+' : tabCounts.advisor}
               </div>
             )}
           </button>
@@ -436,17 +445,35 @@ export function ContactSidebar() {
           <button
             className={cn(
               "p-3 text-xs font-medium transition-colors relative",
-              selectedTab === 'completed'
+              selectedTab === 'ai_agent'
                 ? "text-blue-600 bg-blue-50 border-r-2 border-blue-600"
                 : "text-gray-600 hover:text-gray-900"
             )}
-            onClick={() => setSelectedTab('completed')}
-            title="Selesai"
+            onClick={() => setSelectedTab('ai_agent')}
+            title="AI Agent"
           >
-            SL
-            {tabCounts.completed > 0 && (
+            AI
+            {tabCounts.ai_agent > 0 && (
               <div className="absolute -top-1 -right-1 bg-green-500 text-white text-xs min-w-[16px] h-[16px] flex items-center justify-center rounded-full">
-                {tabCounts.completed > 99 ? '99+' : tabCounts.completed}
+                {tabCounts.ai_agent > 99 ? '99+' : tabCounts.ai_agent}
+              </div>
+            )}
+          </button>
+          
+          <button
+            className={cn(
+              "p-3 text-xs font-medium transition-colors relative",
+              selectedTab === 'done'
+                ? "text-blue-600 bg-blue-50 border-r-2 border-blue-600"
+                : "text-gray-600 hover:text-gray-900"
+            )}
+            onClick={() => setSelectedTab('done')}
+            title="Done"
+          >
+            DN
+            {tabCounts.done > 0 && (
+              <div className="absolute -top-1 -right-1 bg-gray-500 text-white text-xs min-w-[16px] h-[16px] flex items-center justify-center rounded-full">
+                {tabCounts.done > 99 ? '99+' : tabCounts.done}
               </div>
             )}
           </button>
@@ -627,36 +654,17 @@ export function ContactSidebar() {
         <button
           className={cn(
             "flex-1 py-3 px-2 text-sm font-medium transition-colors relative",
-            selectedTab === 'needReply'
+            selectedTab === 'advisor'
               ? "text-blue-600 bg-blue-50 border-b-2 border-blue-600"
               : "text-gray-600 hover:text-gray-900"
           )}
-          onClick={() => setSelectedTab('needReply')}
+          onClick={() => setSelectedTab('advisor')}
         >
           <div className="flex items-center justify-center gap-1">
-            <span>Perlu Dibalas</span>
-            {tabCounts.needReply > 0 && (
-              <Badge className="bg-red-500 text-white text-xs">
-                {tabCounts.needReply > 99 ? '99+' : tabCounts.needReply}
-              </Badge>
-            )}
-          </div>
-        </button>
-        
-        <button
-          className={cn(
-            "flex-1 py-3 px-2 text-sm font-medium transition-colors relative",
-            selectedTab === 'automated'
-              ? "text-blue-600 bg-blue-50 border-b-2 border-blue-600"
-              : "text-gray-600 hover:text-gray-900"
-          )}
-          onClick={() => setSelectedTab('automated')}
-        >
-          <div className="flex items-center justify-center gap-1">
-            <span>Otomatis</span>
-            {tabCounts.automated > 0 && (
+            <span>Advisor</span>
+            {tabCounts.advisor > 0 && (
               <Badge className="bg-blue-500 text-white text-xs">
-                {tabCounts.automated > 99 ? '99+' : tabCounts.automated}
+                {tabCounts.advisor > 99 ? '99+' : tabCounts.advisor}
               </Badge>
             )}
           </div>
@@ -665,17 +673,36 @@ export function ContactSidebar() {
         <button
           className={cn(
             "flex-1 py-3 px-2 text-sm font-medium transition-colors relative",
-            selectedTab === 'completed'
+            selectedTab === 'ai_agent'
               ? "text-blue-600 bg-blue-50 border-b-2 border-blue-600"
               : "text-gray-600 hover:text-gray-900"
           )}
-          onClick={() => setSelectedTab('completed')}
+          onClick={() => setSelectedTab('ai_agent')}
         >
           <div className="flex items-center justify-center gap-1">
-            <span>Selesai</span>
-            {tabCounts.completed > 0 && (
+            <span>AI Agent</span>
+            {tabCounts.ai_agent > 0 && (
               <Badge className="bg-green-500 text-white text-xs">
-                {tabCounts.completed > 99 ? '99+' : tabCounts.completed}
+                {tabCounts.ai_agent > 99 ? '99+' : tabCounts.ai_agent}
+              </Badge>
+            )}
+          </div>
+        </button>
+        
+        <button
+          className={cn(
+            "flex-1 py-3 px-2 text-sm font-medium transition-colors relative",
+            selectedTab === 'done'
+              ? "text-blue-600 bg-blue-50 border-b-2 border-blue-600"
+              : "text-gray-600 hover:text-gray-900"
+          )}
+          onClick={() => setSelectedTab('done')}
+        >
+          <div className="flex items-center justify-center gap-1">
+            <span>Done</span>
+            {tabCounts.done > 0 && (
+              <Badge className="bg-gray-500 text-white text-xs">
+                {tabCounts.done > 99 ? '99+' : tabCounts.done}
               </Badge>
             )}
           </div>
