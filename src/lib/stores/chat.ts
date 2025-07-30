@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import { Contact, Message, Conversation, ChatGroups, MessageForm, Ticket, QuickReplyTemplate, ContactNote, DraftMessage } from '@/types';
+import { Contact, Message, Conversation, ChatGroups, MessageForm, Ticket, QuickReplyTemplate, ContactNote, DraftMessage, ConversationGroup } from '@/types';
 import { contactsApi, messagesApi, ticketsApi, quickReplyApi, contactNotesApi, draftMessagesApi, conversationsApi, antiBlockingApi, labelsApi } from '@/lib/api';
 import { uploadMediaWithProgress, uploadWithRetry, validateFile } from '@/lib/utils/upload';
 import { createWebSocketManager, getWebSocketManager } from '@/lib/websocket';
@@ -158,6 +158,9 @@ interface ChatState {
   
   // Errors
   error: string | null;
+  
+  // Group management
+  selectedGroup: ConversationGroup;
 }
 
 interface ChatActions {
@@ -249,6 +252,11 @@ interface ChatActions {
   clearError: () => void;
   setRightSidebarMode: (mode: 'auto' | 'always' | 'never') => void; // NEW
   getActiveTicket: () => any; // Helper method to get active ticket
+  
+  // Group management
+  loadConversationsByGroup: (group: ConversationGroup) => Promise<void>;
+  moveConversationToGroup: (conversationId: string, group: string) => Promise<void>;
+  setSelectedGroup: (group: ConversationGroup) => void;
 }
 
 type ChatStore = ChatState & ChatActions;
@@ -258,6 +266,11 @@ export const useChatStore = create<ChatStore>()(
     // Initial state
     conversations: [],
     chatGroups: {
+      // New conversation grouping
+      advisor: [],
+      ai_agent: [],
+      done: [],
+      // Legacy grouping (for backward compatibility)
       needReply: { urgent: [], normal: [], overdue: [] },
       automated: { botHandled: [], autoReply: [], workflow: [] },
       completed: { resolved: [], closed: [], archived: [] },
@@ -299,6 +312,7 @@ export const useChatStore = create<ChatStore>()(
     isSearching: false,
     typingUsers: {},
     error: null,
+    selectedGroup: 'ai_agent' as ConversationGroup,
 
     // Actions
     loadConversations: async () => {
@@ -312,6 +326,9 @@ export const useChatStore = create<ChatStore>()(
           isLoadingConversations: false,
           error: null
         });
+        
+        // Group conversations after loading
+        get().groupConversations();
       } catch (error) {
         console.error('Failed to load conversations:', error);
         set({
@@ -1637,12 +1654,52 @@ export const useChatStore = create<ChatStore>()(
              state.activeContactConversation?.currentTicket || 
              state.activeConversation?.active_ticket;
     },
+
+    // === Group management ===
+    loadConversationsByGroup: async (group) => {
+      set({ isLoadingConversations: true, error: null });
+      try {
+        const conversations = await conversationsApi.getByGroup(group);
+        set({
+          conversations,
+          isLoadingConversations: false,
+          error: null,
+        });
+        // Optionally, re-group if needed
+        get().groupConversations();
+      } catch (error) {
+        set({
+          conversations: [],
+          error: 'Failed to load conversations by group',
+          isLoadingConversations: false,
+        });
+      }
+    },
+    moveConversationToGroup: async (conversationId, group) => {
+      try {
+        await conversationsApi.moveToGroup(conversationId, group);
+        // Reload current group
+        const { selectedGroup } = get();
+        await get().loadConversationsByGroup(selectedGroup);
+      } catch (error) {
+        set({ error: 'Failed to move conversation to group' });
+        throw error;
+      }
+    },
+    setSelectedGroup: (group) => {
+      set({ selectedGroup: group });
+    },
   }))
 );
 
 // Helper function to group conversations into categories
 function groupConversationsIntoCategories(conversations: Conversation[]): ChatGroups {
   const chatGroups: ChatGroups = {
+    // New conversation grouping
+    advisor: [],
+    ai_agent: [],
+    done: [],
+    // Legacy grouping (for backward compatibility)
     needReply: { urgent: [], normal: [], overdue: [] },
     automated: { botHandled: [], autoReply: [], workflow: [] },
     completed: { resolved: [], closed: [], archived: [] },
@@ -1651,23 +1708,49 @@ function groupConversationsIntoCategories(conversations: Conversation[]): ChatGr
   const now = new Date();
   
   conversations.forEach((conversation) => {
-    const lastActivity = new Date(conversation.last_activity);
-    const minutesSinceLastActivity = (now.getTime() - lastActivity.getTime()) / (1000 * 60);
-    
-    if (conversation.status === 'active' && conversation.unread_count > 0) {
-      if (minutesSinceLastActivity > 120) { // 2 hours
-        chatGroups.needReply.overdue.push(conversation);
-      } else if (minutesSinceLastActivity > 30) { // 30 minutes
-        chatGroups.needReply.urgent.push(conversation);
-      } else {
-        chatGroups.needReply.normal.push(conversation);
+    // New grouping logic based on conversation_group field
+    if (conversation.conversation_group) {
+      switch (conversation.conversation_group) {
+        case 'advisor':
+          chatGroups.advisor.push(conversation);
+          break;
+        case 'ai_agent':
+          chatGroups.ai_agent.push(conversation);
+          break;
+        case 'done':
+          chatGroups.done.push(conversation);
+          break;
+        default:
+          chatGroups.ai_agent.push(conversation); // Default to AI Agent
       }
-    } else if (conversation.status === 'pending') {
-      chatGroups.automated.autoReply.push(conversation);
-    } else if (conversation.status === 'resolved') {
-      chatGroups.completed.resolved.push(conversation);
-    } else if (conversation.status === 'archived') {
-      chatGroups.completed.archived.push(conversation);
+    } else {
+      // Fallback to legacy grouping if conversation_group is not set
+      // Also add to new grouping based on status
+      if (conversation.status === 'closed' || conversation.status === 'resolved') {
+        chatGroups.done.push(conversation);
+      } else {
+        chatGroups.ai_agent.push(conversation); // Default to AI Agent
+      }
+      
+      // Legacy grouping logic
+      const lastActivity = new Date(conversation.last_activity);
+      const minutesSinceLastActivity = (now.getTime() - lastActivity.getTime()) / (1000 * 60);
+      
+      if (conversation.status === 'active' && conversation.unread_count > 0) {
+        if (minutesSinceLastActivity > 120) { // 2 hours
+          chatGroups.needReply.overdue.push(conversation);
+        } else if (minutesSinceLastActivity > 30) { // 30 minutes
+          chatGroups.needReply.urgent.push(conversation);
+        } else {
+          chatGroups.needReply.normal.push(conversation);
+        }
+      } else if (conversation.status === 'pending') {
+        chatGroups.automated.autoReply.push(conversation);
+      } else if (conversation.status === 'resolved') {
+        chatGroups.completed.resolved.push(conversation);
+      } else if (conversation.status === 'closed') {
+        chatGroups.completed.closed.push(conversation);
+      }
     }
   });
 

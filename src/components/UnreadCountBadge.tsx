@@ -98,8 +98,8 @@ export const ConversationUnreadBadge: React.FC<ConversationUnreadBadgeProps> = (
   
   if (unread_count <= 0) return null;
 
-  // Don't show badge for archived conversations
-  if (status === 'archived') {
+      // Don't show badge for closed conversations
+    if (status === 'closed') {
     return (
       <UnreadCountBadge
         count={unread_count}

@@ -405,9 +405,15 @@ export interface Conversation {
   // Enhanced features
   ticket_episodes?: TicketEpisode[];
   contact_notes?: ContactNote[];
+  
+  // Group management
+  conversation_group?: 'advisor' | 'ai_agent' | 'done';
 }
 
-export type ConversationStatus = 'active' | 'pending' | 'resolved' | 'archived';
+export type ConversationStatus = 'active' | 'pending' | 'resolved' | 'closed';
+
+// Conversation Groups
+export type ConversationGroup = 'advisor' | 'ai_agent' | 'done';
 
 // Conversation Modes
 export type ConversationMode = 'unified' | 'ticket-specific';
@@ -463,6 +469,12 @@ export interface ChatGroup {
 }
 
 export interface ChatGroups {
+  // New conversation grouping
+  advisor: Conversation[];
+  ai_agent: Conversation[];
+  done: Conversation[];
+  
+  // Legacy grouping (for backward compatibility)
   needReply: {
     urgent: Conversation[];
     normal: Conversation[];

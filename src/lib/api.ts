@@ -1639,6 +1639,28 @@ export const conversationsApi = {
       return null;
     }
   },
+
+  // Get conversations by group
+  getByGroup: async (group: string, page = 1, limit = 20) => {
+    try {
+      const response = await api.get(`/conversations/group/${group}?page=${page}&limit=${limit}`);
+      return handleArrayResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return [];
+    }
+  },
+
+  // Move conversation to group
+  moveToGroup: async (conversationId: string, group: string) => {
+    try {
+      const response = await api.put(`/conversations/${conversationId}/move`, { group });
+      return handleSingleResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return null;
+    }
+  },
 };
 
 // Draft Messages API

@@ -61,7 +61,7 @@ export const BulkOperationsToolbar: React.FC<BulkOperationsToolbarProps> = ({
   };
 
   const handleArchive = async () => {
-    await bulkUpdateConversations({ status: 'archived' });
+            await bulkUpdateConversations({ status: 'closed' });
   };
 
   const handleDelete = async () => {
