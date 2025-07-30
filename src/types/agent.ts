@@ -23,6 +23,10 @@ export interface Agent {
   ticketsResolvedToday: number;
   messagesHandledToday: number;
   onlineHoursToday: number;
+  // Group relationships
+  groups?: import('./agent-groups').AgentGroup[];
+  primaryGroup?: import('./agent-groups').AgentGroup;
+  groupCount?: number;
 }
 
 export interface AgentPerformanceMetrics {
@@ -52,6 +56,13 @@ export interface AgentFilters {
   department?: string;
   search?: string;
   performanceLevel?: 'high' | 'medium' | 'low';
+  // Group-based filtering
+  groupId?: number;
+  hasGroups?: boolean; // Filter agents with/without groups
+  groupCount?: {
+    min?: number;
+    max?: number;
+  };
   page?: number;
   limit?: number;
 }
@@ -105,3 +116,14 @@ export type AgentRole = 'admin' | 'cs' | 'viewer';
 export type AgentStatus = 'active' | 'inactive';
 export type OnlineStatus = 'online' | 'offline' | 'away' | 'busy';
 export type PerformanceLevel = 'high' | 'medium' | 'low';
+
+// Re-export agent groups types for convenience
+export type {
+  AgentGroup,
+  AdminSummary,
+  GroupStats,
+  GroupActivity,
+  GroupFilters,
+  CreateGroupRequest,
+  UpdateGroupRequest,
+} from './agent-groups';

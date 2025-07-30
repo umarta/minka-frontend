@@ -1,4 +1,5 @@
 import { AgentActivity } from '@/types/agent';
+import { AgentGroup, GroupActivity } from '@/types/agent-groups';
 
 // Mock WebSocket events for agent management
 export interface MockWebSocketEvent {
@@ -7,19 +8,123 @@ export interface MockWebSocketEvent {
   delay?: number; // Optional delay before emitting
 }
 
+// Generate group-related WebSocket events
+const generateGroupEvents = (baseTimeOffset: number): MockWebSocketEvent[] => {
+  const events: MockWebSocketEvent[] = [];
+  let timeOffset = baseTimeOffset;
+  const groupIds = [1, 2, 3, 4, 5, 6, 7, 8]; // Sample group IDs
+  const adminIds = Array.from({ length: 20 }, (_, i) => i + 1);
+
+  // Group created events (1-2 per simulation)
+  for (let i = 0; i < Math.floor(Math.random() * 2) + 1; i++) {
+    const mockGroup: Partial<AgentGroup> = {
+      id: Math.floor(Math.random() * 1000) + 100,
+      name: `Dynamic Team ${Math.floor(Math.random() * 100)}`,
+      description: 'Automatically created team',
+      color: ['#3B82F6', '#10B981', '#F59E0B', '#EF4444'][Math.floor(Math.random() * 4)],
+      isActive: true,
+      memberCount: 0,
+      createdAt: new Date(Date.now() + timeOffset).toISOString(),
+      updatedAt: new Date(Date.now() + timeOffset).toISOString(),
+    };
+
+    events.push({
+      event: 'group_created',
+      data: { 
+        group: mockGroup, 
+        timestamp: new Date(Date.now() + timeOffset).toISOString() 
+      },
+      delay: timeOffset,
+    });
+    timeOffset += Math.random() * 30000; // 0-30 second intervals
+  }
+
+  // Group member operations (5-8 per simulation)
+  for (let i = 0; i < Math.floor(Math.random() * 4) + 5; i++) {
+    const groupId = groupIds[Math.floor(Math.random() * groupIds.length)];
+    const adminId = adminIds[Math.floor(Math.random() * adminIds.length)];
+    const isAdding = Math.random() > 0.4; // 60% chance of adding, 40% removing
+
+    events.push({
+      event: isAdding ? 'group_member_added' : 'group_member_removed',
+      data: { 
+        groupId, 
+        adminId, 
+        timestamp: new Date(Date.now() + timeOffset).toISOString() 
+      },
+      delay: timeOffset,
+    });
+    timeOffset += Math.random() * 25000; // 0-25 second intervals
+  }
+
+  // Group activity events (3-5 per simulation)
+  for (let i = 0; i < Math.floor(Math.random() * 3) + 3; i++) {
+    const groupId = groupIds[Math.floor(Math.random() * groupIds.length)];  
+    const adminId = adminIds[Math.floor(Math.random() * adminIds.length)];
+    const actions = ['member_added', 'member_removed', 'updated'] as const;
+    const action = actions[Math.floor(Math.random() * actions.length)];
+
+    const activity: GroupActivity = {
+      id: `group-activity-${Date.now()}-${i}`,
+      groupId,
+      groupName: `Team ${groupId}`,
+      adminId,
+      adminName: `Admin ${adminId}`,
+      action,
+      description: `Group ${action.replace('_', ' ')}`,
+      timestamp: new Date(Date.now() + timeOffset).toISOString(),
+      metadata: { automated: true }
+    };
+
+    events.push({
+      event: 'group_activity',
+      data: activity,
+      delay: timeOffset,
+    });
+    timeOffset += Math.random() * 20000; // 0-20 second intervals
+  }
+
+  // Group updated events (1-3 per simulation)
+  for (let i = 0; i < Math.floor(Math.random() * 3) + 1; i++) {
+    const groupId = groupIds[Math.floor(Math.random() * groupIds.length)];
+    const mockGroup: Partial<AgentGroup> = {
+      id: groupId,
+      name: `Updated Team ${groupId}`,
+      description: 'Team description updated',
+      updatedAt: new Date(Date.now() + timeOffset).toISOString(),
+    };
+
+    events.push({
+      event: 'group_updated',
+      data: { 
+        group: mockGroup, 
+        timestamp: new Date(Date.now() + timeOffset).toISOString() 
+      },
+      delay: timeOffset,
+    });
+    timeOffset += Math.random() * 35000; // 0-35 second intervals
+  }
+
+  // Rarely delete groups (10% chance)
+  if (Math.random() < 0.1) {
+    const groupId = groupIds[Math.floor(Math.random() * groupIds.length)];
+    events.push({
+      event: 'group_deleted',
+      data: { 
+        groupId, 
+        timestamp: new Date(Date.now() + timeOffset).toISOString() 
+      },
+      delay: timeOffset,
+    });
+  }
+
+  return events;
+};
+
 // Generate realistic WebSocket events for development
 export const generateMockWebSocketEvents = (): MockWebSocketEvent[] => {
   const events: MockWebSocketEvent[] = [];
   const agentIds = Array.from({ length: 50 }, (_, i) => i + 1);
-  
-  // Generate various event types
-  const eventTypes = [
-    'agent_online',
-    'agent_offline', 
-    'agent_status_change',
-    'agent_activity',
-    'performance_update'
-  ];
 
   // Create a realistic sequence of events
   let timeOffset = 0;
@@ -123,6 +228,11 @@ export const generateMockWebSocketEvents = (): MockWebSocketEvent[] => {
     });
     timeOffset += Math.random() * 20000; // 0-20 second intervals
   }
+
+  // Group events (scattered throughout the day)
+  const groupEvents = generateGroupEvents(timeOffset);
+  events.push(...groupEvents);
+  timeOffset += 30000; // Add some base time for group events
 
   // Evening logout (5-7 PM)
   for (let i = 0; i < 10; i++) {

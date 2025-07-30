@@ -19,7 +19,9 @@ export class WebSocketManager {
 
   constructor(private config: WebSocketConfig) {
     // Use mock events in development or when explicitly enabled
-    if (config.useMockEvents || (process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_USE_REAL_WS !== 'true')) {
+    if (config.useMockEvents || (process.env.NODE_ENV === 'development' && 
+        process.env.NEXT_PUBLIC_USE_REAL_WS !== 'true' && 
+        process.env.NEXT_PUBLIC_USE_REAL_DATA !== 'true')) {
       this.initializeMockWebSocket();
     } else {
       this.initializeSocket();
@@ -33,7 +35,9 @@ export class WebSocketManager {
     
     // Set up mock event forwarding
     const agentEvents = ['agent_online', 'agent_offline', 'agent_status_change', 'agent_activity', 'performance_update'];
-    agentEvents.forEach(event => {
+    const groupEvents = ['group_created', 'group_updated', 'group_deleted', 'group_member_added', 'group_member_removed', 'group_activity'];
+    
+    [...agentEvents, ...groupEvents].forEach(event => {
       this.mockSimulator.on(event, (data: any) => {
         this.emit(event, data);
       });
@@ -46,45 +50,62 @@ export class WebSocketManager {
   }
 
   private initializeSocket() {
+    // Check if window is defined (client-side only)
+    if (typeof window === 'undefined') {
+      console.log('[WS] Running on server, skipping WebSocket initialization');
+      return;
+    }
+    
     let url = this.config.url;
     // Optionally add token as query param if needed
     if (this.config.auth?.token) {
       const sep = url.includes('?') ? '&' : '?';
       url += `${sep}token=${encodeURIComponent(this.config.auth.token)}`;
     }
-    this.socket = new window.WebSocket(url);
+    
+    try {
+      this.socket = new WebSocket(url);
 
-    this.socket.onopen = () => {
-      this.isConnected = true;
-      console.log('[WS] WebSocket connected');
-      this.emit('connection_established', { connected: true });
-    };
-    this.socket.onclose = (event) => {
-      this.isConnected = false;
-      console.log('[WS] WebSocket disconnected:', event.reason);
-      this.emit('connection_lost', { reason: event.reason });
-    };
-    this.socket.onerror = (error) => {
-      console.error('[WS] WebSocket error:', error);
-      this.emit('connection_error', error);
-    };
-    this.socket.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.event) {
-          this.emit(msg.event, msg.data);
-        } else if (msg.type) {
-          this.emit(msg.type, msg.data);
+      this.socket.onopen = () => {
+        this.isConnected = true;
+        console.log('[WS] WebSocket connected');
+        this.emit('connection_established', { connected: true });
+      };
+      this.socket.onclose = (event) => {
+        this.isConnected = false;
+        console.log('[WS] WebSocket disconnected:', event.reason);
+        this.emit('connection_lost', { reason: event.reason });
+      };
+      this.socket.onerror = (error) => {
+        console.error('[WS] WebSocket error:', error);
+        this.emit('connection_error', error);
+      };
+      this.socket.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.event) {
+            this.emit(msg.event, msg.data);
+          } else if (msg.type) {
+            this.emit(msg.type, msg.data);
+          }
+        } catch (e) {
+          console.warn('[WS] Received non-JSON message:', event.data);
         }
-      } catch (e) {
-        console.warn('[WS] Received non-JSON message:', event.data);
-      }
-    };
+      };
+    } catch (error) {
+      console.error('[WS] Failed to initialize WebSocket:', error);
+      this.emit('connection_error', error);
+    }
   }
 
   connect() {
     if (this.mockSimulator) {
       // Mock WebSocket is always "connected"
+      return;
+    }
+    // Check if window is defined (client-side only)
+    if (typeof window === 'undefined') {
+      console.log('[WS] Running on server, skipping WebSocket connection');
       return;
     }
     if (!this.socket || this.socket.readyState === WebSocket.CLOSED) {
@@ -175,6 +196,20 @@ export class WebSocketManager {
   leaveAdminRoom(adminId: string) {
     this.leaveRoom(`admin_${adminId}`);
   }
+  
+  // Group room management
+  joinGroupRoom(groupId: string | number) {
+    this.joinRoom(`group_${groupId}`);
+  }
+  leaveGroupRoom(groupId: string | number) {
+    this.leaveRoom(`group_${groupId}`);
+  }
+  joinAllGroupsRoom() {
+    this.joinRoom('groups_all');
+  }
+  leaveAllGroupsRoom() {
+    this.leaveRoom('groups_all');
+  }
 
   // Typing indicators
   startTyping(contactId: string) {
@@ -232,7 +267,9 @@ export const createWebSocketManager = (config?: Partial<WebSocketConfig>): WebSo
   const defaultConfig: WebSocketConfig = {
     url: process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080/api/ws/connect',
     autoConnect: true,
-    useMockEvents: process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_USE_REAL_WS !== 'true',
+    useMockEvents: process.env.NODE_ENV === 'development' && 
+                   process.env.NEXT_PUBLIC_USE_REAL_WS !== 'true' && 
+                   process.env.NEXT_PUBLIC_USE_REAL_DATA !== 'true',
   };
   const finalConfig = { ...defaultConfig, ...config };
   if (!wsManager) {
