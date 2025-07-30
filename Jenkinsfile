@@ -364,12 +364,12 @@ EOF
                             docker push ${imageName}:${imageTag}
                         """
                         
-                        if (envConfig.tag_latest) {
+                        // if (envConfig.tag_latest) {
                             sh """
-                                docker tag ${imageName}:${imageTag} ${imageName}:latest
-                                docker push ${imageName}:latest
+                                docker tag ${imageName}:${imageTag} ${imageName}:${params.ENVIRONMENT}
+                                docker push ${imageName}:${params.ENVIRONMENT}
                             """
-                        }
+                        // }
                         
                         // Clean up .env file for security
                         sh 'rm -f .env.production'
@@ -395,7 +395,7 @@ EOF
                             
                             helm upgrade --install ${helmRelease} ./k3s-repo/config/helm/minka-frontend \
                                 -f ${valuesFile} \
-                                --set image.tag=${imageTag} \
+                                --set image.tag=${params.ENVIRONMENT} \
                                 --set image.repository=gcr.io/${GCR_PROJECT}/${IMAGE_NAME} \
                                 --set imagePullSecrets.create=true \
                                 --set namespace.create=false \
