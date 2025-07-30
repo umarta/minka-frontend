@@ -1661,6 +1661,17 @@ export const conversationsApi = {
       return null;
     }
   },
+
+  // Get conversation counts by group
+  getCounts: async (): Promise<{ advisor: number; ai_agent: number; done: number }> => {
+    try {
+      const response = await api.get('/conversations/counts');
+      return handleSingleResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return { advisor: 0, ai_agent: 0, done: 0 };
+    }
+  },
 };
 
 // Draft Messages API

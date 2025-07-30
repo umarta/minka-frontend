@@ -216,7 +216,7 @@ export default function RealChatPage() {
         contacts = conversations.filter(c => c.status === 'pending');
         break;
       case 'completed':
-        contacts = conversations.filter(c => c.status === 'resolved' || c.status === 'archived');
+        contacts = conversations.filter(c => c.status === 'resolved' || c.status === 'closed');
         break;
       default:
         contacts = conversations;
@@ -282,7 +282,7 @@ export default function RealChatPage() {
   const getTabCounts = () => ({
     needReply: conversations.filter(c => c.status === 'active' && (c.unread_count || 0) > 0).length,
     automated: conversations.filter(c => c.status === 'pending').length,
-    completed: conversations.filter(c => c.status === 'resolved' || c.status === 'archived').length
+    completed: conversations.filter(c => c.status === 'resolved' || c.status === 'closed').length
   });
 
   // Handle contact selection

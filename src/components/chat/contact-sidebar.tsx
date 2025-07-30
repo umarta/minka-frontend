@@ -32,7 +32,9 @@ export function ContactSidebar() {
     selectedGroup,
     loadConversationsByGroup,
     moveConversationToGroup,
-    setSelectedGroup
+    setSelectedGroup,
+    conversationCounts,
+    loadConversationCounts
   } = useChatStore();
 
   // Tambahkan log debug conversations
@@ -52,7 +54,8 @@ export function ContactSidebar() {
 
   useEffect(() => {
     loadConversations();
-  }, [loadConversations]);
+    loadConversationCounts();
+  }, [loadConversations, loadConversationCounts]);
 
   // Load conversations by group when tab changes
   useEffect(() => {
@@ -394,11 +397,11 @@ export function ContactSidebar() {
     );
   };
 
-  // Get tab counts
+  // Get tab counts - use API counts if available, fallback to local counts
   const getTabCounts = () => ({
-    advisor: chatGroups.advisor?.length || 0,
-    ai_agent: chatGroups.ai_agent?.length || 0,
-    done: chatGroups.done?.length || 0
+    advisor: conversationCounts.advisor || chatGroups.advisor?.length || 0,
+    ai_agent: conversationCounts.ai_agent || chatGroups.ai_agent?.length || 0,
+    done: conversationCounts.done || chatGroups.done?.length || 0
   });
 
   const tabCounts = getTabCounts();

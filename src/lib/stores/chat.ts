@@ -161,6 +161,13 @@ interface ChatState {
   
   // Group management
   selectedGroup: ConversationGroup;
+  
+  // Conversation counts
+  conversationCounts: {
+    advisor: number;
+    ai_agent: number;
+    done: number;
+  };
 }
 
 interface ChatActions {
@@ -257,6 +264,9 @@ interface ChatActions {
   loadConversationsByGroup: (group: ConversationGroup) => Promise<void>;
   moveConversationToGroup: (conversationId: string, group: string) => Promise<void>;
   setSelectedGroup: (group: ConversationGroup) => void;
+  
+  // Conversation counts
+  loadConversationCounts: () => Promise<void>;
 }
 
 type ChatStore = ChatState & ChatActions;
@@ -313,6 +323,11 @@ export const useChatStore = create<ChatStore>()(
     typingUsers: {},
     error: null,
     selectedGroup: 'ai_agent' as ConversationGroup,
+    conversationCounts: {
+      advisor: 0,
+      ai_agent: 0,
+      done: 0,
+    },
 
     // Actions
     loadConversations: async () => {
@@ -1688,6 +1703,20 @@ export const useChatStore = create<ChatStore>()(
     },
     setSelectedGroup: (group) => {
       set({ selectedGroup: group });
+    },
+    
+    // Conversation counts
+    loadConversationCounts: async () => {
+      try {
+        const counts = await conversationsApi.getCounts();
+        set({ conversationCounts: counts });
+      } catch (error) {
+        console.error('Failed to load conversation counts:', error);
+        set({ 
+          conversationCounts: { advisor: 0, ai_agent: 0, done: 0 },
+          error: 'Failed to load conversation counts'
+        });
+      }
     },
   }))
 );
