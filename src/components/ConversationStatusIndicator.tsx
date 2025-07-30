@@ -1,7 +1,7 @@
 import React from 'react';
 import { Clock, Bot, CheckCircle, AlertCircle } from 'lucide-react';
 
-type ConversationStatus = 'need_reply' | 'automated' | 'completed' | 'pending' | 'active' | 'resolved' | 'closed' | 'archived';
+type ConversationStatus = 'need_reply' | 'automated' | 'completed' | 'pending' | 'active' | 'resolved' | 'closed';
 
 interface ConversationStatusIndicatorProps {
   status: ConversationStatus;
@@ -70,13 +70,7 @@ const statusConfigs: Record<ConversationStatus, StatusConfig> = {
     icon: CheckCircle,
     description: 'Conversation closed',
   },
-  archived: {
-    label: 'Archived',
-    color: 'text-gray-600',
-    bgColor: 'bg-gray-100',
-    icon: CheckCircle,
-    description: 'Conversation archived',
-  },
+
 };
 
 export const ConversationStatusIndicator: React.FC<ConversationStatusIndicatorProps> = ({

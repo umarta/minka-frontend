@@ -594,7 +594,7 @@ export function ContactSidebar() {
                   <option value="pending">Pending</option>
                    <option value="active">Active</option>
                    <option value="resolved">Resolved</option>
-                   <option value="archived">Archived</option>
+                   <option value="closed">Closed</option>
                 </select>
               </div>
 
