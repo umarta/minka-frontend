@@ -124,7 +124,7 @@ export const ConversationItem = memo<ConversationItemProps>(
               <span className="text-xs text-gray-500">
                 {format(
                   conversation.last_activity || conversation.updated_at,
-                  "H:m"
+                  "H:mm"
                 )}{" "}
               </span>
 
