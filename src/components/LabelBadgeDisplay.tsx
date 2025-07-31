@@ -42,9 +42,9 @@ export const LabelBadgeDisplay: React.FC<LabelBadgeDisplayProps> = ({
 
   return (
     <div className={`flex items-center space-x-1 ${className}`}>
-      {visibleLabels.map((label) => (
+      {visibleLabels.map((label, index) => (
         <div
-          key={label.id}
+          key={`label-${label.id || label.name}-${index}`}
           className={`inline-flex items-center space-x-1 rounded-full font-medium text-white ${sizeClasses[size]}`}
           style={{ backgroundColor: label.color }}
           title={showTooltip ? `${label.name}${label.description ? `: ${label.description}` : ''}` : undefined}
@@ -82,9 +82,9 @@ export const LabelBadgeInline: React.FC<{
   if (showNames) {
     return (
       <div className="flex items-center flex-wrap gap-1">
-        {visibleLabels.map((label) => (
+        {visibleLabels.map((label, index) => (
           <div
-            key={label.id}
+            key={`label-inline-${label.id || label.name}-${index}`}
             className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-white"
             style={{ backgroundColor: label.color }}
             title={label.description || label.name}
@@ -107,9 +107,9 @@ export const LabelBadgeInline: React.FC<{
   // Fallback to dots if showNames is false
   return (
     <div className="flex items-center space-x-1">
-      {visibleLabels.map((label) => (
+      {visibleLabels.map((label, index) => (
         <div
-          key={label.id}
+          key={`label-dot-${label.id || label.name}-${index}`}
           className="w-2 h-2 rounded-full"
           style={{ backgroundColor: label.color }}
           title={label.name}

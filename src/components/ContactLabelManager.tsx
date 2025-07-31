@@ -8,6 +8,7 @@ interface ContactLabelManagerProps {
   contactId: string;
   contactName: string;
   currentSelectedLabels?: Label[];
+  onLabelsChanged?: () => void; // Callback to refresh conversation data
 }
 
 interface Label {
@@ -23,6 +24,7 @@ export const ContactLabelManager: React.FC<ContactLabelManagerProps> = ({
   onClose,
   contactId,
   contactName,
+  onLabelsChanged,
 }) => {
   const {
     labels,

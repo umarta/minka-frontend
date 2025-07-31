@@ -161,6 +161,22 @@ interface ChatState {
   
   // Group management
   selectedGroup: ConversationGroup;
+  
+  // Conversation counts
+  conversationCounts: {
+    advisor: number;
+    ai_agent: number;
+    done: number;
+  };
+  
+  // Pagination state
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    hasMore: boolean;
+  };
+  isLoadingMore: boolean;
 }
 
 interface ChatActions {
@@ -253,10 +269,17 @@ interface ChatActions {
   setRightSidebarMode: (mode: 'auto' | 'always' | 'never') => void; // NEW
   getActiveTicket: () => any; // Helper method to get active ticket
   
-  // Group management
-  loadConversationsByGroup: (group: ConversationGroup) => Promise<void>;
-  moveConversationToGroup: (conversationId: string, group: string) => Promise<void>;
-  setSelectedGroup: (group: ConversationGroup) => void;
+      // Group management
+    loadConversationsByGroup: (group: ConversationGroup, page?: number, limit?: number) => Promise<void>;
+    moveConversationToGroup: (conversationId: string, group: string) => Promise<void>;
+    setSelectedGroup: (group: ConversationGroup) => void;
+  
+  // Conversation counts
+  loadConversationCounts: () => Promise<void>;
+  
+  // Pagination methods
+  loadConversationsWithPagination: (page?: number, limit?: number) => Promise<void>;
+  loadMoreConversations: () => Promise<void>;
 }
 
 type ChatStore = ChatState & ChatActions;
@@ -313,30 +336,23 @@ export const useChatStore = create<ChatStore>()(
     typingUsers: {},
     error: null,
     selectedGroup: 'ai_agent' as ConversationGroup,
+    conversationCounts: {
+      advisor: 0,
+      ai_agent: 0,
+      done: 0,
+    },
+    pagination: {
+      page: 1,
+      limit: 20,
+      total: 0,
+      hasMore: false,
+    },
+    isLoadingMore: false,
 
     // Actions
     loadConversations: async () => {
-      set({ isLoadingConversations: true, error: null });
-      try {
-        // Load conversations from backend using the API with proper authentication
-        const conversations = await conversationsApi.getAll();
-        console.log('conversations', conversations);
-        set({
-          conversations,
-          isLoadingConversations: false,
-          error: null
-        });
-        
-        // Group conversations after loading
-        get().groupConversations();
-      } catch (error) {
-        console.error('Failed to load conversations:', error);
-        set({
-          conversations: [],
-          error: 'Failed to load conversations',
-          isLoadingConversations: false
-        });
-      }
+      // Use paginated loading for better performance
+      await get().loadConversationsWithPagination(1, 20);
     },
 
     groupConversations: () => {
@@ -1140,23 +1156,67 @@ export const useChatStore = create<ChatStore>()(
 
       const contactId = message.contact_id;
       const state = get();
+      const { selectedGroup } = state;
       const existingConv = state.conversations.find(conv => conv.contact.id?.toString() === contactId);
+      
+      console.log('🔍 Processing incoming message:', {
+        contactId,
+        selectedGroup,
+        existingConv: !!existingConv,
+        messageDirection: message.direction,
+        messageContent: message.content?.substring(0, 50) + '...',
+        messageType: message.message_type
+      });
+
       if (!existingConv) {
         // Fetch conversation detail dari backend
         try {
           const conv = await conversationsApi.getById(contactId);
           if (conv) {
-            set((state) => ({
-              conversations: [conv, ...state.conversations],
-            }));
-            get().groupConversations();
+            console.log('📥 New conversation fetched:', {
+              conversationGroup: conv.conversation_group,
+              selectedGroup,
+              shouldShowInCurrentGroup: conv.conversation_group === selectedGroup,
+              contactName: conv.contact?.name,
+              contactId: conv.contact?.id,
+              isTakeoverByAdmin: conv.contact?.is_takeover_by_admin,
+              takeoverByAdminId: conv.contact?.takeover_by_admin_id,
+              conversationStatus: conv.status,
+              lastMessage: conv.last_message?.content?.substring(0, 30) + '...'
+            });
+            
+            // Only add to conversations if it belongs to the current group
+            console.log('🔍 Group determination logic:', {
+              conversationGroup: conv.conversation_group,
+              selectedGroup,
+              isMatch: conv.conversation_group === selectedGroup,
+              contactTakeover: conv.contact?.is_takeover_by_admin,
+              contactTakeoverId: conv.contact?.takeover_by_admin_id,
+              conversationStatus: conv.status
+            });
+            
+            if (conv.conversation_group === selectedGroup) {
+              set((state) => ({
+                conversations: [conv, ...state.conversations],
+              }));
+              console.log('✅ Added new conversation to current group');
+            } else {
+              console.log('⏭️ New conversation belongs to different group, not adding to current view');
+              console.log('📊 Expected group for this conversation:', {
+                basedOnTakeover: conv.contact?.is_takeover_by_admin ? 'advisor' : 'ai_agent',
+                basedOnStatus: conv.status === 'closed' || conv.status === 'resolved' ? 'done' : 'ai_agent',
+                actualGroup: conv.conversation_group
+              });
+            }
+            
+            // Always update counts regardless of current group
+            get().loadConversationCounts();
           }
         } catch (err) {
           console.error('Failed to fetch new conversation:', err);
         }
       } else {
-        // Update conversation's last message, unread count, label, contact name, admin incharge, takeover flag
-        // and move it to the top
+        // Update existing conversation
         set((state) => {
           let updatedConversation = null;
           const otherConversations = state.conversations.filter(conv => {
@@ -1197,6 +1257,14 @@ export const useChatStore = create<ChatStore>()(
               if (msgContact && typeof msgContact.is_takeover_by_bot !== 'undefined') {
                 is_takeover_by_bot = msgContact.is_takeover_by_bot;
               }
+              
+              // Check if conversation group changed
+              let conversation_group = conv.conversation_group;
+              const msgContactAny = msgContact as any;
+              if (msgContactAny && msgContactAny.conversation_group) {
+                conversation_group = msgContactAny.conversation_group;
+              }
+              
               updatedConversation = {
                 ...conv,
                 last_message: lastMsg,
@@ -1205,19 +1273,35 @@ export const useChatStore = create<ChatStore>()(
                 contact,
                 assigned_to,
                 is_takeover_by_bot,
+                conversation_group,
                 last_activity: message.created_at,
               };
-              return false; // Remove from this position
+              
+              console.log('🔄 Updated conversation:', {
+                oldGroup: conv.conversation_group,
+                newGroup: conversation_group,
+                selectedGroup,
+                shouldStayInCurrentGroup: conversation_group === selectedGroup
+              });
+              
+              // Remove from current view if group changed
+              return conversation_group === selectedGroup;
             }
             return true; // Keep other conversations
           });
           
-          // Place updated conversation at the top
+          // Place updated conversation at the top if it belongs to current group
+          const finalConversations = updatedConversation && (updatedConversation as any).conversation_group === selectedGroup
+            ? [updatedConversation, ...otherConversations]
+            : otherConversations;
+          
           return {
-            conversations: updatedConversation ? [updatedConversation, ...otherConversations] : state.conversations,
+            conversations: finalConversations,
           };
         });
-        get().groupConversations();
+        
+        // Always update counts
+        get().loadConversationCounts();
       }
     },
 
@@ -1527,6 +1611,10 @@ export const useChatStore = create<ChatStore>()(
             [conversationId]: [...(get().conversationLabels[conversationId] || []), ...labels]
           }
         });
+        
+        // Refresh conversation data to show updated labels
+        await get().loadConversations();
+        get().groupConversations();
       } catch (error) {
         console.error('Failed to add labels to conversation:', error);
         set({ error: 'Failed to add labels to conversation' });
@@ -1545,6 +1633,10 @@ export const useChatStore = create<ChatStore>()(
             [conversationId]: updatedLabels
           }
         });
+        
+        // Refresh conversation data to show updated labels
+        await get().loadConversations();
+        get().groupConversations();
       } catch (error) {
         console.error('Failed to remove labels from conversation:', error);
         set({ error: 'Failed to remove labels from conversation' });
@@ -1656,18 +1748,61 @@ export const useChatStore = create<ChatStore>()(
     },
 
     // === Group management ===
-    loadConversationsByGroup: async (group) => {
-      set({ isLoadingConversations: true, error: null });
+    loadConversationsByGroup: async (group, page = 1, limit = 20) => {
+      console.log('🔄 Loading conversations by group:', { group, page, limit });
+      
+      // Only show loading for initial load (page 1), not for load more
+      if (page === 1) {
+        set({ isLoadingConversations: true, error: null });
+      }
+      
       try {
-        const conversations = await conversationsApi.getByGroup(group);
+        const { conversations, total, page: responsePage, limit: responseLimit, hasNext } = await conversationsApi.getByGroup(group, page, limit);
+        
+        console.log('📥 API Response:', { 
+          group, 
+          conversationsCount: conversations.length, 
+          total, 
+          page: responsePage, 
+          limit: responseLimit, 
+          hasNext 
+        });
+        
+        // Smart data management: only replace on page 1, append for load more
+        const currentConversations = get().conversations;
+        let newConversations: Conversation[];
+        
+        if (page === 1) {
+          // Initial load: replace all data
+          newConversations = conversations;
+          console.log('🔄 Initial load - replacing all conversations:', conversations.length);
+        } else {
+          // Load more: append new data to existing
+          newConversations = [...currentConversations, ...conversations];
+          console.log('📥 Load more - appending conversations:', {
+            existing: currentConversations.length,
+            new: conversations.length,
+            total: newConversations.length
+          });
+        }
+        
         set({
-          conversations,
+          conversations: newConversations,
+          pagination: {
+            page: responsePage,
+            limit: responseLimit,
+            total,
+            hasMore: hasNext
+          },
           isLoadingConversations: false,
           error: null,
         });
+        
+        console.log('✅ Store updated with conversations:', newConversations.length);
         // Optionally, re-group if needed
         get().groupConversations();
       } catch (error) {
+        console.error('❌ Error loading conversations by group:', error);
         set({
           conversations: [],
           error: 'Failed to load conversations by group',
@@ -1688,6 +1823,64 @@ export const useChatStore = create<ChatStore>()(
     },
     setSelectedGroup: (group) => {
       set({ selectedGroup: group });
+    },
+    
+    // Conversation counts
+    loadConversationCounts: async () => {
+      try {
+        const counts = await conversationsApi.getCounts();
+        set({ conversationCounts: counts });
+      } catch (error) {
+        console.error('Failed to load conversation counts:', error);
+        set({ 
+          conversationCounts: { advisor: 0, ai_agent: 0, done: 0 },
+          error: 'Failed to load conversation counts'
+        });
+      }
+    },
+    
+    // Pagination methods
+    loadConversationsWithPagination: async (page = 1, limit = 20) => {
+      set({ isLoadingConversations: true });
+      try {
+        const { conversations, total, page: responsePage, limit: responseLimit, hasNext } = await conversationsApi.getWithPagination(page, limit);
+        
+        set({
+          conversations: page === 1 ? conversations : [...get().conversations, ...conversations],
+          pagination: {
+            page: responsePage,
+            limit: responseLimit,
+            total,
+            hasMore: hasNext // Use the has_next field from API response
+          },
+          isLoadingConversations: false
+        });
+        
+        // Group conversations after loading
+        get().groupConversations();
+      } catch (error) {
+        set({ error: 'Failed to load conversations', isLoadingConversations: false });
+      }
+    },
+    
+    loadMoreConversations: async () => {
+      const { pagination, isLoadingMore, selectedGroup, conversations } = get();
+      if (isLoadingMore || !pagination.hasMore) return;
+      
+      console.log('🔄 Load more triggered:', { 
+        selectedGroup, 
+        currentPage: pagination.page, 
+        hasMore: pagination.hasMore,
+        currentConversationsCount: conversations.length
+      });
+      
+      set({ isLoadingMore: true });
+      try {
+        // Load only new data without affecting existing data
+        await get().loadConversationsByGroup(selectedGroup, pagination.page + 1, pagination.limit);
+      } finally {
+        set({ isLoadingMore: false });
+      }
     },
   }))
 );

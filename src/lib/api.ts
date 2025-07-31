@@ -1555,9 +1555,19 @@ export const conversationsApi = {
 
   getById: async (id: string) => {
     try {
+      console.log('🌐 Fetching conversation by ID:', id);
       const response = await api.get(`/conversations/${id}`);
-      return handleSingleResponse<any>(response);
+      const result = handleSingleResponse<any>(response);
+      console.log('📥 Conversation by ID response:', {
+        id,
+        conversationGroup: result?.conversation_group,
+        contactName: result?.contact?.name,
+        isTakeoverByAdmin: result?.contact?.is_takeover_by_admin,
+        status: result?.status
+      });
+      return result;
     } catch (error) {
+      console.error('❌ Error fetching conversation by ID:', error);
       handleApiError(error as AxiosError<ApiResponse>);
       return null;
     }
@@ -1643,11 +1653,34 @@ export const conversationsApi = {
   // Get conversations by group
   getByGroup: async (group: string, page = 1, limit = 20) => {
     try {
-      const response = await api.get(`/conversations/group/${group}?page=${page}&limit=${limit}`);
-      return handleArrayResponse<any>(response);
+      console.log('🌐 API Call:', `/conversations/group/${group}`, { page, limit });
+      
+      const response = await api.get(`/conversations/group/${group}`, {
+        params: { page, limit }
+      });
+      
+      console.log('📡 Raw API Response:', response.data);
+      
+      // Handle the correct response structure
+      const conversations = response.data.data || [];
+      const meta = response.data.meta || {};
+      const pagination = meta.pagination || {};
+      
+      const result = {
+        conversations: conversations,
+        total: meta.total || 0,
+        page: pagination.page || page,
+        limit: pagination.limit || limit,
+        hasNext: pagination.has_next || false
+      };
+      
+      console.log('📊 Processed API Response:', result);
+      
+      return result;
     } catch (error) {
+      console.error('❌ API Error:', error);
       handleApiError(error as AxiosError<ApiResponse>);
-      return [];
+      return { conversations: [], total: 0, page, limit, hasNext: false };
     }
   },
 
@@ -1659,6 +1692,44 @@ export const conversationsApi = {
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);
       return null;
+    }
+  },
+
+  // Get conversation counts by group
+  getCounts: async (): Promise<{ advisor: number; ai_agent: number; done: number }> => {
+    try {
+      const response = await api.get('/conversations/counts');
+      return handleSingleResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return { advisor: 0, ai_agent: 0, done: 0 };
+    }
+  },
+
+  // Get conversations with pagination for performance
+  getWithPagination: async (page = 1, limit = 20): Promise<{ conversations: any[]; total: number; page: number; limit: number; hasNext: boolean }> => {
+    try {
+      const response = await api.get('/conversations/paginated', { 
+        params: { page, limit } 
+      });
+      const data = handleSingleResponse<any>(response);
+      console.log('response', response.data.meta)
+      
+      // Handle the correct response structure with meta.pagination
+      const conversations = data.data || [];
+      const meta = response.data.meta || {};
+      const pagination = meta.pagination || {};
+      
+      return {
+        conversations: conversations,
+        total: meta.total || pagination.total || 0,
+        page: pagination.page || page,
+        limit: pagination.limit || limit,
+        hasNext: pagination.has_next || false
+      };
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      return { conversations: [], total: 0, page, limit, hasNext: false };
     }
   },
 };
