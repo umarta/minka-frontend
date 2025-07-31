@@ -14,6 +14,7 @@ import { ConversationStatusDot } from '@/components/ConversationStatusIndicator'
 import { ContactLabelManager } from '@/components/ContactLabelManager';
 import { useChatStore } from '@/lib/stores/chat';
 import { Conversation, ConversationGroup } from '@/types';
+import { InfiniteConversationList } from './infinite-conversation-list';
 import { formatDistanceToNow, format, isToday, isYesterday, isThisWeek } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -34,7 +35,10 @@ export function ContactSidebar() {
     moveConversationToGroup,
     setSelectedGroup,
     conversationCounts,
-    loadConversationCounts
+    loadConversationCounts,
+    pagination,
+    isLoadingMore,
+    loadMoreConversations
   } = useChatStore();
 
   // Tambahkan log debug conversations
@@ -53,14 +57,27 @@ export function ContactSidebar() {
   const debouncedSearchQuery = useDebounce(localSearchQuery, 300);
 
   useEffect(() => {
-    loadConversations();
     loadConversationCounts();
-  }, [loadConversations, loadConversationCounts]);
+  }, [loadConversationCounts]);
 
   // Load conversations by group when tab changes
   useEffect(() => {
+    console.log('🔄 Tab changed, loading conversations for:', selectedTab);
+    setSelectedGroup(selectedTab); // Ensure store selectedGroup matches UI selectedTab
     loadConversationsByGroup(selectedTab);
-  }, [selectedTab, loadConversationsByGroup]);
+  }, [selectedTab, loadConversationsByGroup, setSelectedGroup]);
+
+  // Debug: Log when loadMoreConversations is called
+  const handleLoadMore = useCallback(() => {
+    console.log('🔄 Load more triggered from UI!');
+    console.log('Current selectedTab:', selectedTab);
+    console.log('Current pagination:', pagination);
+    console.log('Has more:', pagination.hasMore);
+    console.log('Is loading more:', isLoadingMore);
+    
+    // Ensure we're loading more for the current tab
+    loadMoreConversations();
+  }, [loadMoreConversations, pagination, isLoadingMore, selectedTab]);
 
   const getInitials = (name: string) => {
     return name
@@ -104,32 +121,27 @@ export function ContactSidebar() {
 
   // Enhanced search and filtering logic
   const filteredConversations = useMemo(() => {
-    let filteredByTab: Conversation[] = [];
+    // Use conversations directly since we're now loading by group
+    let filteredByTab: Conversation[] = conversations;
     
-    // Get conversations based on selected tab
-    switch (selectedTab) {
-      case 'advisor':
-        filteredByTab = chatGroups.advisor || [];
-        break;
-      case 'ai_agent':
-        filteredByTab = chatGroups.ai_agent || [];
-        break;
-      case 'done':
-        filteredByTab = chatGroups.done || [];
-        break;
-      default:
-        filteredByTab = conversations;
-    }
-    
-    // Fallback to all conversations if chatGroups is empty
-    if (filteredByTab.length === 0) {
-      filteredByTab = conversations;
-    }
+    console.log('🔍 Filtering conversations:', {
+      selectedTab,
+      conversationsCount: conversations.length,
+      chatGroups: {
+        advisor: chatGroups.advisor?.length || 0,
+        ai_agent: chatGroups.ai_agent?.length || 0,
+        done: chatGroups.done?.length || 0
+      }
+    });
 
-    // Remove duplicates
-    const uniqueConvs = filteredByTab.filter((conv, index, self) => 
-      index === self.findIndex(c => c.contact.id === conv.contact.id)
-    );
+    // Remove duplicates using conversation ID first, then contact ID as fallback
+    const uniqueConvs = filteredByTab.filter((conv, index, self) => {
+      const currentKey = conv.id || conv.contact?.id;
+      return index === self.findIndex(c => {
+        const compareKey = c.id || c.contact?.id;
+        return compareKey === currentKey;
+      });
+    });
 
     // Apply search filter
     let searchFiltered = uniqueConvs;
@@ -173,7 +185,7 @@ export function ContactSidebar() {
           return new Date(b.last_activity).getTime() - new Date(a.last_activity).getTime();
       }
     });
-  }, [conversations, chatGroups, selectedTab, debouncedSearchQuery, selectedLabels, statusFilter, sortBy]);
+  }, [conversations, chatGroups, selectedTab, debouncedSearchQuery, selectedLabels, statusFilter, sortBy, pagination]);
 
   // Get all available labels for filter
   const availableLabels = useMemo(() => {
@@ -196,6 +208,18 @@ export function ContactSidebar() {
   console.log('ChatGroups:', chatGroups);
   console.log('SelectedTab:', selectedTab);
   console.log('Conversations count:', conversations.length);
+  console.log('Pagination:', pagination);
+  console.log('Has more:', pagination.hasMore);
+  
+  // Debug: Check for duplicate keys
+  const keys = filteredConversations.map(conv => conv.id || conv.contact?.id);
+  const duplicateKeys = keys.filter((key, index) => keys.indexOf(key) !== index);
+  if (duplicateKeys.length > 0) {
+    console.warn('Duplicate keys found:', duplicateKeys);
+    console.warn('Conversations with duplicate keys:', filteredConversations.filter(conv => 
+      duplicateKeys.includes(conv.id || conv.contact?.id)
+    ));
+  }
 
   const handleQuickAction = (e: React.MouseEvent, action: string, conversation: Conversation) => {
     e.stopPropagation();
@@ -713,15 +737,43 @@ export function ContactSidebar() {
       </nav>
       {/* Conversations List */}
       <section className="flex-1 overflow-y-auto divide-y divide-gray-100 bg-white">
+        {/* Load more button with better info */}
+        {pagination.hasMore && (
+          <div className="p-2 border-b bg-gray-50">
+            <div className="text-xs text-gray-500 mb-1">
+              Menampilkan {filteredConversations.length} dari {pagination.total} percakapan
+            </div>
+            <Button 
+              onClick={handleLoadMore}
+              disabled={isLoadingMore}
+              size="sm"
+              variant="outline"
+              className="w-full"
+            >
+              {isLoadingMore ? (
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                  <span>Loading...</span>
+                </div>
+              ) : (
+                `Load More (${pagination.page}/${Math.ceil(pagination.total / pagination.limit)})`
+              )}
+            </Button>
+          </div>
+        )}
+        
         {isLoadingConversations ? (
           <div className="flex flex-col items-center justify-center p-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div>
             <p className="text-sm text-gray-500">Memuat percakapan...</p>
           </div>
         ) : filteredConversations.length > 0 ? (
-          <div className="divide-y divide-gray-100">
-            {filteredConversations.map(renderConversation)}
-          </div>
+          <InfiniteConversationList
+            conversations={filteredConversations}
+            onLoadMore={handleLoadMore}
+            hasMore={pagination.hasMore}
+            isLoading={isLoadingMore}
+          />
         ) : (
           <div className="p-8 text-center">
             <div className="text-gray-400 mb-4">
