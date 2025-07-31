@@ -101,7 +101,7 @@ export const ConversationUnreadBadge: React.FC<
   if (status === "closed") {
     return (
       <UnreadCountBadge
-        count={25}
+        count={unread_count}
         variant="muted"
         size="sm"
         className={className}
@@ -111,7 +111,7 @@ export const ConversationUnreadBadge: React.FC<
 
   return (
     <UnreadCountIndicator
-      count={25}
+      count={unread_count}
       lastMessageTime={last_activity}
       className={className}
     />

@@ -27,7 +27,7 @@ const navigation = [
   { name: "Tickets", href: "/tickets", icon: Ticket },
   { name: "Labels", href: "/labels", icon: Tags },
   { name: "Support Agents", href: "/agents", icon: Headphones },
-  { name: "Analytics", href: "/analytics", icon: Activity },
+  // { name: "Analytics", href: "/analytics", icon: Activity },
 ];
 
 const settingsNavigation = [

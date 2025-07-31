@@ -636,7 +636,7 @@ export function ContactSidebar() {
 
   // FULL SIDEBAR
   return (
-    <aside className="flex flex-col h-full max-w-xs bg-white border-r border-gray-200 min-w-[420px]">
+    <aside className="flex flex-col h-full max-w-xs bg-white border-r border-gray-200 min-w-[560px]">
       {/* Header */}
       <header className="flex items-center justify-between p-4 border-b border-gray-200">
         <h2 className="text-lg font-semibold text-gray-900">Percakapan</h2>
