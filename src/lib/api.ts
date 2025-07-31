@@ -1555,9 +1555,19 @@ export const conversationsApi = {
 
   getById: async (id: string) => {
     try {
+      console.log('🌐 Fetching conversation by ID:', id);
       const response = await api.get(`/conversations/${id}`);
-      return handleSingleResponse<any>(response);
+      const result = handleSingleResponse<any>(response);
+      console.log('📥 Conversation by ID response:', {
+        id,
+        conversationGroup: result?.conversation_group,
+        contactName: result?.contact?.name,
+        isTakeoverByAdmin: result?.contact?.is_takeover_by_admin,
+        status: result?.status
+      });
+      return result;
     } catch (error) {
+      console.error('❌ Error fetching conversation by ID:', error);
       handleApiError(error as AxiosError<ApiResponse>);
       return null;
     }

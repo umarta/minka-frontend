@@ -1156,23 +1156,67 @@ export const useChatStore = create<ChatStore>()(
 
       const contactId = message.contact_id;
       const state = get();
+      const { selectedGroup } = state;
       const existingConv = state.conversations.find(conv => conv.contact.id?.toString() === contactId);
+      
+      console.log('🔍 Processing incoming message:', {
+        contactId,
+        selectedGroup,
+        existingConv: !!existingConv,
+        messageDirection: message.direction,
+        messageContent: message.content?.substring(0, 50) + '...',
+        messageType: message.message_type
+      });
+
       if (!existingConv) {
         // Fetch conversation detail dari backend
         try {
           const conv = await conversationsApi.getById(contactId);
           if (conv) {
-            set((state) => ({
-              conversations: [conv, ...state.conversations],
-            }));
-            get().groupConversations();
+            console.log('📥 New conversation fetched:', {
+              conversationGroup: conv.conversation_group,
+              selectedGroup,
+              shouldShowInCurrentGroup: conv.conversation_group === selectedGroup,
+              contactName: conv.contact?.name,
+              contactId: conv.contact?.id,
+              isTakeoverByAdmin: conv.contact?.is_takeover_by_admin,
+              takeoverByAdminId: conv.contact?.takeover_by_admin_id,
+              conversationStatus: conv.status,
+              lastMessage: conv.last_message?.content?.substring(0, 30) + '...'
+            });
+            
+            // Only add to conversations if it belongs to the current group
+            console.log('🔍 Group determination logic:', {
+              conversationGroup: conv.conversation_group,
+              selectedGroup,
+              isMatch: conv.conversation_group === selectedGroup,
+              contactTakeover: conv.contact?.is_takeover_by_admin,
+              contactTakeoverId: conv.contact?.takeover_by_admin_id,
+              conversationStatus: conv.status
+            });
+            
+            if (conv.conversation_group === selectedGroup) {
+              set((state) => ({
+                conversations: [conv, ...state.conversations],
+              }));
+              console.log('✅ Added new conversation to current group');
+            } else {
+              console.log('⏭️ New conversation belongs to different group, not adding to current view');
+              console.log('📊 Expected group for this conversation:', {
+                basedOnTakeover: conv.contact?.is_takeover_by_admin ? 'advisor' : 'ai_agent',
+                basedOnStatus: conv.status === 'closed' || conv.status === 'resolved' ? 'done' : 'ai_agent',
+                actualGroup: conv.conversation_group
+              });
+            }
+            
+            // Always update counts regardless of current group
+            get().loadConversationCounts();
           }
         } catch (err) {
           console.error('Failed to fetch new conversation:', err);
         }
       } else {
-        // Update conversation's last message, unread count, label, contact name, admin incharge, takeover flag
-        // and move it to the top
+        // Update existing conversation
         set((state) => {
           let updatedConversation = null;
           const otherConversations = state.conversations.filter(conv => {
@@ -1213,6 +1257,14 @@ export const useChatStore = create<ChatStore>()(
               if (msgContact && typeof msgContact.is_takeover_by_bot !== 'undefined') {
                 is_takeover_by_bot = msgContact.is_takeover_by_bot;
               }
+              
+              // Check if conversation group changed
+              let conversation_group = conv.conversation_group;
+              const msgContactAny = msgContact as any;
+              if (msgContactAny && msgContactAny.conversation_group) {
+                conversation_group = msgContactAny.conversation_group;
+              }
+              
               updatedConversation = {
                 ...conv,
                 last_message: lastMsg,
@@ -1221,19 +1273,35 @@ export const useChatStore = create<ChatStore>()(
                 contact,
                 assigned_to,
                 is_takeover_by_bot,
+                conversation_group,
                 last_activity: message.created_at,
               };
-              return false; // Remove from this position
+              
+              console.log('🔄 Updated conversation:', {
+                oldGroup: conv.conversation_group,
+                newGroup: conversation_group,
+                selectedGroup,
+                shouldStayInCurrentGroup: conversation_group === selectedGroup
+              });
+              
+              // Remove from current view if group changed
+              return conversation_group === selectedGroup;
             }
             return true; // Keep other conversations
           });
           
-          // Place updated conversation at the top
+          // Place updated conversation at the top if it belongs to current group
+          const finalConversations = updatedConversation && (updatedConversation as any).conversation_group === selectedGroup
+            ? [updatedConversation, ...otherConversations]
+            : otherConversations;
+          
           return {
-            conversations: updatedConversation ? [updatedConversation, ...otherConversations] : state.conversations,
+            conversations: finalConversations,
           };
         });
-        get().groupConversations();
+        
+        // Always update counts
+        get().loadConversationCounts();
       }
     },
 
