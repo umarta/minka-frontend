@@ -701,7 +701,7 @@ export function ContactSidebar() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setShowFilters(!showFilters)}
+                onClick={() => setShowFilters((prev) => !prev)}
                 className={cn(
                   "h-6 w-6 p-0",
                   (selectedLabels.length > 0 || statusFilter !== "all") &&
@@ -764,6 +764,7 @@ export function ContactSidebar() {
                               ? prev.filter((l) => l !== label)
                               : [...prev, label]
                           );
+                          setShowFilters(false);
                         }}
                         className={cn(
                           "text-xs px-2 py-1 rounded-full border transition-colors",
@@ -811,7 +812,13 @@ export function ContactSidebar() {
               ? "text-blue-600 bg-blue-50 border-b-2 border-blue-600"
               : "text-gray-600 hover:text-gray-900"
           )}
-          onClick={() => setSelectedTab("advisor")}
+          onClick={() => {
+            setSelectedTab("advisor");
+            setShowFilters(false);
+            setLocalSearchQuery("");
+            setStatusFilter("all");
+            setSelectedLabels([]);
+          }}
         >
           <div className="flex items-center justify-center gap-1">
             <span>Advisor</span>
