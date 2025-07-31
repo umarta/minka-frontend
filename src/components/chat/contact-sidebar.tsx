@@ -1,29 +1,54 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Search, Phone, MessageCircle, Clock, MoreVertical, Star, Archive, Trash2, CheckCheck, Circle, Tag, Filter, X } from 'lucide-react';
-import { useDebounce } from '@/hooks/use-debounce';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { ConversationUnreadBadge } from '@/components/UnreadCountBadge';
-import { LabelBadgeInline } from '@/components/LabelBadgeDisplay';
-import { ConversationStatusDot } from '@/components/ConversationStatusIndicator';
-import { ContactLabelManager } from '@/components/ContactLabelManager';
-import { useChatStore } from '@/lib/stores/chat';
-import { Conversation, ConversationGroup } from '@/types';
-import { InfiniteConversationList } from './infinite-conversation-list';
-import { formatDistanceToNow, format, isToday, isYesterday, isThisWeek } from 'date-fns';
-import { id } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import {
+  Search,
+  Phone,
+  MessageCircle,
+  Clock,
+  MoreVertical,
+  Star,
+  Archive,
+  Trash2,
+  CheckCheck,
+  Circle,
+  Tag,
+  Filter,
+  X,
+} from "lucide-react";
+import { useDebounce } from "@/hooks/use-debounce";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ConversationUnreadBadge } from "@/components/UnreadCountBadge";
+import { LabelBadgeInline } from "@/components/LabelBadgeDisplay";
+import { ConversationStatusDot } from "@/components/ConversationStatusIndicator";
+import { ContactLabelManager } from "@/components/ContactLabelManager";
+import { useChatStore } from "@/lib/stores/chat";
+import { Conversation, ConversationGroup } from "@/types";
+import { InfiniteConversationList } from "./infinite-conversation-list";
+import {
+  formatDistanceToNow,
+  format,
+  isToday,
+  isYesterday,
+  isThisWeek,
+} from "date-fns";
+import { id } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 export function ContactSidebar() {
-  const { 
-    conversations, 
-    chatGroups, 
-    loadConversations, 
+  const {
+    conversations,
+    chatGroups,
+    loadConversations,
     selectConversation,
     activeContact,
     searchQuery,
@@ -38,21 +63,22 @@ export function ContactSidebar() {
     loadConversationCounts,
     pagination,
     isLoadingMore,
-    loadMoreConversations
+    loadMoreConversations,
   } = useChatStore();
 
   // Tambahkan log debug conversations
-  console.log('ContactSidebar conversations:', conversations);
+  console.log("ContactSidebar conversations:", conversations);
 
-  const [selectedTab, setSelectedTab] = useState<ConversationGroup>('ai_agent');
-  const [localSearchQuery, setLocalSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'time' | 'unread' | 'name'>('time');
+  const [selectedTab, setSelectedTab] = useState<ConversationGroup>("ai_agent");
+  const [localSearchQuery, setLocalSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"time" | "unread" | "name">("time");
   const [labelManagerOpen, setLabelManagerOpen] = useState(false);
-  const [selectedConversationForLabels, setSelectedConversationForLabels] = useState<Conversation | null>(null);
+  const [selectedConversationForLabels, setSelectedConversationForLabels] =
+    useState<Conversation | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
   // Debounced search query
   const debouncedSearchQuery = useDebounce(localSearchQuery, 300);
 
@@ -62,43 +88,43 @@ export function ContactSidebar() {
 
   // Load conversations by group when tab changes
   useEffect(() => {
-    console.log('🔄 Tab changed, loading conversations for:', selectedTab);
+    console.log("🔄 Tab changed, loading conversations for:", selectedTab);
     setSelectedGroup(selectedTab); // Ensure store selectedGroup matches UI selectedTab
     loadConversationsByGroup(selectedTab);
   }, [selectedTab, loadConversationsByGroup, setSelectedGroup]);
 
   // Debug: Log when loadMoreConversations is called
   const handleLoadMore = useCallback(() => {
-    console.log('🔄 Load more triggered from UI!');
-    console.log('Current selectedTab:', selectedTab);
-    console.log('Current pagination:', pagination);
-    console.log('Has more:', pagination.hasMore);
-    console.log('Is loading more:', isLoadingMore);
-    
+    console.log("🔄 Load more triggered from UI!");
+    console.log("Current selectedTab:", selectedTab);
+    console.log("Current pagination:", pagination);
+    console.log("Has more:", pagination.hasMore);
+    console.log("Is loading more:", isLoadingMore);
+
     // Ensure we're loading more for the current tab
     loadMoreConversations();
   }, [loadMoreConversations, pagination, isLoadingMore, selectedTab]);
 
   const getInitials = (name: string) => {
     return name
-      .split(' ')
-      .map(word => word[0])
-      .join('')
+      .split(" ")
+      .map((word) => word[0])
+      .join("")
       .toUpperCase()
       .slice(0, 2);
   };
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
-    
+
     if (isToday(date)) {
-      return format(date, 'HH:mm');
+      return format(date, "HH:mm");
     } else if (isYesterday(date)) {
-      return 'Kemarin';
+      return "Kemarin";
     } else if (isThisWeek(date)) {
-      return format(date, 'EEEE', { locale: id });
+      return format(date, "EEEE", { locale: id });
     } else {
-      return format(date, 'dd/MM/yyyy');
+      return format(date, "dd/MM/yyyy");
     }
   };
 
@@ -106,16 +132,18 @@ export function ContactSidebar() {
     const lastSeenDate = new Date(lastSeen);
     const now = new Date();
     const diffMinutes = (now.getTime() - lastSeenDate.getTime()) / (1000 * 60);
-    
-    if (diffMinutes < 5) return 'online';
-    if (diffMinutes < 30) return 'recent';
-    return 'offline';
+
+    if (diffMinutes < 5) return "online";
+    if (diffMinutes < 30) return "recent";
+    return "offline";
   };
 
   const getPriorityIcon = (ticket: any, unreadCount: number) => {
     if (unreadCount > 5) return <span className="text-red-500">🔥</span>;
-    if (ticket?.priority === 'high') return <span className="text-orange-500">⚡</span>;
-    if (ticket?.priority === 'urgent') return <span className="text-red-500">🚨</span>;
+    if (ticket?.priority === "high")
+      return <span className="text-orange-500">⚡</span>;
+    if (ticket?.priority === "urgent")
+      return <span className="text-red-500">🚨</span>;
     return null;
   };
 
@@ -123,136 +151,166 @@ export function ContactSidebar() {
   const filteredConversations = useMemo(() => {
     // Use conversations directly since we're now loading by group
     let filteredByTab: Conversation[] = conversations;
-    
-    console.log('🔍 Filtering conversations:', {
+
+    console.log("🔍 Filtering conversations:", {
       selectedTab,
       conversationsCount: conversations.length,
       chatGroups: {
         advisor: chatGroups.advisor?.length || 0,
         ai_agent: chatGroups.ai_agent?.length || 0,
-        done: chatGroups.done?.length || 0
-      }
+        done: chatGroups.done?.length || 0,
+      },
     });
 
     // Remove duplicates using conversation ID first, then contact ID as fallback
     const uniqueConvs = filteredByTab.filter((conv, index, self) => {
       const currentKey = conv.id || conv.contact?.id;
-      return index === self.findIndex(c => {
-        const compareKey = c.id || c.contact?.id;
-        return compareKey === currentKey;
-      });
+      return (
+        index ===
+        self.findIndex((c) => {
+          const compareKey = c.id || c.contact?.id;
+          return compareKey === currentKey;
+        })
+      );
     });
 
     // Apply search filter
     let searchFiltered = uniqueConvs;
     if (debouncedSearchQuery.trim()) {
       const query = debouncedSearchQuery.toLowerCase();
-      searchFiltered = uniqueConvs.filter(conv => {
+      searchFiltered = uniqueConvs.filter((conv) => {
         // Search in contact name
         const nameMatch = conv.contact.name.toLowerCase().includes(query);
-        
+
         // Search in phone number
-        const phoneMatch = conv.contact.phone_number?.toLowerCase().includes(query);
-        
+        const phoneMatch = conv.contact.phone_number
+          ?.toLowerCase()
+          .includes(query);
+
         // Search in last message content
-        const messageMatch = conv.last_message?.content?.toLowerCase().includes(query);
-        
+        const messageMatch = conv.last_message?.content
+          ?.toLowerCase()
+          .includes(query);
+
         return nameMatch || phoneMatch || messageMatch;
       });
     }
 
     // Apply label filter
     if (selectedLabels.length > 0) {
-      searchFiltered = searchFiltered.filter(conv => 
-        conv.labels?.some(label => selectedLabels.includes(label.name))
+      searchFiltered = searchFiltered.filter((conv) =>
+        conv.labels?.some((label) => selectedLabels.includes(label.name))
       );
     }
 
     // Apply status filter
-    if (statusFilter !== 'all') {
-      searchFiltered = searchFiltered.filter(conv => conv.status === statusFilter);
+    if (statusFilter !== "all") {
+      searchFiltered = searchFiltered.filter(
+        (conv) => conv.status === statusFilter
+      );
     }
 
     // Apply sorting
     return searchFiltered.sort((a, b) => {
       switch (sortBy) {
-        case 'unread':
+        case "unread":
           return b.unread_count - a.unread_count;
-        case 'name':
+        case "name":
           return a.contact.name.localeCompare(b.contact.name);
-        case 'time':
+        case "time":
         default:
-          return new Date(b.last_activity).getTime() - new Date(a.last_activity).getTime();
+          return (
+            new Date(b.last_activity).getTime() -
+            new Date(a.last_activity).getTime()
+          );
       }
     });
-  }, [conversations, chatGroups, selectedTab, debouncedSearchQuery, selectedLabels, statusFilter, sortBy, pagination]);
+  }, [
+    conversations,
+    chatGroups,
+    selectedTab,
+    debouncedSearchQuery,
+    selectedLabels,
+    statusFilter,
+    sortBy,
+    pagination,
+  ]);
 
   // Get all available labels for filter
   const availableLabels = useMemo(() => {
     const labels = new Set<string>();
-    conversations.forEach(conv => {
-      conv.labels?.forEach(label => labels.add(label.name));
+    conversations.forEach((conv) => {
+      conv.labels?.forEach((label) => labels.add(label.name));
     });
     return Array.from(labels);
   }, [conversations]);
 
   // Clear all filters
   const clearFilters = useCallback(() => {
-    setLocalSearchQuery('');
+    setLocalSearchQuery("");
     setSelectedLabels([]);
-    setStatusFilter('all');
+    setStatusFilter("all");
     setShowFilters(false);
   }, []);
 
-  console.log('Filtered conversations:', filteredConversations);
-  console.log('ChatGroups:', chatGroups);
-  console.log('SelectedTab:', selectedTab);
-  console.log('Conversations count:', conversations.length);
-  console.log('Pagination:', pagination);
-  console.log('Has more:', pagination.hasMore);
-  
+  console.log("Filtered conversations:", filteredConversations);
+  console.log("ChatGroups:", chatGroups);
+  console.log("SelectedTab:", selectedTab);
+  console.log("Conversations count:", conversations.length);
+  console.log("Pagination:", pagination);
+  console.log("Has more:", pagination.hasMore);
+
   // Debug: Check for duplicate keys
-  const keys = filteredConversations.map(conv => conv.id || conv.contact?.id);
-  const duplicateKeys = keys.filter((key, index) => keys.indexOf(key) !== index);
+  const keys = filteredConversations.map((conv) => conv.id || conv.contact?.id);
+  const duplicateKeys = keys.filter(
+    (key, index) => keys.indexOf(key) !== index
+  );
   if (duplicateKeys.length > 0) {
-    console.warn('Duplicate keys found:', duplicateKeys);
-    console.warn('Conversations with duplicate keys:', filteredConversations.filter(conv => 
-      duplicateKeys.includes(conv.id || conv.contact?.id)
-    ));
+    console.warn("Duplicate keys found:", duplicateKeys);
+    console.warn(
+      "Conversations with duplicate keys:",
+      filteredConversations.filter((conv) =>
+        duplicateKeys.includes(conv.id || conv.contact?.id)
+      )
+    );
   }
 
-  const handleQuickAction = (e: React.MouseEvent, action: string, conversation: Conversation) => {
+  const handleQuickAction = (
+    e: React.MouseEvent,
+    action: string,
+    conversation: Conversation
+  ) => {
     e.stopPropagation();
-    
+
     switch (action) {
-      case 'contactLabel':
+      case "contactLabel":
         setSelectedConversationForLabels(conversation);
         setLabelManagerOpen(true);
         break;
-      case 'markRead':
+      case "markRead":
         // TODO: Implement mark as read
-        console.log('Mark as read:', conversation);
+        console.log("Mark as read:", conversation);
         break;
-      case 'star':
+      case "star":
         // TODO: Implement star/unstar
-        console.log('Star conversation:', conversation);
+        console.log("Star conversation:", conversation);
         break;
-      case 'archive':
+      case "archive":
         // TODO: Implement archive
-        console.log('Archive conversation:', conversation);
+        console.log("Archive conversation:", conversation);
         break;
-      case 'delete':
+      case "delete":
         // TODO: Implement delete
-        console.log('Delete conversation:', conversation);
+        console.log("Delete conversation:", conversation);
         break;
-      case 'moveToAdvisor':
-        moveConversationToGroup(conversation.id, 'advisor');
+      case "moveToAdvisor":
+        moveConversationToGroup(conversation.id, "advisor");
         break;
-      case 'moveToAIAgent':
-        moveConversationToGroup(conversation.id, 'ai_agent');
+      case "moveToAIAgent":
+        moveConversationToGroup(conversation.id, "ai_agent");
         break;
-      case 'moveToDone':
-        moveConversationToGroup(conversation.id, 'done');
+      case "moveToDone":
+        moveConversationToGroup(conversation.id, "done");
         break;
       default:
         console.log(`Quick action: ${action}`, conversation);
@@ -260,11 +318,14 @@ export function ContactSidebar() {
   };
 
   const renderConversation = (conversation: Conversation) => {
-    console.log('conversation in renderConversation', conversation);
+    console.log("conversation in renderConversation", conversation);
     const isActive = activeContact?.id === conversation.contact.id;
-    const onlineStatus = getOnlineStatus(conversation.contact.last_seen || '');
-    const priorityIcon = getPriorityIcon(conversation.active_ticket, conversation.unread_count);
-    
+    const onlineStatus = getOnlineStatus(conversation.contact.last_seen || "");
+    const priorityIcon = getPriorityIcon(
+      conversation.active_ticket,
+      conversation.unread_count
+    );
+
     return (
       <div
         key={conversation.contact.id}
@@ -275,91 +336,123 @@ export function ContactSidebar() {
         onClick={() => selectConversation(conversation.contact)}
       >
         <div className="relative flex-shrink-0">
-          <Avatar className="h-12 w-12">
+          <Avatar className="w-12 h-12">
             <AvatarImage src={conversation.contact.avatar_url} />
-            <AvatarFallback className="bg-gray-200 text-gray-700 text-sm font-medium">
+            <AvatarFallback className="text-sm font-medium text-gray-700 bg-gray-200">
               {getInitials(conversation.contact.name)}
             </AvatarFallback>
           </Avatar>
-          
+
           {/* Online indicator */}
-          <div className={cn(
-            "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white",
-            onlineStatus === 'online' && "bg-green-500",
-            onlineStatus === 'recent' && "bg-yellow-500",
-            onlineStatus === 'offline' && "bg-gray-400"
-          )} />
+          <div
+            className={cn(
+              "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white",
+              onlineStatus === "online" && "bg-green-500",
+              onlineStatus === "recent" && "bg-yellow-500",
+              onlineStatus === "offline" && "bg-gray-400"
+            )}
+          />
         </div>
 
         {!sidebarCollapsed && (
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center min-w-0 gap-2">
                 <h4 className="font-medium text-gray-900 truncate">
                   {conversation.contact.name}
                 </h4>
                 {priorityIcon}
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center flex-shrink-0 gap-2">
                 <span className="text-xs text-gray-500">
                   {formatTime(conversation.last_activity)}
                 </span>
-                
+
                 {/* Quick actions menu */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="w-6 h-6 p-0 transition-opacity opacity-0 group-hover:opacity-100"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <MoreVertical className="h-3 w-3" />
+                      <MoreVertical className="w-3 h-3" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-40">
-                    <DropdownMenuItem onClick={(e) => handleQuickAction(e, 'contactLabel', conversation)}>
-                      <Tag className="h-4 w-4 mr-2" />
+                    <DropdownMenuItem
+                      onClick={(e) =>
+                        handleQuickAction(e, "contactLabel", conversation)
+                      }
+                    >
+                      <Tag className="w-4 h-4 mr-2" />
                       Contact Label
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={(e) => handleQuickAction(e, 'markRead', conversation)}>
-                      <CheckCheck className="h-4 w-4 mr-2" />
+                    <DropdownMenuItem
+                      onClick={(e) =>
+                        handleQuickAction(e, "markRead", conversation)
+                      }
+                    >
+                      <CheckCheck className="w-4 h-4 mr-2" />
                       Tandai Dibaca
                     </DropdownMenuItem>
-                    
+
                     {/* Group management actions */}
-                    {selectedTab !== 'advisor' && (
-                      <DropdownMenuItem onClick={(e) => handleQuickAction(e, 'moveToAdvisor', conversation)}>
-                        <MessageCircle className="h-4 w-4 mr-2" />
+                    {selectedTab !== "advisor" && (
+                      <DropdownMenuItem
+                        onClick={(e) =>
+                          handleQuickAction(e, "moveToAdvisor", conversation)
+                        }
+                      >
+                        <MessageCircle className="w-4 h-4 mr-2" />
                         Move to Advisor
                       </DropdownMenuItem>
                     )}
-                    {selectedTab !== 'ai_agent' && (
-                      <DropdownMenuItem onClick={(e) => handleQuickAction(e, 'moveToAIAgent', conversation)}>
-                        <MessageCircle className="h-4 w-4 mr-2" />
+                    {selectedTab !== "ai_agent" && (
+                      <DropdownMenuItem
+                        onClick={(e) =>
+                          handleQuickAction(e, "moveToAIAgent", conversation)
+                        }
+                      >
+                        <MessageCircle className="w-4 h-4 mr-2" />
                         Move to AI Agent
                       </DropdownMenuItem>
                     )}
-                    {selectedTab !== 'done' && (
-                      <DropdownMenuItem onClick={(e) => handleQuickAction(e, 'moveToDone', conversation)}>
-                        <CheckCheck className="h-4 w-4 mr-2" />
+                    {selectedTab !== "done" && (
+                      <DropdownMenuItem
+                        onClick={(e) =>
+                          handleQuickAction(e, "moveToDone", conversation)
+                        }
+                      >
+                        <CheckCheck className="w-4 h-4 mr-2" />
                         Mark as Done
                       </DropdownMenuItem>
                     )}
-                    
-                    <DropdownMenuItem onClick={(e) => handleQuickAction(e, 'star', conversation)}>
-                      <Star className="h-4 w-4 mr-2" />
+
+                    <DropdownMenuItem
+                      onClick={(e) =>
+                        handleQuickAction(e, "star", conversation)
+                      }
+                    >
+                      <Star className="w-4 h-4 mr-2" />
                       Beri Bintang
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={(e) => handleQuickAction(e, 'archive', conversation)}>
-                      <Archive className="h-4 w-4 mr-2" />
+                    <DropdownMenuItem
+                      onClick={(e) =>
+                        handleQuickAction(e, "archive", conversation)
+                      }
+                    >
+                      <Archive className="w-4 h-4 mr-2" />
                       Arsipkan
                     </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      onClick={(e) => handleQuickAction(e, 'delete', conversation)}
+                    <DropdownMenuItem
+                      onClick={(e) =>
+                        handleQuickAction(e, "delete", conversation)
+                      }
                       className="text-red-600"
                     >
-                      <Trash2 className="h-4 w-4 mr-2" />
+                      <Trash2 className="w-4 h-4 mr-2" />
                       Hapus
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -368,41 +461,43 @@ export function ContactSidebar() {
             </div>
 
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 min-w-0 flex-1">
+              <div className="flex items-center flex-1 min-w-0 gap-2">
                 <p className="text-sm text-gray-600 truncate">
                   {conversation.last_message ? (
                     <>
-                      {conversation.last_message.direction === 'outgoing' && (
-                        <span className="text-blue-500 mr-1">✓</span>
+                      {conversation.last_message.direction === "outgoing" && (
+                        <span className="mr-1 text-blue-500">✓</span>
                       )}
                       {conversation.last_message.content || (
                         <span className="italic text-gray-400">Media</span>
                       )}
                     </>
                   ) : (
-                    <span className="italic text-gray-400">Belum ada pesan</span>
+                    <span className="italic text-gray-400">
+                      Belum ada pesan
+                    </span>
                   )}
                 </p>
               </div>
-              
-              <div className="flex items-center gap-1 flex-shrink-0">
+
+              <div className="flex items-center flex-shrink-0 gap-1">
                 <ConversationUnreadBadge conversation={conversation} />
-                
+
                 {/* Status indicators */}
                 <ConversationStatusDot status={conversation.status} />
-                {conversation.active_ticket?.priority === 'urgent' && (
-                  <Circle className="h-2 w-2 fill-red-500 text-red-500" />
+                {conversation.active_ticket?.priority === "urgent" && (
+                  <Circle className="w-2 h-2 text-red-500 fill-red-500" />
                 )}
                 {conversation.assigned_to && (
-                  <div className="w-4 h-4 bg-blue-100 rounded-full flex items-center justify-center">
-                    <span className="text-xs text-blue-600 font-medium">
+                  <div className="flex items-center justify-center w-4 h-4 bg-blue-100 rounded-full">
+                    <span className="text-xs font-medium text-blue-600">
                       {conversation.assigned_to.full_name[0].toUpperCase()}
                     </span>
                   </div>
                 )}
               </div>
             </div>
-            
+
             {/* Labels display */}
             {conversation.labels && conversation.labels.length > 0 && (
               <div className="mt-1">
@@ -413,8 +508,11 @@ export function ContactSidebar() {
         )}
 
         {sidebarCollapsed && conversation.unread_count > 0 && (
-          <div className="absolute -top-1 -right-1">
-            <ConversationUnreadBadge conversation={conversation} className="h-4 min-w-4 text-xs" />
+          <div className="absolute top-2.5 right-1 flex items-center justify-center">
+            <ConversationUnreadBadge
+              conversation={conversation}
+              className="h-4 text-[0.625rem] min-w-4"
+            />
           </div>
         )}
       </div>
@@ -425,7 +523,7 @@ export function ContactSidebar() {
   const getTabCounts = () => ({
     advisor: conversationCounts.advisor || chatGroups.advisor?.length || 0,
     ai_agent: conversationCounts.ai_agent || chatGroups.ai_agent?.length || 0,
-    done: conversationCounts.done || chatGroups.done?.length || 0
+    done: conversationCounts.done || chatGroups.done?.length || 0,
   });
 
   const tabCounts = getTabCounts();
@@ -433,18 +531,28 @@ export function ContactSidebar() {
   // Collapsed sidebar view
   if (sidebarCollapsed) {
     return (
-      <div className="flex flex-col h-full bg-white border-r border-gray-200 w-16">
+      <div className="flex flex-col w-20 h-full bg-white border-r border-gray-200">
         {/* Collapsed Header */}
-        <div className="p-3 border-b border-gray-200 flex justify-center">
-          <Button 
-            variant="ghost" 
+        <div className="flex justify-center p-3 border-b border-gray-200">
+          <Button
+            variant="ghost"
             size="sm"
             onClick={toggleSidebar}
             title="Expand sidebar"
-            className="h-8 w-8 p-0"
+            className="w-8 h-8 p-0"
           >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M13 5l7 7-7 7M5 5l7 7-7 7"
+              />
             </svg>
           </Button>
         </div>
@@ -454,71 +562,71 @@ export function ContactSidebar() {
           <button
             className={cn(
               "p-3 text-xs font-medium transition-colors relative",
-              selectedTab === 'advisor'
+              selectedTab === "advisor"
                 ? "text-blue-600 bg-blue-50 border-r-2 border-blue-600"
                 : "text-gray-600 hover:text-gray-900"
             )}
-            onClick={() => setSelectedTab('advisor')}
+            onClick={() => setSelectedTab("advisor")}
             title="Advisor"
           >
             AD
             {tabCounts.advisor > 0 && (
-              <div className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs min-w-[16px] h-[16px] flex items-center justify-center rounded-full">
-                {tabCounts.advisor > 99 ? '99+' : tabCounts.advisor}
+              <div className="absolute -top-1 -right-1 bg-blue-500 text-white text-[0.625rem] min-w-[16px] h-[16px] flex items-center justify-center rounded-full">
+                {tabCounts.advisor > 99 ? "99+" : tabCounts.advisor}
               </div>
             )}
           </button>
-          
+
           <button
             className={cn(
               "p-3 text-xs font-medium transition-colors relative",
-              selectedTab === 'ai_agent'
+              selectedTab === "ai_agent"
                 ? "text-blue-600 bg-blue-50 border-r-2 border-blue-600"
                 : "text-gray-600 hover:text-gray-900"
             )}
-            onClick={() => setSelectedTab('ai_agent')}
+            onClick={() => setSelectedTab("ai_agent")}
             title="AI Agent"
           >
             AI
             {tabCounts.ai_agent > 0 && (
-              <div className="absolute -top-1 -right-1 bg-green-500 text-white text-xs min-w-[16px] h-[16px] flex items-center justify-center rounded-full">
-                {tabCounts.ai_agent > 99 ? '99+' : tabCounts.ai_agent}
+              <div className="absolute -top-1 -right-1 bg-green-500 text-white text-[0.625rem] min-w-[16px] h-[16px] flex items-center justify-center rounded-full">
+                {tabCounts.ai_agent > 99 ? "99+" : tabCounts.ai_agent}
               </div>
             )}
           </button>
-          
+
           <button
             className={cn(
               "p-3 text-xs font-medium transition-colors relative",
-              selectedTab === 'done'
+              selectedTab === "done"
                 ? "text-blue-600 bg-blue-50 border-r-2 border-blue-600"
                 : "text-gray-600 hover:text-gray-900"
             )}
-            onClick={() => setSelectedTab('done')}
+            onClick={() => setSelectedTab("done")}
             title="Done"
           >
             DN
             {tabCounts.done > 0 && (
-              <div className="absolute -top-1 -right-1 bg-gray-500 text-white text-xs min-w-[16px] h-[16px] flex items-center justify-center rounded-full">
-                {tabCounts.done > 99 ? '99+' : tabCounts.done}
+              <div className="absolute -top-1 -right-1 bg-gray-500 text-white text-[0.625rem] min-w-[16px] h-[16px] flex items-center justify-center rounded-full">
+                {tabCounts.done > 99 ? "99+" : tabCounts.done}
               </div>
             )}
           </button>
         </div>
 
         {/* Collapsed Conversations List */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-x-hidden overflow-y-auto">
           {isLoadingConversations ? (
             <div className="flex items-center justify-center p-3">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+              <div className="w-4 h-4 border-b-2 border-blue-500 rounded-full animate-spin"></div>
             </div>
           ) : filteredConversations.length > 0 ? (
-            <div className="space-y-1 p-1">
+            <div className="space-y-1">
               {filteredConversations.slice(0, 10).map(renderConversation)}
             </div>
           ) : (
             <div className="p-3 text-center">
-              <MessageCircle className="h-6 w-6 mx-auto text-gray-400" />
+              <MessageCircle className="w-6 h-6 mx-auto text-gray-400" />
             </div>
           )}
         </div>
@@ -528,41 +636,51 @@ export function ContactSidebar() {
 
   // FULL SIDEBAR
   return (
-    <aside className="flex flex-col h-full bg-white border-r border-gray-200 w-80 max-w-xs min-w-[18rem]">
+    <aside className="flex flex-col h-full max-w-xs bg-white border-r border-gray-200 min-w-[420px]">
       {/* Header */}
-      <header className="p-4 border-b border-gray-200 flex items-center justify-between">
+      <header className="flex items-center justify-between p-4 border-b border-gray-200">
         <h2 className="text-lg font-semibold text-gray-900">Percakapan</h2>
-        
+
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" title="Urutkan">
-                <Clock className="h-4 w-4" />
+                <Clock className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setSortBy('time')}>
-                <Clock className="h-4 w-4 mr-2" />
+              <DropdownMenuItem onClick={() => setSortBy("time")}>
+                <Clock className="w-4 h-4 mr-2" />
                 Waktu Terbaru
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setSortBy('unread')}>
-                <MessageCircle className="h-4 w-4 mr-2" />
+              <DropdownMenuItem onClick={() => setSortBy("unread")}>
+                <MessageCircle className="w-4 h-4 mr-2" />
                 Belum Dibaca
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setSortBy('name')}>
-                <Phone className="h-4 w-4 mr-2" />
+              <DropdownMenuItem onClick={() => setSortBy("name")}>
+                <Phone className="w-4 h-4 mr-2" />
                 Nama A-Z
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             size="sm"
             onClick={toggleSidebar}
             title="Collapse sidebar"
           >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M11 19l-7-7 7-7m8 14l-7-7 7-7"
+              />
             </svg>
           </Button>
         </div>
@@ -572,35 +690,38 @@ export function ContactSidebar() {
         <div className="space-y-3">
           {/* Search Input */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute w-4 h-4 text-gray-400 transform -translate-y-1/2 left-3 top-1/2" />
             <Input
               placeholder="Cari kontak atau pesan..."
               value={localSearchQuery}
               onChange={(e) => setLocalSearchQuery(e.target.value)}
               className="pl-10 pr-20"
             />
-            <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1">
+            <div className="absolute flex items-center gap-1 transform -translate-y-1/2 right-2 top-1/2">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowFilters(!showFilters)}
                 className={cn(
                   "h-6 w-6 p-0",
-                  (selectedLabels.length > 0 || statusFilter !== 'all') && "text-blue-600"
+                  (selectedLabels.length > 0 || statusFilter !== "all") &&
+                    "text-blue-600"
                 )}
                 title="Filter"
               >
-                <Filter className="h-3 w-3" />
+                <Filter className="w-3 h-3" />
               </Button>
-              {(localSearchQuery || selectedLabels.length > 0 || statusFilter !== 'all') && (
+              {(localSearchQuery ||
+                selectedLabels.length > 0 ||
+                statusFilter !== "all") && (
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={clearFilters}
-                  className="h-6 w-6 p-0 text-gray-400 hover:text-gray-600"
+                  className="w-6 h-6 p-0 text-gray-400 hover:text-gray-600"
                   title="Clear filters"
                 >
-                  <X className="h-3 w-3" />
+                  <X className="w-3 h-3" />
                 </Button>
               )}
             </div>
@@ -608,35 +729,39 @@ export function ContactSidebar() {
 
           {/* Filter Options */}
           {showFilters && (
-            <div className="space-y-3 p-3 bg-gray-50 rounded-lg">
+            <div className="p-3 space-y-3 rounded-lg bg-gray-50">
               {/* Status Filter */}
               <div>
-                <label className="text-xs font-medium text-gray-700 mb-2 block">Status</label>
+                <label className="block mb-2 text-xs font-medium text-gray-700">
+                  Status
+                </label>
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full text-sm border border-gray-200 rounded px-2 py-1"
+                  className="w-full px-2 py-1 text-sm border border-gray-200 rounded"
                 >
                   <option value="all">Semua Status</option>
                   <option value="pending">Pending</option>
-                   <option value="active">Active</option>
-                   <option value="resolved">Resolved</option>
-                   <option value="closed">Closed</option>
+                  <option value="active">Active</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="closed">Closed</option>
                 </select>
               </div>
 
               {/* Label Filter */}
               {availableLabels.length > 0 && (
                 <div>
-                  <label className="text-xs font-medium text-gray-700 mb-2 block">Labels</label>
+                  <label className="block mb-2 text-xs font-medium text-gray-700">
+                    Labels
+                  </label>
                   <div className="flex flex-wrap gap-1">
-                    {availableLabels.map(label => (
+                    {availableLabels.map((label) => (
                       <button
                         key={label}
                         onClick={() => {
-                          setSelectedLabels(prev => 
+                          setSelectedLabels((prev) =>
                             prev.includes(label)
-                              ? prev.filter(l => l !== label)
+                              ? prev.filter((l) => l !== label)
                               : [...prev, label]
                           );
                         }}
@@ -655,17 +780,18 @@ export function ContactSidebar() {
               )}
 
               {/* Active Filters Summary */}
-              {(selectedLabels.length > 0 || statusFilter !== 'all') && (
+              {(selectedLabels.length > 0 || statusFilter !== "all") && (
                 <div className="pt-2 border-t border-gray-200">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-gray-600">
-                      {selectedLabels.length + (statusFilter !== 'all' ? 1 : 0)} filter aktif
+                      {selectedLabels.length + (statusFilter !== "all" ? 1 : 0)}{" "}
+                      filter aktif
                     </span>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={clearFilters}
-                      className="text-xs h-6 px-2"
+                      className="h-6 px-2 text-xs"
                     >
                       Reset
                     </Button>
@@ -677,94 +803,79 @@ export function ContactSidebar() {
         </div>
       </div>
       {/* Tabs */}
-      <nav className="flex border-b border-gray-200 bg-white">
+      <nav className="flex bg-white border-b border-gray-200">
         <button
           className={cn(
             "flex-1 py-3 px-2 text-sm font-medium transition-colors relative",
-            selectedTab === 'advisor'
+            selectedTab === "advisor"
               ? "text-blue-600 bg-blue-50 border-b-2 border-blue-600"
               : "text-gray-600 hover:text-gray-900"
           )}
-          onClick={() => setSelectedTab('advisor')}
+          onClick={() => setSelectedTab("advisor")}
         >
           <div className="flex items-center justify-center gap-1">
             <span>Advisor</span>
             {tabCounts.advisor > 0 && (
-              <Badge className="bg-blue-500 text-white text-xs">
-                {tabCounts.advisor > 99 ? '99+' : tabCounts.advisor}
+              <Badge className="text-xs text-white bg-blue-500">
+                {tabCounts.advisor > 99 ? "99+" : tabCounts.advisor}
               </Badge>
             )}
           </div>
         </button>
-        
+
         <button
           className={cn(
             "flex-1 py-3 px-2 text-sm font-medium transition-colors relative",
-            selectedTab === 'ai_agent'
+            selectedTab === "ai_agent"
               ? "text-blue-600 bg-blue-50 border-b-2 border-blue-600"
               : "text-gray-600 hover:text-gray-900"
           )}
-          onClick={() => setSelectedTab('ai_agent')}
+          onClick={() => setSelectedTab("ai_agent")}
         >
           <div className="flex items-center justify-center gap-1">
             <span>AI Agent</span>
             {tabCounts.ai_agent > 0 && (
-              <Badge className="bg-green-500 text-white text-xs">
-                {tabCounts.ai_agent > 99 ? '99+' : tabCounts.ai_agent}
+              <Badge className="text-xs text-white bg-green-500">
+                {tabCounts.ai_agent > 99 ? "99+" : tabCounts.ai_agent}
               </Badge>
             )}
           </div>
         </button>
-        
+
         <button
           className={cn(
             "flex-1 py-3 px-2 text-sm font-medium transition-colors relative",
-            selectedTab === 'done'
+            selectedTab === "done"
               ? "text-blue-600 bg-blue-50 border-b-2 border-blue-600"
               : "text-gray-600 hover:text-gray-900"
           )}
-          onClick={() => setSelectedTab('done')}
+          onClick={() => setSelectedTab("done")}
         >
           <div className="flex items-center justify-center gap-1">
             <span>Done</span>
             {tabCounts.done > 0 && (
-              <Badge className="bg-gray-500 text-white text-xs">
-                {tabCounts.done > 99 ? '99+' : tabCounts.done}
+              <Badge className="text-xs text-white bg-gray-500">
+                {tabCounts.done > 99 ? "99+" : tabCounts.done}
               </Badge>
             )}
           </div>
         </button>
       </nav>
       {/* Conversations List */}
-      <section className="flex-1 overflow-y-auto divide-y divide-gray-100 bg-white">
+      <section className="flex-1 overflow-y-auto bg-white divide-y divide-gray-100">
         {/* Load more button with better info */}
         {pagination.hasMore && (
           <div className="p-2 border-b bg-gray-50">
-            <div className="text-xs text-gray-500 mb-1">
-              Menampilkan {filteredConversations.length} dari {pagination.total} percakapan
+            <div className="text-xs text-gray-500">
+              Menampilkan {filteredConversations.length} dari {pagination.total}{" "}
+              percakapan
             </div>
-            <Button 
-              onClick={handleLoadMore}
-              disabled={isLoadingMore}
-              size="sm"
-              variant="outline"
-              className="w-full"
-            >
-              {isLoadingMore ? (
-                <div className="flex items-center gap-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-                  <span>Loading...</span>
-                </div>
-              ) : (
-                `Load More (${pagination.page}/${Math.ceil(pagination.total / pagination.limit)})`
-              )}
-            </Button>
           </div>
         )}
-        
+
         {isLoadingConversations ? (
           <div className="flex flex-col items-center justify-center p-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div>
+            <div className="w-8 h-8 mb-2 border-b-2 border-blue-500 rounded-full animate-spin"></div>
             <p className="text-sm text-gray-500">Memuat percakapan...</p>
           </div>
         ) : filteredConversations.length > 0 ? (
@@ -776,24 +887,23 @@ export function ContactSidebar() {
           />
         ) : (
           <div className="p-8 text-center">
-            <div className="text-gray-400 mb-4">
-              <MessageCircle className="h-16 w-16 mx-auto" />
+            <div className="mb-4 text-gray-400">
+              <MessageCircle className="w-16 h-16 mx-auto" />
             </div>
-            <h3 className="font-medium text-gray-900 mb-2">
-              {localSearchQuery ? 'Tidak ada hasil' : 'Belum ada percakapan'}
+            <h3 className="mb-2 font-medium text-gray-900">
+              {localSearchQuery ? "Tidak ada hasil" : "Belum ada percakapan"}
             </h3>
-            <p className="text-gray-500 text-sm">
-              {localSearchQuery 
-                ? 'Coba kata kunci lain atau hapus filter pencarian'
-                : 'Percakapan baru akan muncul di sini ketika ada pesan masuk'
-              }
+            <p className="text-sm text-gray-500">
+              {localSearchQuery
+                ? "Coba kata kunci lain atau hapus filter pencarian"
+                : "Percakapan baru akan muncul di sini ketika ada pesan masuk"}
             </p>
             {localSearchQuery && (
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 className="mt-3"
-                onClick={() => setLocalSearchQuery('')}
+                onClick={() => setLocalSearchQuery("")}
               >
                 Hapus Pencarian
               </Button>
@@ -801,19 +911,19 @@ export function ContactSidebar() {
           </div>
         )}
       </section>
-      
+
       {/* Contact Label Manager Modal */}
-       {labelManagerOpen && selectedConversationForLabels && (
-         <ContactLabelManager
-           contactId={selectedConversationForLabels.contact.id.toString()}
-           contactName={selectedConversationForLabels.contact.name}
-           isOpen={labelManagerOpen}
-           onClose={() => {
-             setLabelManagerOpen(false);
-             setSelectedConversationForLabels(null);
-           }}
-         />
-       )}
+      {labelManagerOpen && selectedConversationForLabels && (
+        <ContactLabelManager
+          contactId={selectedConversationForLabels.contact.id.toString()}
+          contactName={selectedConversationForLabels.contact.name}
+          isOpen={labelManagerOpen}
+          onClose={() => {
+            setLabelManagerOpen(false);
+            setSelectedConversationForLabels(null);
+          }}
+        />
+      )}
     </aside>
   );
 }

@@ -1,12 +1,16 @@
 "use client";
 
-import { useEffect } from 'react';
-import { useSidebarCollapsed, useRightSidebarVisible, useChatStore } from '@/lib/stores/chat';
-import { getWebSocketManager } from '@/lib/websocket';
-import { ContactSidebar } from '@/components/chat/contact-sidebar';
-import { ChatArea } from '@/components/chat/chat-area';
-import { InfoPanel } from '@/components/chat/info-panel';
-import { useNotificationSound } from '@/hooks/use-notification-sound';
+import { useEffect } from "react";
+import {
+  useSidebarCollapsed,
+  useRightSidebarVisible,
+  useChatStore,
+} from "@/lib/stores/chat";
+import { getWebSocketManager } from "@/lib/websocket";
+import { ContactSidebar } from "@/components/chat/contact-sidebar";
+import { ChatArea } from "@/components/chat/chat-area";
+import { InfoPanel } from "@/components/chat/info-panel";
+import { useNotificationSound } from "@/hooks/use-notification-sound";
 
 export default function ChatPage() {
   const sidebarCollapsed = useSidebarCollapsed();
@@ -20,33 +24,34 @@ export default function ChatPage() {
     // Join global room untuk receive semua event conversation_updated
     const ws = getWebSocketManager();
     if (ws) {
-      console.log('[WS] Chat page: Joining global room');
-      ws.joinRoom('global');
-      
+      console.log("[WS] Chat page: Joining global room");
+      ws.joinRoom("global");
+
       // Load conversations saat halaman dibuka
       loadConversations();
     }
   }, [loadConversations]);
 
   return (
-    <div className="h-screen bg-gray-50 flex flex-col">
+    <div className="flex flex-col h-screen bg-gray-50">
       {/* Header */}
 
-
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex flex-1 overflow-hidden">
         {/* Sidebar Kiri */}
-        <div className={
-          sidebarCollapsed
-            ? "bg-white border-r border-gray-200 transition-all duration-300 flex-shrink-0 w-16"
-            : "bg-white border-r border-gray-200 transition-all duration-300 flex-shrink-0 w-80"
-        }>
+        <div
+          className={
+            sidebarCollapsed
+              ? "bg-white border-r border-gray-200 transition-all duration-300 flex-shrink-0 w-20"
+              : "bg-white border-r border-gray-200 transition-all duration-300 flex-shrink-0"
+          }
+        >
           <ContactSidebar />
         </div>
         {/* Chat Area */}
-        <div className="flex-1 min-w-0 flex flex-col">
+        <div className="flex flex-col flex-1 min-w-0">
           <ChatArea />
-                    </div>
+        </div>
         {/* Info Panel (Push Drawer) */}
         <div
           className={
