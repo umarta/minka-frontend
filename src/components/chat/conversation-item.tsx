@@ -1,7 +1,7 @@
 import React, { useCallback, memo } from "react";
-import { Conversation } from "@/types";
+import { Conversation, ConversationGroup } from "@/types";
 import { useChat, useChatStore } from "@/lib/stores/chat";
-import { formatDistanceToNow, format } from "date-fns";
+import { formatDistanceToNow, format, set } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -28,10 +28,12 @@ import { cn } from "@/lib/utils";
 interface ConversationItemProps {
   conversation: Conversation;
   onContactLabel?: (conversation: Conversation) => void;
+  selectedTab?: ConversationGroup;
+  setSelectedTab?: (tab: ConversationGroup) => void;
 }
 
 export const ConversationItem = memo<ConversationItemProps>(
-  ({ conversation, onContactLabel }) => {
+  ({ conversation, onContactLabel, selectedTab, setSelectedTab }) => {
     const { selectConversation, activeContact } = useChat();
     const moveConversationToGroup = useChatStore(
       (state) => state.moveConversationToGroup
@@ -51,14 +53,6 @@ export const ConversationItem = memo<ConversationItemProps>(
         .join("")
         .toUpperCase()
         .slice(0, 2);
-    };
-
-    const formatTime = (dateString: string) => {
-      try {
-        return formatDistanceToNow(new Date(dateString), { addSuffix: true });
-      } catch {
-        return "Unknown time";
-      }
     };
 
     const getOnlineStatus = (lastSeen: string) => {
@@ -134,7 +128,7 @@ export const ConversationItem = memo<ConversationItemProps>(
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="w-6 h-6 p-0 transition-opacity opacity-0 group-hover:opacity-100"
+                    className="w-6 h-6 p-0 transition-opacity opacity-50 group-hover:opacity-100"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <MoreVertical className="w-3 h-3" />
@@ -156,42 +150,54 @@ export const ConversationItem = memo<ConversationItemProps>(
                   </DropdownMenuItem>
 
                   {/* Group management actions */}
-                  <DropdownMenuItem
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      moveConversationToGroup(
-                        conversation.id.toString(),
-                        "advisor"
-                      );
-                    }}
-                  >
-                    <MessageCircle className="w-4 h-4 mr-2" />
-                    Move to Advisor
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      moveConversationToGroup(
-                        conversation.id.toString(),
-                        "ai_agent"
-                      );
-                    }}
-                  >
-                    <MessageCircle className="w-4 h-4 mr-2" />
-                    Move to AI Agent
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      moveConversationToGroup(
-                        conversation.id.toString(),
-                        "done"
-                      );
-                    }}
-                  >
-                    <CheckCheck className="w-4 h-4 mr-2" />
-                    Mark as Done
-                  </DropdownMenuItem>
+                  {selectedTab !== "advisor" && (
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        moveConversationToGroup(
+                          conversation.id.toString(),
+                          "advisor"
+                        ).then(() => {
+                          setSelectedTab && setSelectedTab("advisor");
+                        });
+                      }}
+                    >
+                      <MessageCircle className="w-4 h-4 mr-2" />
+                      Move to Advisor
+                    </DropdownMenuItem>
+                  )}
+                  {selectedTab !== "ai_agent" && (
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        moveConversationToGroup(
+                          conversation.id.toString(),
+                          "ai_agent"
+                        ).then(() => {
+                          setSelectedTab && setSelectedTab("ai_agent");
+                        });
+                      }}
+                    >
+                      <MessageCircle className="w-4 h-4 mr-2" />
+                      Move to AI Agent
+                    </DropdownMenuItem>
+                  )}
+                  {selectedTab !== "done" && (
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        moveConversationToGroup(
+                          conversation.id.toString(),
+                          "done"
+                        ).then(() => {
+                          setSelectedTab && setSelectedTab("done");
+                        });
+                      }}
+                    >
+                      <CheckCheck className="w-4 h-4 mr-2" />
+                      Mark as Done
+                    </DropdownMenuItem>
+                  )}
 
                   <DropdownMenuItem onClick={(e) => e.stopPropagation()}>
                     <Star className="w-4 h-4 mr-2" />
@@ -273,7 +279,8 @@ export const ConversationItem = memo<ConversationItemProps>(
       prevProps.conversation.updated_at === nextProps.conversation.updated_at &&
       prevProps.conversation.status === nextProps.conversation.status &&
       prevProps.conversation.labels?.length ===
-        nextProps.conversation.labels?.length
+        nextProps.conversation.labels?.length &&
+      prevProps.selectedTab === nextProps.selectedTab
     );
   }
 );
