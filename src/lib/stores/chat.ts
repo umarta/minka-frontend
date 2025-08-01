@@ -2023,6 +2023,19 @@ if (ws && typeof window !== 'undefined') {
   if (!window.__wsMessageReceivedHandler) {
     window.__wsMessageReceivedHandler = (data: any) => {
       console.log('[WS] message_received event:', data);
+      
+      // Get current state to check selectedGroup
+      const currentState = useChatStore.getState();
+      const currentTab = currentState.selectedGroup;
+      
+      // Check if the data.tab matches current tab (if tab is provided)
+      if (data.tab && data.tab !== currentTab) {
+        console.log(`[WS] Ignoring message_received for tab ${data.tab}, current tab is ${currentTab}`);
+        return;
+      }
+      
+      console.log(`[WS] Processing message_received for matching tab: ${data.tab || 'no tab specified'}`);
+      
       const message = {
         id: (data.message_id || data.id || Date.now()).toString(),
         ticket_id: (data.ticket_id || (data.ticket && data.ticket.id) || '').toString(),
@@ -2090,6 +2103,19 @@ if (ws && typeof window !== 'undefined') {
   });
   ws.on('conversation_updated', (data) => {
     console.log('[WS] conversation_updated event:', data);
+    
+    // Get current state to check selectedGroup
+    const currentState = useChatStore.getState();
+    const currentTab = currentState.selectedGroup;
+    
+    // Check if the data.tab matches current tab
+    if (data.tab !== currentTab) {
+      console.log(`[WS] Ignoring conversation_updated for tab ${data.tab}, current tab is ${currentTab}`);
+      return;
+    }
+    
+    console.log(`[WS] Processing conversation_updated for matching tab: ${data.tab}`);
+    
     // Update or insert conversation in state and move to top
     useChatStore.setState((state) => {
       const idx = state.conversations.findIndex(
