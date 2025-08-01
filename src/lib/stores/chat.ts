@@ -209,7 +209,6 @@ interface ChatState {
 
 interface ChatActions {
   // Conversations
-  loadConversations: () => Promise<void>;
   groupConversations: () => void;
   selectConversation: (contact: Contact) => void;
   clearActiveConversation: () => void;
@@ -361,10 +360,6 @@ interface ChatActions {
   loadConversationCounts: () => Promise<void>;
 
   // Pagination methods
-  loadConversationsWithPagination: (
-    page?: number,
-    limit?: number
-  ) => Promise<void>;
   loadMoreConversations: () => Promise<void>;
 }
 
@@ -435,12 +430,6 @@ export const useChatStore = create<ChatStore>()(
     },
     isLoadingMore: false,
 
-    // Actions
-    loadConversations: async () => {
-      // Use paginated loading for better performance
-      await get().loadConversationsWithPagination(1, 20);
-    },
-
     groupConversations: () => {
       const { conversations } = get();
       const chatGroups = groupConversationsIntoCategories(conversations);
@@ -463,10 +452,6 @@ export const useChatStore = create<ChatStore>()(
         });
 
         // Load contact conversation for info panel
-        console.log(
-          "DEBUG selectConversation: loading contact conversation for:",
-          contact.id
-        );
         await get().loadContactConversation(contact.id);
 
         // Load all messages for this contact using the unified endpoint
@@ -491,12 +476,6 @@ export const useChatStore = create<ChatStore>()(
 
         if (activeTicket) {
           set({ activeTicket });
-        } else {
-          console.log(
-            "No active ticket found for contact:",
-            contact.id,
-            "- this is normal for new conversations"
-          );
         }
 
         set({ isLoadingMessages: false });
@@ -542,15 +521,9 @@ export const useChatStore = create<ChatStore>()(
 
     // New: Contact-based conversation actions
     loadContactConversation: async (contactId: string) => {
-      console.log(
-        "DEBUG loadContactConversation called with contactId:",
-        contactId
-      );
       try {
         // Load all tickets for this contact (for info panel)
-        console.log("DEBUG loading tickets for contact:", contactId);
         const tickets = await ticketsApi.getByContact(contactId);
-        console.log("DEBUG tickets loaded:", tickets);
 
         // Create ticket episodes for info panel
         const episodes: TicketEpisode[] = tickets.map((ticket: any) => ({
@@ -611,12 +584,6 @@ export const useChatStore = create<ChatStore>()(
       append = false
     ) => {
       try {
-        console.log("🔍 loadContactMessages called with:", {
-          contactId,
-          page,
-          query,
-          append,
-        });
         set({ isLoadingMessages: true, error: null });
 
         // Use the unified contact messages endpoint with DESC order for reverse pagination
@@ -626,8 +593,6 @@ export const useChatStore = create<ChatStore>()(
           query,
           order: "timestamp DESC", // Get newest messages first
         });
-
-        console.log("🔍 API response:", response);
 
         // Handle different response formats
         let messages: Message[] = [];
@@ -641,8 +606,6 @@ export const useChatStore = create<ChatStore>()(
 
         const total =
           response.meta?.total || response.data?.meta?.total || messages.length;
-
-        console.log("🔍 Processed messages:", messages.length, "total:", total);
 
         // Convert backend message format to frontend format
         const formattedMessages: Message[] = messages.map((msg: any) => ({
@@ -663,8 +626,6 @@ export const useChatStore = create<ChatStore>()(
           read_at: msg.read_at,
           sender_name: msg.sender?.username,
         }));
-
-        console.log("🔍 Formatted messages:", formattedMessages);
 
         // For reverse pagination: reverse the messages to show oldest to newest
         const reversedMessages = formattedMessages.reverse();
@@ -692,11 +653,6 @@ export const useChatStore = create<ChatStore>()(
           };
         });
 
-        console.log("🔍 Search state updated:", {
-          searchQuery: query,
-          searchResultsCount: query ? formattedMessages.length : 0,
-        });
-
         // Return the response so we can access pagination metadata
         return response;
       } catch (error) {
@@ -711,7 +667,6 @@ export const useChatStore = create<ChatStore>()(
 
     loadOlderMessages: async (contactId: string, page: number) => {
       try {
-        console.log("🔍 loadOlderMessages called with:", { contactId, page });
         set({ isLoadingMessages: true, error: null });
 
         // Load older messages (higher page number = older messages)
@@ -720,8 +675,6 @@ export const useChatStore = create<ChatStore>()(
           limit: 20,
           order: "timestamp DESC", // Get older messages
         });
-
-        console.log("🔍 API response for older messages:", response);
 
         // Handle different response formats
         let messages: Message[] = [];
@@ -767,11 +720,6 @@ export const useChatStore = create<ChatStore>()(
             },
             isLoadingMessages: false,
           };
-        });
-
-        console.log("🔍 Messages loaded:", {
-          contactId,
-          messageCount: reversedMessages.length,
         });
       } catch (error) {
         console.error("Failed to load contact messages:", error);
@@ -1015,16 +963,8 @@ export const useChatStore = create<ChatStore>()(
           throw new Error("No active contact selected");
         }
 
-        console.log("[Chat] Active contact:", activeContact);
-
-        console.log("[Chat] Sending message to contact:", activeContact.id);
-
         // If no active ticket, try to create one or send without ticket
         if (!ticketToUse) {
-          console.log(
-            "[Chat] No active ticket found, attempting to create ticket or send without ticket"
-          );
-
           // Option 1: Try to create a ticket automatically
           try {
             const ticketResponse = await ticketsApi.create({
@@ -1039,7 +979,6 @@ export const useChatStore = create<ChatStore>()(
               ticketToUse = ticketResponse;
               // Update active ticket in state
               set({ activeTicket: ticketResponse });
-              console.log("[Chat] Created new ticket:", ticketResponse.id);
             }
           } catch (ticketError) {
             console.warn(
@@ -1057,11 +996,6 @@ export const useChatStore = create<ChatStore>()(
         if (!phoneNumber) {
           throw new Error("Contact phone number is required");
         }
-
-        console.log(
-          "[Chat] Sending message to phone number:",
-          activeContact.phone_number
-        );
 
         // Create message object for UI
         const newMessage: Message = {
@@ -1088,8 +1022,6 @@ export const useChatStore = create<ChatStore>()(
             data.media_file &&
             ["image", "video", "audio", "document"].includes(data.message_type)
           ) {
-            console.log("[Chat] Sending media message with presigned URL flow");
-
             // Validate file before upload
             const validation = validateFile(data.media_file, {
               maxSize: 50 * 1024 * 1024, // 50MB
@@ -1149,7 +1081,6 @@ export const useChatStore = create<ChatStore>()(
             }));
           } else {
             // Send text message
-            console.log("[Chat] Sending text message");
             response = await messagesApi.send({
               contact_id: activeContact.id,
               session_id: data.session_id || "default",
@@ -1332,62 +1263,15 @@ export const useChatStore = create<ChatStore>()(
         (conv) => conv.contact.id?.toString() === contactId
       );
 
-      console.log("🔍 Processing incoming message:", {
-        contactId,
-        selectedGroup,
-        existingConv: !!existingConv,
-        messageDirection: message.direction,
-        messageContent: message.content?.substring(0, 50) + "...",
-        messageType: message.message_type,
-      });
-
       if (!existingConv) {
         // Fetch conversation detail dari backend
         try {
           const conv = await conversationsApi.getById(contactId);
           if (conv) {
-            console.log("📥 New conversation fetched:", {
-              conversationGroup: conv.conversation_group,
-              selectedGroup,
-              shouldShowInCurrentGroup:
-                conv.conversation_group === selectedGroup,
-              contactName: conv.contact?.name,
-              contactId: conv.contact?.id,
-              isTakeoverByAdmin: conv.contact?.is_takeover_by_admin,
-              takeoverByAdminId: conv.contact?.takeover_by_admin_id,
-              conversationStatus: conv.status,
-              lastMessage: conv.last_message?.content?.substring(0, 30) + "...",
-            });
-
-            // Only add to conversations if it belongs to the current group
-            console.log("🔍 Group determination logic:", {
-              conversationGroup: conv.conversation_group,
-              selectedGroup,
-              isMatch: conv.conversation_group === selectedGroup,
-              contactTakeover: conv.contact?.is_takeover_by_admin,
-              contactTakeoverId: conv.contact?.takeover_by_admin_id,
-              conversationStatus: conv.status,
-            });
-
             if (conv.conversation_group === selectedGroup) {
               set((state) => ({
                 conversations: [conv, ...state.conversations],
               }));
-              console.log("✅ Added new conversation to current group");
-            } else {
-              console.log(
-                "⏭️ New conversation belongs to different group, not adding to current view"
-              );
-              console.log("📊 Expected group for this conversation:", {
-                basedOnTakeover: conv.contact?.is_takeover_by_admin
-                  ? "advisor"
-                  : "ai_agent",
-                basedOnStatus:
-                  conv.status === "closed" || conv.status === "resolved"
-                    ? "done"
-                    : "ai_agent",
-                actualGroup: conv.conversation_group,
-              });
             }
 
             // Always update counts regardless of current group
@@ -1469,13 +1353,6 @@ export const useChatStore = create<ChatStore>()(
                 conversation_group,
                 last_activity: message.created_at,
               };
-
-              console.log("🔄 Updated conversation:", {
-                oldGroup: conv.conversation_group,
-                newGroup: conversation_group,
-                selectedGroup,
-                shouldStayInCurrentGroup: conversation_group === selectedGroup,
-              });
 
               // Remove from current view if group changed
               return conversation_group === selectedGroup;
@@ -1865,7 +1742,6 @@ export const useChatStore = create<ChatStore>()(
         });
 
         // Refresh conversation data to show updated labels
-        await get().loadConversations();
         get().groupConversations();
       } catch (error) {
         console.error("Failed to add labels to conversation:", error);
@@ -1889,7 +1765,7 @@ export const useChatStore = create<ChatStore>()(
         });
 
         // Refresh conversation data to show updated labels
-        await get().loadConversations();
+        // await get().loadConversations();
         get().groupConversations();
       } catch (error) {
         console.error("Failed to remove labels from conversation:", error);
@@ -2006,8 +1882,6 @@ export const useChatStore = create<ChatStore>()(
 
     // === Group management ===
     loadConversationsByGroup: async (group, page = 1, limit = 20) => {
-      console.log("🔄 Loading conversations by group:", { group, page, limit });
-
       // Only show loading for initial load (page 1), not for load more
       if (page === 1) {
         set({ isLoadingConversations: true, error: null });
@@ -2022,14 +1896,7 @@ export const useChatStore = create<ChatStore>()(
           hasNext,
         } = await conversationsApi.getByGroup(group, page, limit);
 
-        console.log("📥 API Response:", {
-          group,
-          conversationsCount: conversations.length,
-          total,
-          page: responsePage,
-          limit: responseLimit,
-          hasNext,
-        });
+        console.log(conversations, "conversations");
 
         // Smart data management: only replace on page 1, append for load more
         const currentConversations = get().conversations;
@@ -2038,18 +1905,9 @@ export const useChatStore = create<ChatStore>()(
         if (page === 1) {
           // Initial load: replace all data
           newConversations = conversations;
-          console.log(
-            "🔄 Initial load - replacing all conversations:",
-            conversations.length
-          );
         } else {
           // Load more: append new data to existing
           newConversations = [...currentConversations, ...conversations];
-          console.log("📥 Load more - appending conversations:", {
-            existing: currentConversations.length,
-            new: conversations.length,
-            total: newConversations.length,
-          });
         }
 
         set({
@@ -2064,10 +1922,6 @@ export const useChatStore = create<ChatStore>()(
           error: null,
         });
 
-        console.log(
-          "✅ Store updated with conversations:",
-          newConversations.length
-        );
         // Optionally, re-group if needed
         get().groupConversations();
       } catch (error) {
@@ -2082,10 +1936,20 @@ export const useChatStore = create<ChatStore>()(
     moveConversationToGroup: async (conversationId, group) => {
       try {
         await conversationsApi.moveToGroup(conversationId, group);
-        // Reload current group
+
         const { selectedGroup } = get();
-        console.log(selectedGroup, "selectedGroup");
+
+        // Remove conversation from current state immediately to reflect the change
+        set((state) => ({
+          conversations: state.conversations.filter(
+            (conv) => conv.id !== conversationId
+          ),
+        }));
+
+        // Reload current group and target group
         await get().loadConversationsByGroup(selectedGroup);
+        await get().loadConversationsByGroup(group as ConversationGroup);
+        await get().loadConversationCounts();
       } catch (error) {
         set({ error: "Failed to move conversation to group" });
         throw error;
@@ -2110,51 +1974,10 @@ export const useChatStore = create<ChatStore>()(
     },
 
     // Pagination methods
-    loadConversationsWithPagination: async (page = 1, limit = 20) => {
-      set({ isLoadingConversations: true });
-      try {
-        const {
-          conversations,
-          total,
-          page: responsePage,
-          limit: responseLimit,
-          hasNext,
-        } = await conversationsApi.getWithPagination(page, limit);
-
-        set({
-          conversations:
-            page === 1
-              ? conversations
-              : [...get().conversations, ...conversations],
-          pagination: {
-            page: responsePage,
-            limit: responseLimit,
-            total,
-            hasMore: hasNext, // Use the has_next field from API response
-          },
-          isLoadingConversations: false,
-        });
-
-        // Group conversations after loading
-        get().groupConversations();
-      } catch (error) {
-        set({
-          error: "Failed to load conversations",
-          isLoadingConversations: false,
-        });
-      }
-    },
 
     loadMoreConversations: async () => {
       const { pagination, isLoadingMore, selectedGroup, conversations } = get();
       if (isLoadingMore || !pagination.hasMore) return;
-
-      console.log("🔄 Load more triggered:", {
-        selectedGroup,
-        currentPage: pagination.page,
-        hasMore: pagination.hasMore,
-        currentConversationsCount: conversations.length,
-      });
 
       set({ isLoadingMore: true });
       try {
@@ -2482,7 +2305,7 @@ if (ws && typeof window !== "undefined") {
   ws.on("bulk_operation_completed", (data) => {
     console.log("[WS] bulk_operation_completed event:", data);
     // Reload conversations to reflect bulk changes
-    useChatStore.getState().loadConversations();
+    // useChatStore.getState().loadConversations();
   });
 
   // Response time tracking events
@@ -2511,7 +2334,6 @@ export const useChat = () => {
     isLoadingMessages,
     isSendingMessage,
     error,
-    loadConversations,
     selectConversation,
     sendMessage,
     markMessagesAsRead,
@@ -2527,7 +2349,6 @@ export const useChat = () => {
     isLoadingMessages,
     isSendingMessage,
     error,
-    loadConversations,
     selectConversation,
     sendMessage,
     markMessagesAsRead,

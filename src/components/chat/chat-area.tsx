@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import { ChatHeader } from './chat-header';
-import { MessagesList } from './messages-list';
-import { MessageInput } from './message-input';
-import { EmptyChatState } from './empty-chat-state';
-import { TakeoverStatus } from './takeover-status';
-import { useChatStore } from '@/lib/stores/chat';
-import { Message } from '@/types';
-import { useEffect } from 'react';
-import { createWebSocketManager } from '@/lib/websocket';
+import { ChatHeader } from "./chat-header";
+import { MessagesList } from "./messages-list";
+import { MessageInput } from "./message-input";
+import { EmptyChatState } from "./empty-chat-state";
+import { TakeoverStatus } from "./takeover-status";
+import { useChatStore } from "@/lib/stores/chat";
+import { Message } from "@/types";
+import { useEffect } from "react";
+import { createWebSocketManager } from "@/lib/websocket";
 
 interface ChatAreaProps {
   onReact?: (messageId: string, emoji: string) => void;
@@ -39,16 +39,16 @@ export function ChatArea(props: ChatAreaProps) {
     };
 
     // Add event listeners to prevent default browser behavior
-    document.addEventListener('dragover', preventDefault);
-    document.addEventListener('drop', preventDefault);
-    document.addEventListener('dragenter', preventDefault);
-    document.addEventListener('dragleave', preventDefault);
+    document.addEventListener("dragover", preventDefault);
+    document.addEventListener("drop", preventDefault);
+    document.addEventListener("dragenter", preventDefault);
+    document.addEventListener("dragleave", preventDefault);
 
     return () => {
-      document.removeEventListener('dragover', preventDefault);
-      document.removeEventListener('drop', preventDefault);
-      document.removeEventListener('dragenter', preventDefault);
-      document.removeEventListener('dragleave', preventDefault);
+      document.removeEventListener("dragover", preventDefault);
+      document.removeEventListener("drop", preventDefault);
+      document.removeEventListener("dragenter", preventDefault);
+      document.removeEventListener("dragleave", preventDefault);
     };
   }, []);
 
@@ -58,10 +58,8 @@ export function ChatArea(props: ChatAreaProps) {
   //   createWebSocketManager();
   // }, []);
 
-  console.log('activeContact', activeContact);
-
   return (
-    <div className="flex flex-col h-full min-w-0 flex-1">
+    <div className="flex flex-col flex-1 h-full min-w-0">
       {!activeContact ? (
         <div className="flex-1 h-full">
           <EmptyChatState />
@@ -71,11 +69,9 @@ export function ChatArea(props: ChatAreaProps) {
           <ChatHeader />
           <div className="flex-1 overflow-hidden">
             <TakeoverStatus contact={activeContact} />
-            <MessagesList 
-              contactId={activeContact.id}
-            />
+            <MessagesList contactId={activeContact.id} />
           </div>
-          <MessageInput 
+          <MessageInput
             onSearch={props.onSearch}
             onClearSearch={props.onClearSearch}
             searchQuery={props.searchQuery}
@@ -84,4 +80,4 @@ export function ChatArea(props: ChatAreaProps) {
       )}
     </div>
   );
-} 
+}

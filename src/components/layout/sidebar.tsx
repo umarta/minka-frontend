@@ -24,7 +24,7 @@ const navigation = [
   { name: "Chat", href: "/chat", icon: MessageSquare },
   { name: "Quick Replies", href: "/quick-replies", icon: Zap },
   { name: "Contacts", href: "/contacts", icon: Users },
-  { name: "Tickets", href: "/tickets", icon: Ticket },
+  // { name: "Tickets", href: "/tickets", icon: Ticket },
   { name: "Labels", href: "/labels", icon: Tags },
   { name: "Support Agents", href: "/agents", icon: Headphones },
   // { name: "Analytics", href: "/analytics", icon: Activity },
