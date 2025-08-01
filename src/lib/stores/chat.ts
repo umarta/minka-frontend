@@ -209,6 +209,7 @@ interface ChatState {
 
 interface ChatActions {
   // Conversations
+  loadConversations: () => Promise<void>;
   groupConversations: () => void;
   selectConversation: (contact: Contact) => void;
   clearActiveConversation: () => void;
@@ -429,6 +430,12 @@ export const useChatStore = create<ChatStore>()(
       hasMore: false,
     },
     isLoadingMore: false,
+
+    // Actions
+    loadConversations: async () => {
+      // Use paginated loading for better performance
+      // await get().loadConversationsWithPagination(1, 20);
+    },
 
     groupConversations: () => {
       const { conversations } = get();
@@ -1742,6 +1749,7 @@ export const useChatStore = create<ChatStore>()(
         });
 
         // Refresh conversation data to show updated labels
+        // await get().loadConversations();
         get().groupConversations();
       } catch (error) {
         console.error("Failed to add labels to conversation:", error);
@@ -1765,7 +1773,7 @@ export const useChatStore = create<ChatStore>()(
         });
 
         // Refresh conversation data to show updated labels
-        // await get().loadConversations();
+        await get().loadConversations();
         get().groupConversations();
       } catch (error) {
         console.error("Failed to remove labels from conversation:", error);
@@ -2305,7 +2313,7 @@ if (ws && typeof window !== "undefined") {
   ws.on("bulk_operation_completed", (data) => {
     console.log("[WS] bulk_operation_completed event:", data);
     // Reload conversations to reflect bulk changes
-    // useChatStore.getState().loadConversations();
+    useChatStore.getState().loadConversations();
   });
 
   // Response time tracking events
@@ -2334,6 +2342,7 @@ export const useChat = () => {
     isLoadingMessages,
     isSendingMessage,
     error,
+    loadConversations,
     selectConversation,
     sendMessage,
     markMessagesAsRead,
@@ -2349,6 +2358,7 @@ export const useChat = () => {
     isLoadingMessages,
     isSendingMessage,
     error,
+    loadConversations,
     selectConversation,
     sendMessage,
     markMessagesAsRead,
