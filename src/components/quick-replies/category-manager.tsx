@@ -1,37 +1,49 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { 
-  Plus, 
-  Edit, 
-  Trash2, 
-  FolderOpen, 
+import { useState, useEffect } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import {
+  Plus,
+  Edit,
+  Trash2,
+  FolderOpen,
   FolderPlus,
   X,
   Check,
   AlertTriangle,
   MoreVertical,
   Tag,
-  Archive
-} from 'lucide-react';
-import { 
+  Archive,
+} from "lucide-react";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { useToast } from '@/hooks/use-toast';
-import { useChatStore } from '@/lib/stores/chat';
-import { QuickReplyTemplate } from '@/types';
+} from "@/components/ui/dropdown-menu";
+import { useToast } from "@/hooks/use-toast";
+import { useChatStore } from "@/lib/stores/chat";
+import { QuickReplyTemplate } from "@/types";
 
 interface CategoryManagerProps {
   isOpen: boolean;
@@ -53,48 +65,57 @@ interface CategoryFormData {
 }
 
 const CATEGORY_COLORS = [
-  { name: 'Blue', value: 'bg-blue-100 text-blue-800 border-blue-200' },
-  { name: 'Green', value: 'bg-green-100 text-green-800 border-green-200' },
-  { name: 'Yellow', value: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-  { name: 'Red', value: 'bg-red-100 text-red-800 border-red-200' },
-  { name: 'Purple', value: 'bg-purple-100 text-purple-800 border-purple-200' },
-  { name: 'Pink', value: 'bg-pink-100 text-pink-800 border-pink-200' },
-  { name: 'Indigo', value: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
-  { name: 'Gray', value: 'bg-gray-100 text-gray-800 border-gray-200' }
+  { name: "Blue", value: "bg-blue-100 text-blue-800 border-blue-200" },
+  { name: "Green", value: "bg-green-100 text-green-800 border-green-200" },
+  { name: "Yellow", value: "bg-yellow-100 text-yellow-800 border-yellow-200" },
+  { name: "Red", value: "bg-red-100 text-red-800 border-red-200" },
+  { name: "Purple", value: "bg-purple-100 text-purple-800 border-purple-200" },
+  { name: "Pink", value: "bg-pink-100 text-pink-800 border-pink-200" },
+  { name: "Indigo", value: "bg-indigo-100 text-indigo-800 border-indigo-200" },
+  { name: "Gray", value: "bg-gray-100 text-gray-800 border-gray-200" },
 ];
 
-export function CategoryManager({ isOpen, onClose, templates }: CategoryManagerProps) {
+export function CategoryManager({
+  isOpen,
+  onClose,
+  templates,
+}: CategoryManagerProps) {
   const { toast } = useToast();
   const { updateQuickReply } = useChatStore();
   const [categories, setCategories] = useState<CategoryInfo[]>([]);
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
-  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryName, setNewCategoryName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(
+    null
+  );
   const [formData, setFormData] = useState<CategoryFormData>({
-    name: '',
-    description: '',
-    color: CATEGORY_COLORS[0].value
+    name: "",
+    description: "",
+    color: CATEGORY_COLORS[0].value,
   });
 
   // Calculate category information
   useEffect(() => {
     const categoryMap = new Map<string, CategoryInfo>();
-    
+
     // Add uncategorized templates
-    const uncategorizedTemplates = templates.filter(t => !t.category);
+    const uncategorizedTemplates = templates.filter((t) => !t.category);
     if (uncategorizedTemplates.length > 0) {
-      categoryMap.set('', {
-        name: 'Uncategorized',
+      categoryMap.set("", {
+        name: "Uncategorized",
         count: uncategorizedTemplates.length,
-        usage: uncategorizedTemplates.reduce((sum, t) => sum + t.usage_count, 0),
-        templates: uncategorizedTemplates
+        usage: uncategorizedTemplates.reduce(
+          (sum, t) => sum + t.usage_count,
+          0
+        ),
+        templates: uncategorizedTemplates,
       });
     }
 
     // Add categorized templates
-    templates.forEach(template => {
+    templates.forEach((template) => {
       if (template.category) {
         const existing = categoryMap.get(template.category);
         if (existing) {
@@ -106,19 +127,18 @@ export function CategoryManager({ isOpen, onClose, templates }: CategoryManagerP
             name: template.category,
             count: 1,
             usage: template.usage_count,
-            templates: [template]
+            templates: [template],
           });
         }
       }
     });
 
-    const categoryList = Array.from(categoryMap.values())
-      .sort((a, b) => {
-        // Sort uncategorized last
-        if (a.name === 'Uncategorized') return 1;
-        if (b.name === 'Uncategorized') return -1;
-        return b.usage - a.usage; // Sort by usage descending
-      });
+    const categoryList = Array.from(categoryMap.values()).sort((a, b) => {
+      // Sort uncategorized last
+      if (a.name === "Uncategorized") return 1;
+      if (b.name === "Uncategorized") return -1;
+      return b.usage - a.usage; // Sort by usage descending
+    });
 
     setCategories(categoryList);
   }, [templates]);
@@ -126,9 +146,9 @@ export function CategoryManager({ isOpen, onClose, templates }: CategoryManagerP
   const handleCreateCategory = () => {
     setIsCreating(true);
     setFormData({
-      name: '',
-      description: '',
-      color: CATEGORY_COLORS[0].value
+      name: "",
+      description: "",
+      color: CATEGORY_COLORS[0].value,
     });
   };
 
@@ -143,11 +163,12 @@ export function CategoryManager({ isOpen, onClose, templates }: CategoryManagerP
     }
 
     // Check if category already exists
-    const existingCategory = categories.find(c => 
-      c.name.toLowerCase() === formData.name.trim().toLowerCase() && 
-      c.name !== 'Uncategorized'
+    const existingCategory = categories.find(
+      (c) =>
+        c.name.toLowerCase() === formData.name.trim().toLowerCase() &&
+        c.name !== "Uncategorized"
     );
-    
+
     if (existingCategory) {
       toast({
         title: "Error",
@@ -162,9 +183,9 @@ export function CategoryManager({ isOpen, onClose, templates }: CategoryManagerP
       title: "Category created",
       description: `Category "${formData.name}" has been created.`,
     });
-    
+
     setIsCreating(false);
-    setFormData({ name: '', description: '', color: CATEGORY_COLORS[0].value });
+    setFormData({ name: "", description: "", color: CATEGORY_COLORS[0].value });
   };
 
   const handleRenameCategory = async (oldName: string, newName: string) => {
@@ -174,11 +195,12 @@ export function CategoryManager({ isOpen, onClose, templates }: CategoryManagerP
     }
 
     // Check if new name already exists
-    const existingCategory = categories.find(c => 
-      c.name.toLowerCase() === newName.trim().toLowerCase() && 
-      c.name !== oldName
+    const existingCategory = categories.find(
+      (c) =>
+        c.name.toLowerCase() === newName.trim().toLowerCase() &&
+        c.name !== oldName
     );
-    
+
     if (existingCategory) {
       toast({
         title: "Error",
@@ -191,16 +213,16 @@ export function CategoryManager({ isOpen, onClose, templates }: CategoryManagerP
     setIsLoading(true);
     try {
       // Update all templates in this category
-      const category = categories.find(c => c.name === oldName);
+      const category = categories.find((c) => c.name === oldName);
       if (category) {
-        const promises = category.templates.map(template => 
+        const promises = category.templates.map((template) =>
           updateQuickReply(template.id, {
             ...template,
-            category: newName.trim()
+            category: newName.trim(),
           })
         );
         await Promise.all(promises);
-        
+
         toast({
           title: "Category renamed",
           description: `Category "${oldName}" has been renamed to "${newName}".`,
@@ -219,20 +241,20 @@ export function CategoryManager({ isOpen, onClose, templates }: CategoryManagerP
   };
 
   const handleDeleteCategory = async (categoryName: string) => {
-    const category = categories.find(c => c.name === categoryName);
+    const category = categories.find((c) => c.name === categoryName);
     if (!category) return;
 
     setIsLoading(true);
     try {
       // Move all templates to uncategorized
-      const promises = category.templates.map(template => 
+      const promises = category.templates.map((template) =>
         updateQuickReply(template.id, {
           ...template,
-          category: ''
+          category: "",
         })
       );
       await Promise.all(promises);
-      
+
       toast({
         title: "Category deleted",
         description: `Category "${categoryName}" has been deleted. Templates moved to uncategorized.`,
@@ -249,20 +271,23 @@ export function CategoryManager({ isOpen, onClose, templates }: CategoryManagerP
     }
   };
 
-  const handleMoveTemplates = async (fromCategory: string, toCategory: string) => {
-    const category = categories.find(c => c.name === fromCategory);
+  const handleMoveTemplates = async (
+    fromCategory: string,
+    toCategory: string
+  ) => {
+    const category = categories.find((c) => c.name === fromCategory);
     if (!category) return;
 
     setIsLoading(true);
     try {
-      const promises = category.templates.map(template => 
+      const promises = category.templates.map((template) =>
         updateQuickReply(template.id, {
           ...template,
-          category: toCategory === 'Uncategorized' ? '' : toCategory
+          category: toCategory === "Uncategorized" ? "" : toCategory,
         })
       );
       await Promise.all(promises);
-      
+
       toast({
         title: "Templates moved",
         description: `${category.count} template(s) moved to ${toCategory}.`,
@@ -281,9 +306,9 @@ export function CategoryManager({ isOpen, onClose, templates }: CategoryManagerP
   const resetForm = () => {
     setIsCreating(false);
     setEditingCategory(null);
-    setNewCategoryName('');
+    setNewCategoryName("");
     setShowDeleteConfirm(null);
-    setFormData({ name: '', description: '', color: CATEGORY_COLORS[0].value });
+    setFormData({ name: "", description: "", color: CATEGORY_COLORS[0].value });
   };
 
   const handleClose = () => {
@@ -296,7 +321,7 @@ export function CategoryManager({ isOpen, onClose, templates }: CategoryManagerP
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <FolderOpen className="h-5 w-5" />
+            <FolderOpen className="w-5 h-5" />
             Category Manager
           </DialogTitle>
         </DialogHeader>
@@ -309,23 +334,24 @@ export function CategoryManager({ isOpen, onClose, templates }: CategoryManagerP
                 <div>
                   <CardTitle className="text-sm">Categories</CardTitle>
                   <CardDescription>
-                    Organize your templates into categories for better management
+                    Organize your templates into categories for better
+                    management
                   </CardDescription>
                 </div>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={handleCreateCategory}
                   disabled={isCreating}
                 >
-                  <Plus className="h-4 w-4 mr-2" />
+                  <Plus className="w-4 h-4 mr-2" />
                   Add Category
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
               {isCreating && (
-                <div className="mb-4 p-4 border rounded-lg bg-gray-50">
+                <div className="p-4 mb-4 border rounded-lg bg-gray-50">
                   <div className="space-y-3">
                     <div>
                       <Label htmlFor="categoryName">Category Name</Label>
@@ -333,29 +359,48 @@ export function CategoryManager({ isOpen, onClose, templates }: CategoryManagerP
                         id="categoryName"
                         placeholder="Enter category name"
                         value={formData.name}
-                        onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            name: e.target.value,
+                          }))
+                        }
                       />
                     </div>
                     <div>
-                      <Label htmlFor="categoryDescription">Description (Optional)</Label>
+                      <Label htmlFor="categoryDescription">
+                        Description (Optional)
+                      </Label>
                       <Input
                         id="categoryDescription"
                         placeholder="Enter category description"
                         value={formData.description}
-                        onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            description: e.target.value,
+                          }))
+                        }
                       />
                     </div>
                     <div>
                       <Label>Color</Label>
                       <div className="flex flex-wrap gap-2 mt-2">
-                        {CATEGORY_COLORS.map(color => (
+                        {CATEGORY_COLORS.map((color) => (
                           <button
                             key={color.name}
                             type="button"
                             className={`w-8 h-8 rounded border-2 ${color.value} ${
-                              formData.color === color.value ? 'ring-2 ring-blue-500' : ''
+                              formData.color === color.value
+                                ? "ring-2 ring-blue-500"
+                                : ""
                             }`}
-                            onClick={() => setFormData(prev => ({ ...prev, color: color.value }))}
+                            onClick={() =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                color: color.value,
+                              }))
+                            }
                             title={color.name}
                           />
                         ))}
@@ -363,15 +408,15 @@ export function CategoryManager({ isOpen, onClose, templates }: CategoryManagerP
                     </div>
                     <div className="flex items-center gap-2">
                       <Button size="sm" onClick={handleSaveCategory}>
-                        <Check className="h-4 w-4 mr-2" />
+                        <Check className="w-4 h-4 mr-2" />
                         Create
                       </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
+                      <Button
+                        size="sm"
+                        variant="outline"
                         onClick={() => setIsCreating(false)}
                       >
-                        <X className="h-4 w-4 mr-2" />
+                        <X className="w-4 h-4 mr-2" />
                         Cancel
                       </Button>
                     </div>
@@ -382,14 +427,16 @@ export function CategoryManager({ isOpen, onClose, templates }: CategoryManagerP
               {/* Categories List */}
               <div className="space-y-3">
                 {categories.length === 0 ? (
-                  <div className="text-center py-8">
-                    <FolderPlus className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No categories yet</h3>
-                    <p className="text-gray-500 mb-4">
+                  <div className="py-8 text-center">
+                    <FolderPlus className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                    <h3 className="mb-2 text-lg font-medium text-gray-900">
+                      No categories yet
+                    </h3>
+                    <p className="mb-4 text-gray-500">
                       Create your first category to organize your templates
                     </p>
                     <Button onClick={handleCreateCategory}>
-                      <Plus className="h-4 w-4 mr-2" />
+                      <Plus className="w-4 h-4 mr-2" />
                       Create Category
                     </Button>
                   </div>
@@ -397,23 +444,28 @@ export function CategoryManager({ isOpen, onClose, templates }: CategoryManagerP
                   categories.map((category) => (
                     <div
                       key={category.name}
-                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                      className="flex items-center justify-between p-4 transition-colors border rounded-lg hover:bg-gray-50"
                     >
-                      <div className="flex items-center gap-3 flex-1">
-                        <div className="p-2 bg-blue-50 rounded">
-                          <Tag className="h-4 w-4 text-blue-600" />
+                      <div className="flex items-center flex-1 gap-3">
+                        <div className="p-2 rounded bg-blue-50">
+                          <Tag className="w-4 h-4 text-blue-600" />
                         </div>
                         <div className="flex-1">
                           {editingCategory === category.name ? (
                             <div className="flex items-center gap-2">
                               <Input
                                 value={newCategoryName}
-                                onChange={(e) => setNewCategoryName(e.target.value)}
+                                onChange={(e) =>
+                                  setNewCategoryName(e.target.value)
+                                }
                                 onKeyPress={(e) => {
-                                  if (e.key === 'Enter') {
-                                    handleRenameCategory(category.name, newCategoryName);
+                                  if (e.key === "Enter") {
+                                    handleRenameCategory(
+                                      category.name,
+                                      newCategoryName
+                                    );
                                   }
-                                  if (e.key === 'Escape') {
+                                  if (e.key === "Escape") {
                                     setEditingCategory(null);
                                   }
                                 }}
@@ -423,31 +475,39 @@ export function CategoryManager({ isOpen, onClose, templates }: CategoryManagerP
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleRenameCategory(category.name, newCategoryName)}
+                                onClick={() =>
+                                  handleRenameCategory(
+                                    category.name,
+                                    newCategoryName
+                                  )
+                                }
                                 disabled={isLoading}
                               >
-                                <Check className="h-3 w-3" />
+                                <Check className="w-3 h-3" />
                               </Button>
                               <Button
                                 size="sm"
                                 variant="outline"
                                 onClick={() => setEditingCategory(null)}
                               >
-                                <X className="h-3 w-3" />
+                                <X className="w-3 h-3" />
                               </Button>
                             </div>
                           ) : (
                             <div>
                               <div className="flex items-center gap-2">
                                 <h3 className="font-medium text-gray-900">
-                                  {category.name === 'Uncategorized' ? (
-                                    <span className="text-gray-500 italic">Uncategorized</span>
+                                  {category.name === "Uncategorized" ? (
+                                    <span className="italic text-gray-500">
+                                      Uncategorized
+                                    </span>
                                   ) : (
                                     category.name
                                   )}
                                 </h3>
                                 <Badge variant="secondary" className="text-xs">
-                                  {category.count} template{category.count !== 1 ? 's' : ''}
+                                  {category.count} template
+                                  {category.count !== 1 ? "s" : ""}
                                 </Badge>
                               </div>
                               <p className="text-sm text-gray-500">
@@ -457,30 +517,32 @@ export function CategoryManager({ isOpen, onClose, templates }: CategoryManagerP
                           )}
                         </div>
                       </div>
-                      
-                      {category.name !== 'Uncategorized' && (
+
+                      {category.name !== "Uncategorized" && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm">
-                              <MoreVertical className="h-4 w-4" />
+                              <MoreVertical className="w-4 h-4" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               onClick={() => {
                                 setEditingCategory(category.name);
                                 setNewCategoryName(category.name);
                               }}
                             >
-                              <Edit className="h-4 w-4 mr-2" />
+                              <Edit className="w-4 h-4 mr-2" />
                               Rename
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem 
-                              onClick={() => setShowDeleteConfirm(category.name)}
+                            <DropdownMenuItem
+                              onClick={() =>
+                                setShowDeleteConfirm(category.name)
+                              }
                               className="text-red-600"
                             >
-                              <Trash2 className="h-4 w-4 mr-2" />
+                              <Trash2 className="w-4 h-4 mr-2" />
                               Delete
                             </DropdownMenuItem>
                           </DropdownMenuContent>
@@ -502,7 +564,9 @@ export function CategoryManager({ isOpen, onClose, templates }: CategoryManagerP
               <CardContent>
                 <div className="grid grid-cols-3 gap-4 text-center">
                   <div>
-                    <p className="text-2xl font-bold text-blue-600">{categories.length}</p>
+                    <p className="text-2xl font-bold text-blue-600">
+                      {categories.length}
+                    </p>
                     <p className="text-xs text-gray-500">Total Categories</p>
                   </div>
                   <div>
@@ -525,30 +589,31 @@ export function CategoryManager({ isOpen, onClose, templates }: CategoryManagerP
 
         {/* Delete Confirmation Dialog */}
         {showDeleteConfirm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="w-full max-w-md p-6 mx-4 bg-white rounded-lg">
               <div className="flex items-center gap-3 mb-4">
-                <AlertTriangle className="h-6 w-6 text-red-500" />
+                <AlertTriangle className="w-6 h-6 text-red-500" />
                 <h3 className="text-lg font-semibold">Delete Category</h3>
               </div>
-              <p className="text-gray-600 mb-4">
-                Are you sure you want to delete the category "{showDeleteConfirm}"? 
-                All templates in this category will be moved to "Uncategorized".
+              <p className="mb-4 text-gray-600">
+                Are you sure you want to delete the category "
+                {showDeleteConfirm}"? All templates in this category will be
+                moved to "Uncategorized".
               </p>
-              <div className="flex items-center gap-2 justify-end">
-                <Button 
-                  variant="outline" 
+              <div className="flex items-center justify-end gap-2">
+                <Button
+                  variant="outline"
                   onClick={() => setShowDeleteConfirm(null)}
                 >
                   Cancel
                 </Button>
-                <Button 
-                  variant="destructive" 
+                <Button
+                  variant="destructive"
                   onClick={() => handleDeleteCategory(showDeleteConfirm)}
                   disabled={isLoading}
                 >
                   {isLoading ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    <div className="w-4 h-4 mr-2 border-b-2 border-white rounded-full animate-spin"></div>
                   ) : null}
                   Delete
                 </Button>

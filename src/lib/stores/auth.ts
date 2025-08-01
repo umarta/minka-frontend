@@ -1,7 +1,7 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { User, AuthResponse } from '@/types';
-import { authApi, tokenManager } from '@/lib/api';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import { User, AuthResponse } from "@/types";
+import { authApi, tokenManager } from "@/lib/api";
 
 interface AuthState {
   user: User | null;
@@ -15,7 +15,10 @@ interface AuthActions {
   logout: () => void;
   refreshToken: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
-  changePassword: (data: { current_password: string; new_password: string }) => Promise<void>;
+  changePassword: (data: {
+    current_password: string;
+    new_password: string;
+  }) => Promise<void>;
   clearError: () => void;
   setLoading: (loading: boolean) => void;
   checkAuth: () => Promise<void>;
@@ -37,20 +40,18 @@ export const useAuthStore = create<AuthStore>()(
       login: async (credentials) => {
         try {
           set({ isLoading: true, error: null });
-          
-          const response = await authApi.login(credentials) as AuthResponse;
-          console.log('🔓 Login response:', response);
-          
+
+          const response = (await authApi.login(credentials)) as AuthResponse;
+
           // Store tokens
           tokenManager.setToken(response.token);
           if (response.refresh_token) {
             tokenManager.setRefreshToken(response.refresh_token);
           }
-          
+
           // Handle both user and admin response structures
           const userData = response.user || response.admin;
-          console.log('👤 User data:', userData);
-          
+
           // Update state
           set({
             user: userData,
@@ -58,12 +59,10 @@ export const useAuthStore = create<AuthStore>()(
             isLoading: false,
             error: null,
           });
-          
-          console.log('✅ Login successful, auth state updated');
         } catch (error) {
-          console.error('❌ Login failed:', error);
+          console.error("❌ Login failed:", error);
           set({
-            error: error instanceof Error ? error.message : 'Login failed',
+            error: error instanceof Error ? error.message : "Login failed",
             isLoading: false,
             isAuthenticated: false,
             user: null,
@@ -75,7 +74,7 @@ export const useAuthStore = create<AuthStore>()(
       logout: () => {
         // Clear tokens
         tokenManager.removeTokens();
-        
+
         // Reset state
         set({
           user: null,
@@ -88,55 +87,57 @@ export const useAuthStore = create<AuthStore>()(
         authApi.logout().catch(console.error);
       },
 
-             refreshToken: async () => {
-         try {
-           const response = await authApi.refreshToken() as AuthResponse;
-           tokenManager.setToken(response.token);
-           
-           // Optionally update user data if included in response
-           if (response.user) {
-             set({ user: response.user });
-           }
-         } catch (error) {
-           // If refresh fails, logout user
-           get().logout();
-           throw error;
-         }
-       },
+      refreshToken: async () => {
+        try {
+          const response = (await authApi.refreshToken()) as AuthResponse;
+          tokenManager.setToken(response.token);
 
-             updateProfile: async (data) => {
-         try {
-           set({ isLoading: true, error: null });
-           
-           const updatedUser = await authApi.updateProfile(data) as User;
-           
-           set({
-             user: updatedUser,
-             isLoading: false,
-             error: null,
-           });
-         } catch (error) {
-           set({
-             error: error instanceof Error ? error.message : 'Profile update failed',
-             isLoading: false,
-           });
-           throw error;
-         }
-       },
+          // Optionally update user data if included in response
+          if (response.user) {
+            set({ user: response.user });
+          }
+        } catch (error) {
+          // If refresh fails, logout user
+          get().logout();
+          throw error;
+        }
+      },
+
+      updateProfile: async (data) => {
+        try {
+          set({ isLoading: true, error: null });
+
+          const updatedUser = (await authApi.updateProfile(data)) as User;
+
+          set({
+            user: updatedUser,
+            isLoading: false,
+            error: null,
+          });
+        } catch (error) {
+          set({
+            error:
+              error instanceof Error ? error.message : "Profile update failed",
+            isLoading: false,
+          });
+          throw error;
+        }
+      },
 
       changePassword: async (data) => {
         try {
           set({ isLoading: true, error: null });
-          
+
           await authApi.changePassword(data);
-          
+
           set({
             isLoading: false,
             error: null,
           });
         } catch (error) {
           set({
-            error: error instanceof Error ? error.message : 'Password change failed',
+            error:
+              error instanceof Error ? error.message : "Password change failed",
             isLoading: false,
           });
           throw error;
@@ -153,75 +154,70 @@ export const useAuthStore = create<AuthStore>()(
 
       checkAuth: async () => {
         const token = tokenManager.getToken();
-        
+
         if (!token) {
           set({ isAuthenticated: false, user: null });
           return;
         }
 
-                 try {
-           set({ isLoading: true });
-           
-           const user = await authApi.getProfile() as User;
-           
-           set({
-             user,
-             isAuthenticated: true,
-             isLoading: false,
-             error: null,
-           });
-         } catch {
-           // If profile fetch fails, logout user
-           get().logout();
-           set({ isLoading: false });
-         }
-      },
-
-      initializeAuth: async () => {
-        const token = tokenManager.getToken();
-        console.log('🔄 Initializing auth, token exists:', !!token);
-        
-        if (!token) {
-          console.log('❌ No token found, setting unauthenticated state');
-          set({ 
-            isAuthenticated: false, 
-            user: null, 
-            isLoading: false,
-            error: null
-          });
-          return;
-        }
-
         try {
-          set({ isLoading: true, error: null });
-          console.log('📞 Fetching user profile to verify token...');
-          
-          // Verify token is valid by fetching user profile
-          const user = await authApi.getProfile() as User;
-          console.log('✅ Profile fetched successfully:', user);
-          
+          set({ isLoading: true });
+
+          const user = (await authApi.getProfile()) as User;
+
           set({
             user,
             isAuthenticated: true,
             isLoading: false,
             error: null,
           });
-          console.log('✅ Auth initialized successfully');
+        } catch {
+          // If profile fetch fails, logout user
+          get().logout();
+          set({ isLoading: false });
+        }
+      },
+
+      initializeAuth: async () => {
+        const token = tokenManager.getToken();
+
+        if (!token) {
+          set({
+            isAuthenticated: false,
+            user: null,
+            isLoading: false,
+            error: null,
+          });
+          return;
+        }
+
+        try {
+          set({ isLoading: true, error: null });
+
+          // Verify token is valid by fetching user profile
+          const user = (await authApi.getProfile()) as User;
+
+          set({
+            user,
+            isAuthenticated: true,
+            isLoading: false,
+            error: null,
+          });
         } catch (error) {
           // If profile fetch fails, clear auth state and tokens
-          console.error('❌ Auth initialization failed:', error);
+          console.error("❌ Auth initialization failed:", error);
           tokenManager.removeTokens();
-          set({ 
-            isAuthenticated: false, 
-            user: null, 
+          set({
+            isAuthenticated: false,
+            user: null,
             isLoading: false,
-            error: null
+            error: null,
           });
         }
       },
     }),
     {
-      name: 'auth-storage',
+      name: "auth-storage",
       partialize: (state) => ({
         user: state.user,
         isAuthenticated: state.isAuthenticated,
@@ -263,6 +259,7 @@ export const useAuth = () => {
 
 // Helper selectors
 export const useUser = () => useAuthStore((state) => state.user);
-export const useIsAuthenticated = () => useAuthStore((state) => state.isAuthenticated);
+export const useIsAuthenticated = () =>
+  useAuthStore((state) => state.isAuthenticated);
 export const useAuthLoading = () => useAuthStore((state) => state.isLoading);
-export const useAuthError = () => useAuthStore((state) => state.error); 
+export const useAuthError = () => useAuthStore((state) => state.error);

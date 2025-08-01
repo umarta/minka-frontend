@@ -15,6 +15,7 @@ import {
   Tag,
   Filter,
   X,
+  ChevronLeft,
 } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { Input } from "@/components/ui/input";
@@ -34,28 +35,22 @@ import { ContactLabelManager } from "@/components/ContactLabelManager";
 import { useChatStore } from "@/lib/stores/chat";
 import { Conversation, ConversationGroup } from "@/types";
 import { InfiniteConversationList } from "./infinite-conversation-list";
-import {
-  formatDistanceToNow,
-  format,
-  isToday,
-  isYesterday,
-  isThisWeek,
-} from "date-fns";
+import { format, isToday, isYesterday, isThisWeek } from "date-fns";
 import { id } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 export function ContactSidebar() {
+  const router = useRouter();
+
   const {
     conversations,
     chatGroups,
-    loadConversations,
     selectConversation,
     activeContact,
-    searchQuery,
     isLoadingConversations,
     toggleSidebar,
     sidebarCollapsed,
-    selectedGroup,
     loadConversationsByGroup,
     moveConversationToGroup,
     setSelectedGroup,
@@ -67,7 +62,6 @@ export function ContactSidebar() {
   } = useChatStore();
 
   // Tambahkan log debug conversations
-  console.log("ContactSidebar conversations:", conversations);
 
   const [selectedTab, setSelectedTab] = useState<ConversationGroup>("ai_agent");
   const [localSearchQuery, setLocalSearchQuery] = useState("");
@@ -84,23 +78,16 @@ export function ContactSidebar() {
 
   useEffect(() => {
     loadConversationCounts();
-  }, [loadConversationCounts]);
+    loadConversationsByGroup("ai_agent");
+  }, []);
 
   // Load conversations by group when tab changes
   useEffect(() => {
-    console.log("🔄 Tab changed, loading conversations for:", selectedTab);
-    setSelectedGroup(selectedTab); // Ensure store selectedGroup matches UI selectedTab
-    loadConversationsByGroup(selectedTab);
-  }, [selectedTab, loadConversationsByGroup, setSelectedGroup]);
+    setSelectedGroup(selectedTab);
+  }, [selectedTab]);
 
   // Debug: Log when loadMoreConversations is called
   const handleLoadMore = useCallback(() => {
-    console.log("🔄 Load more triggered from UI!");
-    console.log("Current selectedTab:", selectedTab);
-    console.log("Current pagination:", pagination);
-    console.log("Has more:", pagination.hasMore);
-    console.log("Is loading more:", isLoadingMore);
-
     // Ensure we're loading more for the current tab
     loadMoreConversations();
   }, [loadMoreConversations, pagination, isLoadingMore, selectedTab]);
@@ -151,16 +138,6 @@ export function ContactSidebar() {
   const filteredConversations = useMemo(() => {
     // Use conversations directly since we're now loading by group
     let filteredByTab: Conversation[] = conversations;
-
-    console.log("🔍 Filtering conversations:", {
-      selectedTab,
-      conversationsCount: conversations.length,
-      chatGroups: {
-        advisor: chatGroups.advisor?.length || 0,
-        ai_agent: chatGroups.ai_agent?.length || 0,
-        done: chatGroups.done?.length || 0,
-      },
-    });
 
     // Remove duplicates using conversation ID first, then contact ID as fallback
     const uniqueConvs = filteredByTab.filter((conv, index, self) => {
@@ -253,13 +230,6 @@ export function ContactSidebar() {
     setShowFilters(false);
   }, []);
 
-  console.log("Filtered conversations:", filteredConversations);
-  console.log("ChatGroups:", chatGroups);
-  console.log("SelectedTab:", selectedTab);
-  console.log("Conversations count:", conversations.length);
-  console.log("Pagination:", pagination);
-  console.log("Has more:", pagination.hasMore);
-
   // Debug: Check for duplicate keys
   const keys = filteredConversations.map((conv) => conv.id || conv.contact?.id);
   const duplicateKeys = keys.filter(
@@ -304,21 +274,26 @@ export function ContactSidebar() {
         console.log("Delete conversation:", conversation);
         break;
       case "moveToAdvisor":
-        moveConversationToGroup(conversation.id, "advisor");
+        moveConversationToGroup(conversation.id, "advisor").then(() => {
+          setSelectedTab("advisor");
+        });
         break;
       case "moveToAIAgent":
-        moveConversationToGroup(conversation.id, "ai_agent");
+        moveConversationToGroup(conversation.id, "ai_agent").then(() => {
+          setSelectedTab("ai_agent");
+        });
         break;
       case "moveToDone":
-        moveConversationToGroup(conversation.id, "done");
+        moveConversationToGroup(conversation.id, "done").then(() => {
+          setSelectedTab("done");
+        });
         break;
       default:
-        console.log(`Quick action: ${action}`, conversation);
+        return;
     }
   };
 
   const renderConversation = (conversation: Conversation) => {
-    console.log("conversation in renderConversation", conversation);
     const isActive = activeContact?.id === conversation.contact.id;
     const onlineStatus = getOnlineStatus(conversation.contact.last_seen || "");
     const priorityIcon = getPriorityIcon(
@@ -566,7 +541,11 @@ export function ContactSidebar() {
                 ? "text-blue-600 bg-blue-50 border-r-2 border-blue-600"
                 : "text-gray-600 hover:text-gray-900"
             )}
-            onClick={() => setSelectedTab("advisor")}
+            onClick={() => {
+              loadConversationsByGroup("advisor").then(() => {
+                setSelectedTab("advisor");
+              });
+            }}
             title="Advisor"
           >
             AD
@@ -584,7 +563,11 @@ export function ContactSidebar() {
                 ? "text-blue-600 bg-blue-50 border-r-2 border-blue-600"
                 : "text-gray-600 hover:text-gray-900"
             )}
-            onClick={() => setSelectedTab("ai_agent")}
+            onClick={() => {
+              loadConversationsByGroup("ai_agent").then(() => {
+                setSelectedTab("ai_agent");
+              });
+            }}
             title="AI Agent"
           >
             AI
@@ -602,7 +585,11 @@ export function ContactSidebar() {
                 ? "text-blue-600 bg-blue-50 border-r-2 border-blue-600"
                 : "text-gray-600 hover:text-gray-900"
             )}
-            onClick={() => setSelectedTab("done")}
+            onClick={() => {
+              loadConversationsByGroup("done").then(() => {
+                setSelectedTab("done");
+              });
+            }}
             title="Done"
           >
             DN
@@ -639,7 +626,13 @@ export function ContactSidebar() {
     <aside className="flex flex-col h-full max-w-xs bg-white border-r border-gray-200 min-w-[560px]">
       {/* Header */}
       <header className="flex items-center justify-between p-4 border-b border-gray-200">
-        <h2 className="text-lg font-semibold text-gray-900">Percakapan</h2>
+        <div className="flex items-center gap-1">
+          <ChevronLeft
+            onClick={() => router.push("/dashboard")}
+            className="cursor-pointer"
+          />
+          <h2 className="text-lg font-semibold text-gray-900">Percakapan</h2>
+        </div>
 
         <div className="flex items-center gap-2">
           <DropdownMenu>
@@ -701,7 +694,7 @@ export function ContactSidebar() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setShowFilters(!showFilters)}
+                onClick={() => setShowFilters((prev) => !prev)}
                 className={cn(
                   "h-6 w-6 p-0",
                   (selectedLabels.length > 0 || statusFilter !== "all") &&
@@ -764,6 +757,7 @@ export function ContactSidebar() {
                               ? prev.filter((l) => l !== label)
                               : [...prev, label]
                           );
+                          setShowFilters(false);
                         }}
                         className={cn(
                           "text-xs px-2 py-1 rounded-full border transition-colors",
@@ -811,7 +805,15 @@ export function ContactSidebar() {
               ? "text-blue-600 bg-blue-50 border-b-2 border-blue-600"
               : "text-gray-600 hover:text-gray-900"
           )}
-          onClick={() => setSelectedTab("advisor")}
+          onClick={() => {
+            setSelectedTab("advisor");
+            loadConversationsByGroup("advisor").then(() => {
+              setShowFilters(false);
+              setLocalSearchQuery("");
+              setStatusFilter("all");
+              setSelectedLabels([]);
+            });
+          }}
         >
           <div className="flex items-center justify-center gap-1">
             <span>Advisor</span>
@@ -830,7 +832,15 @@ export function ContactSidebar() {
               ? "text-blue-600 bg-blue-50 border-b-2 border-blue-600"
               : "text-gray-600 hover:text-gray-900"
           )}
-          onClick={() => setSelectedTab("ai_agent")}
+          onClick={() => {
+            setSelectedTab("ai_agent");
+            loadConversationsByGroup("ai_agent").then(() => {
+              setShowFilters(false);
+              setLocalSearchQuery("");
+              setStatusFilter("all");
+              setSelectedLabels([]);
+            });
+          }}
         >
           <div className="flex items-center justify-center gap-1">
             <span>AI Agent</span>
@@ -849,7 +859,15 @@ export function ContactSidebar() {
               ? "text-blue-600 bg-blue-50 border-b-2 border-blue-600"
               : "text-gray-600 hover:text-gray-900"
           )}
-          onClick={() => setSelectedTab("done")}
+          onClick={() => {
+            setSelectedTab("done");
+            loadConversationsByGroup("done").then(() => {
+              setShowFilters(false);
+              setLocalSearchQuery("");
+              setStatusFilter("all");
+              setSelectedLabels([]);
+            });
+          }}
         >
           <div className="flex items-center justify-center gap-1">
             <span>Done</span>
@@ -880,10 +898,15 @@ export function ContactSidebar() {
           </div>
         ) : filteredConversations.length > 0 ? (
           <InfiniteConversationList
+            loadConversationsByGroup={() => {
+              loadConversationsByGroup(selectedTab);
+            }}
             conversations={filteredConversations}
             onLoadMore={handleLoadMore}
             hasMore={pagination.hasMore}
             isLoading={isLoadingMore}
+            selectedTab={selectedTab}
+            setSelectedTab={(v) => setSelectedTab(v)}
           />
         ) : (
           <div className="p-8 text-center">
@@ -918,6 +941,11 @@ export function ContactSidebar() {
           contactId={selectedConversationForLabels.contact.id.toString()}
           contactName={selectedConversationForLabels.contact.name}
           isOpen={labelManagerOpen}
+          currentSelectedLabels={selectedConversationForLabels?.labels || []}
+          onLabelsChanged={() => {
+            // Refresh conversation data after label changes
+            loadConversationsByGroup(selectedTab);
+          }}
           onClose={() => {
             setLabelManagerOpen(false);
             setSelectedConversationForLabels(null);

@@ -1,19 +1,25 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { ContactSidebar } from './contact-sidebar';
-import { ChatArea } from './chat-area';
-import { InfoPanel } from './info-panel';
-import TicketHistoryPanel from './ticket-history-panel';
-import { useChatStore, useRightSidebarMode, useSetRightSidebarMode, useRightSidebarVisible, useSidebarCollapsed } from '@/lib/stores/chat';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { toast } from '@/hooks/use-toast';
-import { 
-  Info, 
-  MessageSquare, 
-  History, 
-  ToggleLeft, 
+import { useState, useEffect } from "react";
+import { ContactSidebar } from "./contact-sidebar";
+import { ChatArea } from "./chat-area";
+import { InfoPanel } from "./info-panel";
+import TicketHistoryPanel from "./ticket-history-panel";
+import {
+  useChatStore,
+  useRightSidebarMode,
+  useSetRightSidebarMode,
+  useRightSidebarVisible,
+  useSidebarCollapsed,
+} from "@/lib/stores/chat";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "@/hooks/use-toast";
+import {
+  Info,
+  MessageSquare,
+  History,
+  ToggleLeft,
   ToggleRight,
   Users,
   Bot,
@@ -23,11 +29,11 @@ import {
   X,
   Settings,
   Filter,
-  SortAsc
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Message } from '@/types';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
+  SortAsc,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Message } from "@/types";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 
 function useMediaQuery(query: string) {
   const [matches, setMatches] = useState(false);
@@ -35,16 +41,16 @@ function useMediaQuery(query: string) {
     const media = window.matchMedia(query);
     if (media.matches !== matches) setMatches(media.matches);
     const listener = () => setMatches(media.matches);
-    media.addEventListener('change', listener);
-    return () => media.removeEventListener('change', listener);
+    media.addEventListener("change", listener);
+    return () => media.removeEventListener("change", listener);
   }, [matches, query]);
   return matches;
 }
 
 export function ChatLayout({ children }: { children?: React.ReactNode }) {
-  const { 
-    activeContact, 
-    rightSidebarVisible, 
+  const {
+    activeContact,
+    rightSidebarVisible,
     toggleRightSidebar,
     sidebarCollapsed,
     toggleSidebar,
@@ -58,29 +64,41 @@ export function ChatLayout({ children }: { children?: React.ReactNode }) {
     activeContactConversation,
     ticketEpisodes,
     loadContactConversation,
-    selectTicketEpisode
+    selectTicketEpisode,
   } = useChatStore();
 
   const rightSidebarMode = useRightSidebarMode();
   const setRightSidebarMode = useSetRightSidebarMode();
 
-  const [mobileView, setMobileView] = useState<'sidebar' | 'chat' | 'info' | 'history'>('sidebar');
-  const [rightPanelMode, setRightPanelMode] = useState<'info' | 'history'>('info');
-  
+  const [mobileView, setMobileView] = useState<
+    "sidebar" | "chat" | "info" | "history"
+  >("sidebar");
+  const [rightPanelMode, setRightPanelMode] = useState<"info" | "history">(
+    "info"
+  );
+
   // Enhanced Search State
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Message[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchFilters, setSearchFilters] = useState({
-    messageType: 'all' as 'all' | 'text' | 'image' | 'video' | 'audio' | 'document',
-    dateRange: 'all' as 'all' | 'today' | 'week' | 'month',
-    sender: 'all' as 'all' | 'incoming' | 'outgoing'
+    messageType: "all" as
+      | "all"
+      | "text"
+      | "image"
+      | "video"
+      | "audio"
+      | "document",
+    dateRange: "all" as "all" | "today" | "week" | "month",
+    sender: "all" as "all" | "incoming" | "outgoing",
   });
 
   // Enhanced Message Actions State
   const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
   const [editingMessage, setEditingMessage] = useState<string | null>(null);
-  const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
+  const [forwardingMessage, setForwardingMessage] = useState<Message | null>(
+    null
+  );
 
   // Load conversations when component mounts
   useEffect(() => {
@@ -89,15 +107,13 @@ export function ChatLayout({ children }: { children?: React.ReactNode }) {
 
   // Load contact conversation when active contact changes
   useEffect(() => {
-    console.log('DEBUG useEffect activeContact changed:', activeContact);
     if (activeContact) {
-      console.log('DEBUG calling loadContactConversation with ID:', activeContact.id);
       // Call directly without dependency to avoid infinite loop
       const loadData = async () => {
         try {
           await loadContactConversation(activeContact.id);
         } catch (error) {
-          console.error('Failed to load contact conversation:', error);
+          console.error("Failed to load contact conversation:", error);
         }
       };
       loadData();
@@ -114,7 +130,7 @@ export function ChatLayout({ children }: { children?: React.ReactNode }) {
     }
 
     setIsSearching(true);
-    
+
     // Simulate search API call
     setTimeout(() => {
       // Get all messages from all contact conversations
@@ -122,41 +138,41 @@ export function ChatLayout({ children }: { children?: React.ReactNode }) {
       if (activeContactConversation) {
         allMessages = activeContactConversation.allMessages;
       }
-      
-      const filteredMessages = allMessages.filter(message => {
-        const matchesQuery = message.content.toLowerCase().includes(query.toLowerCase());
-        const matchesType = searchFilters.messageType === 'all' || message.message_type === searchFilters.messageType;
-        const matchesSender = searchFilters.sender === 'all' || message.direction === searchFilters.sender;
-        
+
+      const filteredMessages = allMessages.filter((message) => {
+        const matchesQuery = message.content
+          .toLowerCase()
+          .includes(query.toLowerCase());
+        const matchesType =
+          searchFilters.messageType === "all" ||
+          message.message_type === searchFilters.messageType;
+        const matchesSender =
+          searchFilters.sender === "all" ||
+          message.direction === searchFilters.sender;
+
         return matchesQuery && matchesType && matchesSender;
       });
-      
+
       setSearchResults(filteredMessages);
       setIsSearching(false);
-      
-      console.log('🔍 Search results:', filteredMessages.length, 'messages found for:', query);
     }, 500);
   };
 
   const clearSearch = () => {
-    setSearchQuery('');
+    setSearchQuery("");
     setSearchResults([]);
     setIsSearching(false);
-    console.log('🗑️ Search cleared');
   };
 
   // Enhanced Message Actions
   const handleReact = async (messageId: string, emoji: string) => {
     try {
-      // Simulate reaction API call
-      console.log('✅ Reaction added:', emoji, 'to message:', messageId);
-      
       toast({
         title: "Reaction Added",
         description: `Added ${emoji} reaction to message`,
       });
     } catch (error) {
-      console.error('Failed to add reaction:', error);
+      console.error("Failed to add reaction:", error);
       toast({
         title: "Error",
         description: "Failed to add reaction",
@@ -167,8 +183,7 @@ export function ChatLayout({ children }: { children?: React.ReactNode }) {
 
   const handleEdit = async (messageId: string) => {
     setEditingMessage(messageId);
-    console.log('✏️ Editing message:', messageId);
-    
+
     toast({
       title: "Edit Mode",
       description: "You can now edit this message",
@@ -177,8 +192,7 @@ export function ChatLayout({ children }: { children?: React.ReactNode }) {
 
   const handleReply = (message: Message) => {
     setReplyToMessage(message);
-    console.log('💬 Replying to message:', message.id);
-    
+
     toast({
       title: "Reply Mode",
       description: "Replying to message",
@@ -187,8 +201,7 @@ export function ChatLayout({ children }: { children?: React.ReactNode }) {
 
   const handleForward = (message: Message) => {
     setForwardingMessage(message);
-    console.log('⏩ Forwarding message:', message.id);
-    
+
     toast({
       title: "Forward Mode",
       description: "Select contacts to forward message",
@@ -198,14 +211,13 @@ export function ChatLayout({ children }: { children?: React.ReactNode }) {
   const handleDelete = async (messageId: string) => {
     try {
       // Simulate delete API call
-      console.log('🗑️ Message deleted:', messageId);
-      
+
       toast({
         title: "Message Deleted",
         description: "Message has been deleted successfully",
       });
     } catch (error) {
-      console.error('Failed to delete message:', error);
+      console.error("Failed to delete message:", error);
       toast({
         title: "Error",
         description: "Failed to delete message",
@@ -217,14 +229,13 @@ export function ChatLayout({ children }: { children?: React.ReactNode }) {
   const handleCopy = async (content: string) => {
     try {
       await navigator.clipboard.writeText(content);
-      console.log('📋 Text copied to clipboard');
-      
+
       toast({
         title: "Copied",
         description: "Message copied to clipboard",
       });
     } catch (error) {
-      console.error('Failed to copy text:', error);
+      console.error("Failed to copy text:", error);
       toast({
         title: "Error",
         description: "Failed to copy text",
@@ -234,46 +245,56 @@ export function ChatLayout({ children }: { children?: React.ReactNode }) {
   };
 
   // Mock data for demonstration (replace with real data from store)
-  const mockTicketEpisodes = activeContact ? [
-    {
-      ticket: { id: 1, status: 'OPEN' } as any,
-      messageCount: 12,
-      startDate: new Date().toISOString(),
-      category: 'PERLU_DIBALAS' as const,
-      unreadCount: 3,
-      status: 'OPEN'
-    },
-    {
-      ticket: { id: 2, status: 'CLOSED' } as any,
-      messageCount: 8,
-      startDate: new Date(Date.now() - 86400000).toISOString(),
-      endDate: new Date(Date.now() - 3600000).toISOString(),
-      category: 'SELESAI' as const,
-      unreadCount: 0,
-      status: 'CLOSED'
-    }
-  ] : [];
+  const mockTicketEpisodes = activeContact
+    ? [
+        {
+          ticket: { id: 1, status: "OPEN" } as any,
+          messageCount: 12,
+          startDate: new Date().toISOString(),
+          category: "PERLU_DIBALAS" as const,
+          unreadCount: 3,
+          status: "OPEN",
+        },
+        {
+          ticket: { id: 2, status: "CLOSED" } as any,
+          messageCount: 8,
+          startDate: new Date(Date.now() - 86400000).toISOString(),
+          endDate: new Date(Date.now() - 3600000).toISOString(),
+          category: "SELESAI" as const,
+          unreadCount: 0,
+          status: "CLOSED",
+        },
+      ]
+    : [];
 
   const handleEpisodeSelect = (ticketId: string) => {
     selectTicketEpisode(ticketId);
-    if (mobileView !== 'chat') {
-      setMobileView('chat');
+    if (mobileView !== "chat") {
+      setMobileView("chat");
     }
   };
 
   const handleShowAllMessages = () => {
     if (activeContact) {
       loadContactConversation(activeContact.id);
-      setMobileView('chat');
+      setMobileView("chat");
     }
   };
 
   // Get conversation stats for UI
-  const conversationStats = activeContactConversation ? {
-    perluDibalas: activeContactConversation.ticketEpisodes.filter(ep => ep.category === 'PERLU_DIBALAS').length,
-    otomatis: activeContactConversation.ticketEpisodes.filter(ep => ep.category === 'OTOMATIS').length,
-    selesai: activeContactConversation.ticketEpisodes.filter(ep => ep.category === 'SELESAI').length,
-  } : { perluDibalas: 1, otomatis: 0, selesai: 1 };
+  const conversationStats = activeContactConversation
+    ? {
+        perluDibalas: activeContactConversation.ticketEpisodes.filter(
+          (ep) => ep.category === "PERLU_DIBALAS"
+        ).length,
+        otomatis: activeContactConversation.ticketEpisodes.filter(
+          (ep) => ep.category === "OTOMATIS"
+        ).length,
+        selesai: activeContactConversation.ticketEpisodes.filter(
+          (ep) => ep.category === "SELESAI"
+        ).length,
+      }
+    : { perluDibalas: 1, otomatis: 0, selesai: 1 };
 
   // Enhanced props for ChatArea
   const enhancedChatAreaProps = {
@@ -291,22 +312,22 @@ export function ChatLayout({ children }: { children?: React.ReactNode }) {
     replyToMessage,
     setReplyToMessage,
     editingMessage,
-    setEditingMessage
+    setEditingMessage,
   };
 
-  const isDesktop = useMediaQuery('(min-width: 1024px)');
+  const isDesktop = useMediaQuery("(min-width: 1024px)");
 
   return (
-    <div className="flex h-screen w-full overflow-hidden">
+    <div className="flex w-full h-screen overflow-hidden">
       <ContactSidebar />
-      <div className="flex flex-1 flex-col h-full min-w-0">
+      <div className="flex flex-col flex-1 h-full min-w-0">
         <ChatArea {...enhancedChatAreaProps} />
       </div>
-      <TicketHistoryPanel 
+      <TicketHistoryPanel
         episodes={activeContactConversation?.ticketEpisodes || []}
         onEpisodeSelect={handleEpisodeSelect}
         onShowAllMessages={handleShowAllMessages}
       />
     </div>
   );
-} 
+}
