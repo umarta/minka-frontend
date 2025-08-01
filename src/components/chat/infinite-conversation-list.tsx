@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useChat, useChatStore } from "@/lib/stores/chat";
 import { Conversation, ConversationGroup } from "@/types";
 import { ConversationItem } from "./conversation-item";
 import { ContactLabelManager } from "@/components/ContactLabelManager";
@@ -11,6 +10,7 @@ interface InfiniteConversationListProps {
   isLoading: boolean;
   selectedTab?: ConversationGroup;
   setSelectedTab?: (tab: ConversationGroup) => void;
+  loadConversationsByGroup: () => void;
 }
 
 export const InfiniteConversationList: React.FC<
@@ -22,6 +22,7 @@ export const InfiniteConversationList: React.FC<
   isLoading,
   selectedTab,
   setSelectedTab,
+  loadConversationsByGroup,
 }) => {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadingRef = useRef<HTMLDivElement>(null);
@@ -106,8 +107,6 @@ export const InfiniteConversationList: React.FC<
     );
   }
 
-  console.log(selectedConversationForLabels, "selectedConversationForLabels");
-
   return (
     <div className="space-y-1">
       {conversations.map((conversation, index) => {
@@ -153,12 +152,7 @@ export const InfiniteConversationList: React.FC<
           isOpen={labelManagerOpen}
           currentSelectedLabels={selectedConversationForLabels?.labels || []}
           onLabelsChanged={() => {
-            // Ideally should refresh parent conversation data
-            // This would need to be passed down from parent component
-            console.log(
-              "Labels changed for conversation:",
-              selectedConversationForLabels.contact.name
-            );
+            loadConversationsByGroup();
           }}
           onClose={() => {
             setLabelManagerOpen(false);

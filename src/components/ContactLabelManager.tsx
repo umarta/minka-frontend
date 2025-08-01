@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { X, Plus, Search, Tag } from "lucide-react";
 import { useChatStore } from "@/lib/stores/chat";
+import { ConversationGroup } from "@/types";
 
 interface ContactLabelManagerProps {
   isOpen: boolean;

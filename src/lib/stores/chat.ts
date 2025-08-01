@@ -1904,8 +1904,6 @@ export const useChatStore = create<ChatStore>()(
           hasNext,
         } = await conversationsApi.getByGroup(group, page, limit);
 
-        console.log(conversations, "conversations");
-
         // Smart data management: only replace on page 1, append for load more
         const currentConversations = get().conversations;
         let newConversations: Conversation[];

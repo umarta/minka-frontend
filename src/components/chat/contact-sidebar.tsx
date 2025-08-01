@@ -898,6 +898,9 @@ export function ContactSidebar() {
           </div>
         ) : filteredConversations.length > 0 ? (
           <InfiniteConversationList
+            loadConversationsByGroup={() => {
+              loadConversationsByGroup(selectedTab);
+            }}
             conversations={filteredConversations}
             onLoadMore={handleLoadMore}
             hasMore={pagination.hasMore}
