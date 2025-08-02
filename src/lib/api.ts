@@ -1009,7 +1009,7 @@ export const messagesApi = {
 
   markAsRead: async (ticketId: string) => {
     try {
-      const response = await api.put(`/messages/ticket/${ticketId}/read-all`);
+      const response = await api.put(`/messages/contact/${ticketId}/read-all`);
       return handleSingleResponse<any>(response);
     } catch (error) {
       handleApiError(error as AxiosError<ApiResponse>);

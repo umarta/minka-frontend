@@ -245,7 +245,7 @@ interface ChatActions {
   sendMessage: (data: MessageForm) => Promise<void>;
   addMessage: (message: Message) => void;
   updateMessage: (messageId: string, updates: Partial<Message>) => void;
-  markMessagesAsRead: (ticketId: string) => void;
+  markMessagesAsRead: (contactId: string) => void;
 
   // Quick Reply Templates
   loadQuickReplyTemplates: () => Promise<void>;
@@ -1228,24 +1228,23 @@ export const useChatStore = create<ChatStore>()(
       });
     },
 
-    markMessagesAsRead: async (ticketId: string) => {
+    markMessagesAsRead: async (contactId: string) => {
       try {
         // Mark messages as read in the backend
-        await messagesApi.markAsRead(ticketId);
+        await messagesApi.markAsRead(contactId);
 
-        // Update local state
+        // Update local state - mark all messages for this contact as read
         set((state) => ({
-          messages: {
-            ...state.messages,
-            [ticketId]:
-              state.messages[ticketId]?.map((msg) =>
-                msg.direction === "incoming" && !msg.read_at
-                  ? { ...msg, read_at: new Date().toISOString() }
-                  : msg
-              ) || [],
+          contactMessages: {
+            ...state.contactMessages,
+            [contactId]: state.contactMessages[contactId]?.map((msg) =>
+              msg.direction === "incoming" && !msg.read_at
+                ? { ...msg, read_at: new Date().toISOString() }
+                : msg
+            ) || [],
           },
           conversations: state.conversations.map((conv) =>
-            conv.active_ticket?.id?.toString() === ticketId
+            conv.contact.id?.toString() === contactId
               ? { ...conv, unread_count: 0 }
               : conv
           ),

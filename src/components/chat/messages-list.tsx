@@ -105,10 +105,10 @@ export function MessagesList({ contactId }: MessagesListProps) {
 
   // Mark messages as read when component mounts or ticket changes
   useEffect(() => {
-    if (activeTicket && displayMessages.length > 0) {
-      markMessagesAsRead(activeTicket.id.toString());
+    if (activeContact && displayMessages.length > 0) {
+      markMessagesAsRead(activeContact.id.toString());
     }
-  }, [activeTicket, markMessagesAsRead, displayMessages.length]);
+  }, [activeContact, markMessagesAsRead, displayMessages.length]);
 
   // Update hasLoadedMessages when messages are loaded
   useEffect(() => {

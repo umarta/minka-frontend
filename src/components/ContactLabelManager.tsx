@@ -97,6 +97,16 @@ export const ContactLabelManager = ({
     });
   };
 
+  const handleLabelChange = (label: Label) => {
+    if (label.isSelected) {
+      setPendingLabelIds((prev) => [...prev, label.id]);
+    } else {
+      setPendingLabelIds((prev) => prev.filter((id) => id !== label.id));
+    }
+
+    console.log("pendingLabelIds", pendingLabelIds);
+  };
+
   const handleCreateLabel = async () => {
     if (!newLabelName.trim()) return;
     setIsSubmittingLabel(true);
@@ -130,12 +140,17 @@ export const ContactLabelManager = ({
         (id) => !pendingLabelIds.includes(id)
       );
 
+      console.log("labelsToRemove", labelsToRemove);
+      console.log("labelsToAdd", labelsToAdd);
+
+
       // Execute API calls
       if (labelsToAdd.length > 0) {
         await addLabelsToConversation(contactId, labelsToAdd);
       }
 
       if (labelsToRemove.length > 0) {
+        console.log("removing labels", labelsToRemove);
         await removeLabelsFromConversation(contactId, labelsToRemove);
       }
 
@@ -352,7 +367,7 @@ export const ContactLabelManager = ({
               </button>
               <button
                 onClick={handleSaveChanges}
-                disabled={isSaving || pendingLabelIds.length === 0}
+                disabled={isSaving}
                 className="px-4 py-2 text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSaving ? "Saving..." : "Done"}
