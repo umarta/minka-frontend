@@ -1237,11 +1237,12 @@ export const useChatStore = create<ChatStore>()(
         set((state) => ({
           contactMessages: {
             ...state.contactMessages,
-            [contactId]: state.contactMessages[contactId]?.map((msg) =>
-              msg.direction === "incoming" && !msg.read_at
-                ? { ...msg, read_at: new Date().toISOString() }
-                : msg
-            ) || [],
+            [contactId]:
+              state.contactMessages[contactId]?.map((msg) =>
+                msg.direction === "incoming" && !msg.read_at
+                  ? { ...msg, read_at: new Date().toISOString() }
+                  : msg
+              ) || [],
           },
           conversations: state.conversations.map((conv) =>
             conv.contact.id?.toString() === contactId
@@ -1732,8 +1733,8 @@ export const useChatStore = create<ChatStore>()(
     // Conversation Label Management
     addLabelsToConversation: async (conversationId, labelIds) => {
       try {
-        await conversationsApi.addLabels(conversationId, labelIds);
-        // Update local state
+        const res = await conversationsApi.addLabels(conversationId, labelIds);
+
         const labels = get().labels.filter((label) =>
           labelIds.includes(label.id)
         );
@@ -1747,9 +1748,24 @@ export const useChatStore = create<ChatStore>()(
           },
         });
 
-        // Refresh conversation data to show updated labels
-        // await get().loadConversations();
-        get().groupConversations();
+        if (res && res.labels && res.labels.length > 0) {
+          set((state) => ({
+            conversations: state.conversations.map((conv) => {
+              const matchesConversationId =
+                conv.id?.toString() === conversationId.toString();
+              const matchesContactId =
+                conv.contact?.id?.toString() === conversationId.toString();
+
+              if (matchesConversationId || matchesContactId) {
+                return {
+                  ...conv,
+                  labels: res.labels || conv.labels,
+                };
+              }
+              return conv;
+            }),
+          }));
+        }
       } catch (error) {
         console.error("Failed to add labels to conversation:", error);
         set({ error: "Failed to add labels to conversation" });
@@ -1758,8 +1774,11 @@ export const useChatStore = create<ChatStore>()(
 
     removeLabelsFromConversation: async (conversationId, labelIds) => {
       try {
-        await conversationsApi.removeLabels(conversationId, labelIds);
-        // Update local state
+        const res = await conversationsApi.removeLabels(
+          conversationId,
+          labelIds
+        );
+
         const currentLabels = get().conversationLabels[conversationId] || [];
         const updatedLabels = currentLabels.filter(
           (label) => !labelIds.includes(label.id)
@@ -1771,9 +1790,24 @@ export const useChatStore = create<ChatStore>()(
           },
         });
 
-        // Refresh conversation data to show updated labels
-        await get().loadConversations();
-        get().groupConversations();
+        if (res && res.labels !== undefined) {
+          set((state) => ({
+            conversations: state.conversations.map((conv) => {
+              const matchesConversationId =
+                conv.id?.toString() === conversationId.toString();
+              const matchesContactId =
+                conv.contact?.id?.toString() === conversationId.toString();
+
+              if (matchesConversationId || matchesContactId) {
+                return {
+                  ...conv,
+                  labels: res.labels || [],
+                };
+              }
+              return conv;
+            }),
+          }));
+        }
       } catch (error) {
         console.error("Failed to remove labels from conversation:", error);
         set({ error: "Failed to remove labels from conversation" });
@@ -2148,20 +2182,24 @@ if (ws && typeof window !== "undefined") {
 
   if (!window.__wsMessageReceivedHandler) {
     window.__wsMessageReceivedHandler = (data: any) => {
-      console.log('[WS] message_received event:', data);
-      
+      console.log("[WS] message_received event:", data);
+
       // Get current state to check selectedGroup
       const currentState = useChatStore.getState();
       const currentTab = currentState.selectedGroup;
-      
+
       // Check if the data.tab matches current tab (if tab is provided)
       if (data.tab && data.tab !== currentTab) {
-        console.log(`[WS] Ignoring message_received for tab ${data.tab}, current tab is ${currentTab}`);
+        console.log(
+          `[WS] Ignoring message_received for tab ${data.tab}, current tab is ${currentTab}`
+        );
         return;
       }
-      
-      console.log(`[WS] Processing message_received for matching tab: ${data.tab || 'no tab specified'}`);
-      
+
+      console.log(
+        `[WS] Processing message_received for matching tab: ${data.tab || "no tab specified"}`
+      );
+
       const message = {
         id: (data.message_id || data.id || Date.now()).toString(),
         ticket_id: (
@@ -2243,21 +2281,25 @@ if (ws && typeof window !== "undefined") {
     console.log("[WS] qr_code_update event:", data);
     // Optionally update QR code state
   });
-  ws.on('conversation_updated', (data) => {
-    console.log('[WS] conversation_updated event:', data);
-    
+  ws.on("conversation_updated", (data) => {
+    console.log("[WS] conversation_updated event:", data);
+
     // Get current state to check selectedGroup
     const currentState = useChatStore.getState();
     const currentTab = currentState.selectedGroup;
-    
+
     // Check if the data.tab matches current tab
     if (data.tab !== currentTab) {
-      console.log(`[WS] Ignoring conversation_updated for tab ${data.tab}, current tab is ${currentTab}`);
+      console.log(
+        `[WS] Ignoring conversation_updated for tab ${data.tab}, current tab is ${currentTab}`
+      );
       return;
     }
-    
-    console.log(`[WS] Processing conversation_updated for matching tab: ${data.tab}`);
-    
+
+    console.log(
+      `[WS] Processing conversation_updated for matching tab: ${data.tab}`
+    );
+
     // Update or insert conversation in state and move to top
     useChatStore.setState((state) => {
       const idx = state.conversations.findIndex(

@@ -1,7 +1,7 @@
 import React, { useCallback, memo } from "react";
 import { Conversation, ConversationGroup } from "@/types";
 import { useChat, useChatStore } from "@/lib/stores/chat";
-import { formatDistanceToNow, format, set } from "date-fns";
+import { format, isToday } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ConversationUnreadBadge } from "@/components/UnreadCountBadge";
 import { LabelBadgeInline } from "@/components/LabelBadgeDisplay";
-import { ConversationStatusDot } from "@/components/ConversationStatusIndicator";
 import {
   MoreVertical,
   CheckCheck,
@@ -79,6 +78,15 @@ export const ConversationItem = memo<ConversationItemProps>(
       conversation.unread_count
     );
 
+    const getTimeDisplay = (dateString: string) => {
+      const date = new Date(dateString);
+      if (isToday(date)) {
+        return format(date, "H:mm");
+      } else {
+        return format(date, "dd/MM/yyyy");
+      }
+    };
+
     return (
       <div
         className={cn(
@@ -116,10 +124,9 @@ export const ConversationItem = memo<ConversationItemProps>(
             </div>
             <div className="flex items-center flex-shrink-0 gap-2">
               <span className="text-xs text-gray-500">
-                {format(
-                  conversation.last_activity || conversation.updated_at,
-                  "H:mm"
-                )}{" "}
+                {getTimeDisplay(
+                  conversation.last_activity || conversation.updated_at
+                )}
               </span>
 
               {/* Quick actions menu */}

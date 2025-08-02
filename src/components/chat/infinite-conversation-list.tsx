@@ -10,7 +10,6 @@ interface InfiniteConversationListProps {
   isLoading: boolean;
   selectedTab?: ConversationGroup;
   setSelectedTab?: (tab: ConversationGroup) => void;
-  loadConversationsByGroup: () => void;
 }
 
 export const InfiniteConversationList: React.FC<
@@ -22,7 +21,6 @@ export const InfiniteConversationList: React.FC<
   isLoading,
   selectedTab,
   setSelectedTab,
-  loadConversationsByGroup,
 }) => {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadingRef = useRef<HTMLDivElement>(null);
@@ -151,9 +149,6 @@ export const InfiniteConversationList: React.FC<
           contactName={selectedConversationForLabels.contact.name}
           isOpen={labelManagerOpen}
           currentSelectedLabels={selectedConversationForLabels?.labels || []}
-          onLabelsChanged={() => {
-            loadConversationsByGroup();
-          }}
           onClose={() => {
             setLabelManagerOpen(false);
             setSelectedConversationForLabels(null);

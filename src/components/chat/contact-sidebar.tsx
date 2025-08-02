@@ -61,6 +61,8 @@ export function ContactSidebar() {
     loadMoreConversations,
   } = useChatStore();
 
+  console.log(pagination, "pagination");
+
   // Tambahkan log debug conversations
 
   const [selectedTab, setSelectedTab] = useState<ConversationGroup>("ai_agent");
@@ -101,20 +103,6 @@ export function ContactSidebar() {
       .slice(0, 2);
   };
 
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-
-    if (isToday(date)) {
-      return format(date, "HH:mm");
-    } else if (isYesterday(date)) {
-      return "Kemarin";
-    } else if (isThisWeek(date)) {
-      return format(date, "EEEE", { locale: id });
-    } else {
-      return format(date, "dd/MM/yyyy");
-    }
-  };
-
   const getOnlineStatus = (lastSeen: string) => {
     const lastSeenDate = new Date(lastSeen);
     const now = new Date();
@@ -133,6 +121,8 @@ export function ContactSidebar() {
       return <span className="text-red-500">🚨</span>;
     return null;
   };
+
+  console.log(conversations, "conversations in sidebar");
 
   // Enhanced search and filtering logic
   const filteredConversations = useMemo(() => {
@@ -222,6 +212,15 @@ export function ContactSidebar() {
     return Array.from(labels);
   }, [conversations]);
 
+  const getTimeDisplay = (dateString: string) => {
+    const date = new Date(dateString);
+    if (isToday(date)) {
+      return format(date, "H:mm");
+    } else {
+      return format(date, "dd/MM/yyyy");
+    }
+  };
+
   // Clear all filters
   const clearFilters = useCallback(() => {
     setLocalSearchQuery("");
@@ -229,21 +228,6 @@ export function ContactSidebar() {
     setStatusFilter("all");
     setShowFilters(false);
   }, []);
-
-  // Debug: Check for duplicate keys
-  const keys = filteredConversations.map((conv) => conv.id || conv.contact?.id);
-  const duplicateKeys = keys.filter(
-    (key, index) => keys.indexOf(key) !== index
-  );
-  if (duplicateKeys.length > 0) {
-    console.warn("Duplicate keys found:", duplicateKeys);
-    console.warn(
-      "Conversations with duplicate keys:",
-      filteredConversations.filter((conv) =>
-        duplicateKeys.includes(conv.id || conv.contact?.id)
-      )
-    );
-  }
 
   const handleQuickAction = (
     e: React.MouseEvent,
@@ -340,7 +324,9 @@ export function ContactSidebar() {
               </div>
               <div className="flex items-center flex-shrink-0 gap-2">
                 <span className="text-xs text-gray-500">
-                  {formatTime(conversation.last_activity)}
+                  {getTimeDisplay(
+                    conversation.last_activity || conversation.updated_at
+                  )}
                 </span>
 
                 {/* Quick actions menu */}
@@ -898,9 +884,6 @@ export function ContactSidebar() {
           </div>
         ) : filteredConversations.length > 0 ? (
           <InfiniteConversationList
-            loadConversationsByGroup={() => {
-              loadConversationsByGroup(selectedTab);
-            }}
             conversations={filteredConversations}
             onLoadMore={handleLoadMore}
             hasMore={pagination.hasMore}
@@ -942,10 +925,6 @@ export function ContactSidebar() {
           contactName={selectedConversationForLabels.contact.name}
           isOpen={labelManagerOpen}
           currentSelectedLabels={selectedConversationForLabels?.labels || []}
-          onLabelsChanged={() => {
-            // Refresh conversation data after label changes
-            loadConversationsByGroup(selectedTab);
-          }}
           onClose={() => {
             setLabelManagerOpen(false);
             setSelectedConversationForLabels(null);

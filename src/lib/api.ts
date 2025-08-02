@@ -1731,7 +1731,7 @@ export const conversationsApi = {
   // Add labels to conversation
   addLabels: async (id: string, labelIds: string[]) => {
     try {
-      const response = await api.post(`/conversations/${id}/labels`, {
+      const response = await api.patch(`/conversations/${id}/labels`, {
         label_ids: labelIds,
       });
       return handleSingleResponse<any>(response);

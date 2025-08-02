@@ -35,7 +35,6 @@ export const ContactLabelManager = ({
     loadLabels,
     createLabel,
     addLabelsToConversation,
-    removeLabelsFromConversation,
   } = useChatStore();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -97,16 +96,6 @@ export const ContactLabelManager = ({
     });
   };
 
-  const handleLabelChange = (label: Label) => {
-    if (label.isSelected) {
-      setPendingLabelIds((prev) => [...prev, label.id]);
-    } else {
-      setPendingLabelIds((prev) => prev.filter((id) => id !== label.id));
-    }
-
-    console.log("pendingLabelIds", pendingLabelIds);
-  };
-
   const handleCreateLabel = async () => {
     if (!newLabelName.trim()) return;
     setIsSubmittingLabel(true);
@@ -132,36 +121,14 @@ export const ContactLabelManager = ({
   const handleSaveChanges = async () => {
     setIsSaving(true);
     try {
-      // Bandingkan current labels dengan pending labels
-      const labelsToAdd = pendingLabelIds.filter(
-        (id) => !currentLabelIds.includes(id)
-      );
-      const labelsToRemove = currentLabelIds.filter(
-        (id) => !pendingLabelIds.includes(id)
-      );
+      await addLabelsToConversation(contactId, pendingLabelIds);
 
-      console.log("labelsToRemove", labelsToRemove);
-      console.log("labelsToAdd", labelsToAdd);
-
-
-      // Execute API calls
-      if (labelsToAdd.length > 0) {
-        await addLabelsToConversation(contactId, labelsToAdd);
-      }
-
-      if (labelsToRemove.length > 0) {
-        console.log("removing labels", labelsToRemove);
-        await removeLabelsFromConversation(contactId, labelsToRemove);
-      }
-
-      // Callback untuk refresh data - penting untuk update parent component
       if (onLabelsChanged) {
         onLabelsChanged();
       }
 
       onClose();
     } catch (error) {
-      console.error("Failed to save label changes:", error);
     } finally {
       setIsSaving(false);
     }
