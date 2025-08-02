@@ -241,7 +241,7 @@ export const ConversationItem = memo<ConversationItemProps>(
               <ConversationUnreadBadge conversation={conversation} />
 
               {/* Status indicators */}
-              <ConversationStatusDot status={conversation.status} />
+              {/* <ConversationStatusDot status={conversation.status} /> */}
               {conversation.active_ticket?.priority === "urgent" && (
                 <Circle className="w-2 h-2 text-red-500 fill-red-500" />
               )}
