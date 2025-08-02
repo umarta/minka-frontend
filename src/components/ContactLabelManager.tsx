@@ -161,8 +161,6 @@ export const ContactLabelManager = ({
     JSON.stringify([...pendingLabelIds].sort()) !==
     JSON.stringify([...currentLabelIds].sort());
 
-  console.log(pendingLabelIds, "pendingLabelIds");
-
   const predefinedColors = [
     "#3b82f6", // blue
     "#10b981", // green
@@ -354,7 +352,7 @@ export const ContactLabelManager = ({
               </button>
               <button
                 onClick={handleSaveChanges}
-                disabled={isSaving || !hasUnsavedChanges}
+                disabled={isSaving || pendingLabelIds.length === 0}
                 className="px-4 py-2 text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSaving ? "Saving..." : "Done"}

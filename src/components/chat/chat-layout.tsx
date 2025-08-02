@@ -323,11 +323,11 @@ export function ChatLayout({ children }: { children?: React.ReactNode }) {
       <div className="flex flex-col flex-1 h-full min-w-0">
         <ChatArea {...enhancedChatAreaProps} />
       </div>
-      <TicketHistoryPanel
+      {/* <TicketHistoryPanel
         episodes={activeContactConversation?.ticketEpisodes || []}
         onEpisodeSelect={handleEpisodeSelect}
         onShowAllMessages={handleShowAllMessages}
-      />
+      /> */}
     </div>
   );
 }
