@@ -399,7 +399,7 @@ EOF
                             
                             helm upgrade --install ${helmRelease} ./k3s-repo/config/helm/minka-frontend \
                                 -f ${valuesFile} \
-                                --set image.tag=${params.ENVIRONMENT} \
+                                --set image.tag=${imageTag} \
                                 --set image.repository=gcr.io/${GCR_PROJECT}/${IMAGE_NAME} \
                                 --set imagePullSecrets.create=true \
                                 --set namespace.create=false \
@@ -439,7 +439,7 @@ EOF
                 echo """
                     ✅ ${params.ENVIRONMENT} Deployment to Kubernetes successful!
                     • Application: ${IMAGE_NAME}
-                    • Environment: ${params.ENVIRONMENT}
+                    • Environment: ${env.GIT_COMMIT.take(7)}
                     • Platform: Kubernetes
                     • Namespace: ${getEnvironmentConfig(params.ENVIRONMENT).namespace}
                     • Image: gcr.io/${GCR_PROJECT}/${IMAGE_NAME}:${env.GIT_COMMIT.take(7)}
@@ -454,7 +454,7 @@ EOF
                 echo """
                     ❌ ${params.ENVIRONMENT} Deployment to Kubernetes failed!
                     • Application: ${IMAGE_NAME}
-                    • Environment: ${params.ENVIRONMENT}
+                    • Environment: ${env.GIT_COMMIT.take(7)}
                     • Platform: Kubernetes
                     • Namespace: ${getEnvironmentConfig(params.ENVIRONMENT).namespace}
                     • Image: gcr.io/${GCR_PROJECT}/${IMAGE_NAME}:${env.GIT_COMMIT.take(7)}
