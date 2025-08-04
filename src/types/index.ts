@@ -22,7 +22,7 @@ export interface User extends BaseEntity {
   profile_image?: string;
 }
 
-export type UserRole = 'super_admin' | 'admin' | 'agent' | 'viewer';
+export type UserRole = "super_admin" | "admin" | "agent" | "viewer";
 
 export interface LoginCredentials {
   username: string;
@@ -53,7 +53,7 @@ export interface Contact extends BaseEntity {
   metadata?: Record<string, any>;
   profile_picture_url?: string; // From backend
   wa_id?: string;
-  
+
   // Takeover fields
   is_takeover_by_admin?: boolean;
   takeover_at?: string;
@@ -61,7 +61,6 @@ export interface Contact extends BaseEntity {
   auto_reply_enabled?: boolean;
   last_admin_message_at?: string;
   takeover_admin?: User;
-
 }
 
 export interface Label extends BaseEntity {
@@ -79,7 +78,7 @@ export interface Message extends BaseEntity {
   message_type: MessageType;
   direction: MessageDirection;
   status: MessageStatus;
-  
+
   // Media & File properties
   media_url?: string;
   media_type?: string;
@@ -90,44 +89,44 @@ export interface Message extends BaseEntity {
   file_size?: number;
   file_type?: string;
   thumbnail_url?: string;
-  
+
   // Audio/Video specific
   duration?: number;
   waveform?: number[]; // For audio visualization
   resolution?: string; // For images/videos
-  
+
   // Location specific
   location_lat?: number;
   location_lng?: number;
   location_address?: string;
   business_name?: string;
   operating_hours?: string;
-  
+
   // Payment specific
   payment_amount?: number;
   payment_currency?: string;
   payment_invoice_id?: string;
-  payment_status?: 'pending' | 'paid' | 'failed' | 'cancelled';
+  payment_status?: "pending" | "paid" | "failed" | "cancelled";
   payment_description?: string;
-  
+
   // Link preview
   link_preview?: LinkPreview;
-  
+
   // Timestamps
   read_at?: string;
   delivered_at?: string;
   edited_at?: string;
-  
+
   // Threading & Replies
   reply_to_message_id?: string;
   replied_to_id?: string;
   quoted_message?: Message;
   thread_count?: number;
-  
+
   // Forwarding
   forwarded_from_id?: string;
   forwarded_from?: Message;
-  
+
   // Interactive Features
   reactions?: MessageReaction[];
   read_by?: MessageReadReceipt[];
@@ -135,10 +134,10 @@ export interface Message extends BaseEntity {
   can_delete?: boolean;
   can_forward?: boolean;
   can_reply?: boolean;
-  
+
   // External IDs
   waha_message_id?: string;
-  
+
   // Sender information
   sender_id?: string;
   sender?: {
@@ -151,26 +150,31 @@ export interface Message extends BaseEntity {
   };
   sender_name?: string;
   sender_avatar?: string;
-  
+
   // Metadata
   metadata?: Record<string, any>;
   edit_history?: EditHistory[];
 }
 
 // Enhanced Message Types (9 types)
-export type MessageType = 
-  | 'text'      // Text with mentions, links, formatting
-  | 'audio'     // Voice messages with waveform
-  | 'image'     // Images with metadata and preview
-  | 'video'     // Videos with player and thumbnails
-  | 'document'  // Files, PDFs, office docs
-  | 'location'  // GPS coordinates with business info
-  | 'payment'   // Payment invoices and links
-  | 'link'      // Rich link previews
-  | 'system';   // System notifications
+export type MessageType =
+  | "text" // Text with mentions, links, formatting
+  | "audio" // Voice messages with waveform
+  | "image" // Images with metadata and preview
+  | "video" // Videos with player and thumbnails
+  | "document" // Files, PDFs, office docs
+  | "location" // GPS coordinates with business info
+  | "payment" // Payment invoices and links
+  | "link" // Rich link previews
+  | "system"; // System notifications
 
-export type MessageDirection = 'incoming' | 'outgoing';
-export type MessageStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
+export type MessageDirection = "incoming" | "outgoing";
+export type MessageStatus =
+  | "pending"
+  | "sent"
+  | "delivered"
+  | "read"
+  | "failed";
 
 // Interactive Message Features
 export interface MessageReaction {
@@ -215,7 +219,7 @@ export interface MessageInputFeatures {
   // Search Integration
   inChatSearch: boolean;
   messageFilters: boolean;
-  
+
   // File Upload
   fileUpload: {
     photos: boolean;
@@ -227,7 +231,7 @@ export interface MessageInputFeatures {
     dragAndDrop: boolean;
     progressIndicators: boolean;
   };
-  
+
   // Voice Recording
   voiceRecording: {
     waveformVisualization: boolean;
@@ -235,14 +239,14 @@ export interface MessageInputFeatures {
     playbackPreview: boolean;
     noiseReduction: boolean;
   };
-  
+
   // Smart Features
   emojiPicker: boolean;
   quickReplyTemplates: boolean;
   autoSaveDrafts: boolean;
   typingIndicators: boolean;
   mentionSupport: boolean;
-  
+
   // Advanced Features
   paymentLinkGenerator: boolean;
   linkPreview: boolean;
@@ -275,39 +279,58 @@ export interface FileUploadProgress {
   fileId: string;
   fileName: string;
   progress: number; // 0-100
-  status: 'uploading' | 'processing' | 'complete' | 'error';
+  status: "uploading" | "processing" | "complete" | "error";
   error?: string;
 }
 
 // Enhanced WebSocket Events
 export interface EnhancedWebSocketEvents {
   // Message Events
-  'message:received': (data: Message) => void;
-  'message:delivered': (data: { messageId: string; deliveredAt: string }) => void;
-  'message:read': (data: { messageId: string; readBy: string; readAt: string }) => void;
-  'message:edited': (data: { messageId: string; newContent: string; editedAt: string }) => void;
-  'message:deleted': (data: { messageId: string; deletedAt: string }) => void;
-  
+  "message:received": (data: Message) => void;
+  "message:delivered": (data: {
+    messageId: string;
+    deliveredAt: string;
+  }) => void;
+  "message:read": (data: {
+    messageId: string;
+    readBy: string;
+    readAt: string;
+  }) => void;
+  "message:edited": (data: {
+    messageId: string;
+    newContent: string;
+    editedAt: string;
+  }) => void;
+  "message:deleted": (data: { messageId: string; deletedAt: string }) => void;
+
   // Interaction Events
-  'reaction:added': (data: { messageId: string; emoji: string; user: string }) => void;
-  'reaction:removed': (data: { messageId: string; emoji: string; user: string }) => void;
-  
+  "reaction:added": (data: {
+    messageId: string;
+    emoji: string;
+    user: string;
+  }) => void;
+  "reaction:removed": (data: {
+    messageId: string;
+    emoji: string;
+    user: string;
+  }) => void;
+
   // Typing Events
-  'typing:start': (data: { contactId: string; user: string }) => void;
-  'typing:stop': (data: { contactId: string; user: string }) => void;
-  
+  "typing:start": (data: { contactId: string; user: string }) => void;
+  "typing:stop": (data: { contactId: string; user: string }) => void;
+
   // Presence Events
-  'presence:online': (data: { contactId: string; lastSeen: string }) => void;
-  'presence:offline': (data: { contactId: string; lastSeen: string }) => void;
-  
+  "presence:online": (data: { contactId: string; lastSeen: string }) => void;
+  "presence:offline": (data: { contactId: string; lastSeen: string }) => void;
+
   // File Events
-  'file:upload:progress': (data: FileUploadProgress) => void;
-  'file:upload:complete': (data: { fileId: string; url: string }) => void;
-  'file:upload:error': (data: { fileId: string; error: string }) => void;
-  
+  "file:upload:progress": (data: FileUploadProgress) => void;
+  "file:upload:complete": (data: { fileId: string; url: string }) => void;
+  "file:upload:error": (data: { fileId: string; error: string }) => void;
+
   // Draft Events
-  'draft:saved': (data: { contactId: string; content: string }) => void;
-  'draft:restored': (data: { contactId: string; content: string }) => void;
+  "draft:saved": (data: { contactId: string; content: string }) => void;
+  "draft:restored": (data: { contactId: string; content: string }) => void;
 }
 
 // Session types
@@ -333,7 +356,17 @@ export interface Session extends BaseEntity {
   messages_received?: number;
 }
 
-export type SessionStatus = 'STARTING' | 'SCAN_QR_CODE' | 'WORKING' | 'FAILED' | 'STOPPED' | 'starting' | 'scan_qr_code' | 'working' | 'failed' | 'stopped';
+export type SessionStatus =
+  | "STARTING"
+  | "SCAN_QR_CODE"
+  | "WORKING"
+  | "FAILED"
+  | "STOPPED"
+  | "starting"
+  | "scan_qr_code"
+  | "working"
+  | "failed"
+  | "stopped";
 
 export interface SessionConfig {
   webhook_url?: string;
@@ -376,8 +409,13 @@ export interface Ticket extends BaseEntity {
   messages?: Message[];
 }
 
-export type TicketStatus = 'open' | 'in_progress' | 'pending' | 'resolved' | 'closed';
-export type TicketPriority = 'low' | 'normal' | 'high' | 'urgent';
+export type TicketStatus =
+  | "open"
+  | "in_progress"
+  | "pending"
+  | "resolved"
+  | "closed";
+export type TicketPriority = "low" | "normal" | "high" | "urgent";
 
 // Enhanced Conversation Management
 export interface Conversation {
@@ -391,32 +429,32 @@ export interface Conversation {
   tickets?: Ticket[];
   created_at: string;
   updated_at: string;
-  
+
   // Enriched fields from backend
   unread_count: number;
   status: ConversationStatus;
   last_activity: string;
-  priority?: 'urgent' | 'high' | 'normal' | 'low';
-  online_status?: 'online' | 'recent' | 'offline';
+  priority?: "urgent" | "high" | "normal" | "low";
+  online_status?: "online" | "recent" | "offline";
   labels: Label[];
   assigned_to?: User;
   active_ticket?: Ticket;
-  
+
   // Enhanced features
   ticket_episodes?: TicketEpisode[];
   contact_notes?: ContactNote[];
-  
+
   // Group management
-  conversation_group?: 'advisor' | 'ai_agent' | 'done';
+  conversation_group?: "advisor" | "ai_agent" | "done";
 }
 
-export type ConversationStatus = 'active' | 'pending' | 'resolved' | 'closed';
+export type ConversationStatus = "active" | "pending" | "resolved" | "closed";
 
 // Conversation Groups
-export type ConversationGroup = 'advisor' | 'ai_agent' | 'done';
+export type ConversationGroup = "advisor" | "ai_agent" | "done";
 
 // Conversation Modes
-export type ConversationMode = 'unified' | 'ticket-specific';
+export type ConversationMode = "unified" | "ticket-specific";
 
 export interface UnifiedConversation {
   contact: Contact;
@@ -431,13 +469,13 @@ export interface TicketEpisode {
   id: string;
   ticket_id: string;
   title: string;
-  status: 'active' | 'completed' | 'automated';
+  status: "active" | "completed" | "automated";
   message_count: number;
   start_date: string;
   end_date?: string;
   assigned_admin?: string;
-  category: 'support' | 'sales' | 'billing' | 'general';
-  priority: 'urgent' | 'high' | 'normal' | 'low';
+  category: "support" | "sales" | "billing" | "general";
+  priority: "urgent" | "high" | "normal" | "low";
   tags: string[];
 }
 
@@ -445,7 +483,7 @@ export interface ContactNote {
   id: string;
   contact_id: string;
   content: string;
-  type: 'public' | 'private';
+  type: "public" | "private";
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -453,7 +491,12 @@ export interface ContactNote {
 
 export interface TimelineEvent {
   id: string;
-  type: 'message' | 'note' | 'ticket_created' | 'ticket_resolved' | 'label_added';
+  type:
+    | "message"
+    | "note"
+    | "ticket_created"
+    | "ticket_resolved"
+    | "label_added";
   title: string;
   description?: string;
   timestamp: string;
@@ -473,7 +516,7 @@ export interface ChatGroups {
   advisor: Conversation[];
   ai_agent: Conversation[];
   done: Conversation[];
-  
+
   // Legacy grouping (for backward compatibility)
   needReply: {
     urgent: Conversation[];
@@ -499,26 +542,26 @@ export interface WebSocketEvent {
   timestamp: string;
 }
 
-export type WebSocketEventType = 
-  | 'message_received'
-  | 'message_sent'
-  | 'message_status_update'
-  | 'typing_start'
-  | 'typing_stop'
-  | 'user_online'
-  | 'user_offline'
-  | 'session_status_update'
-  | 'qr_code_update'
-  | 'conversation_assigned'
-  | 'ticket_created'
-  | 'ticket_updated'
+export type WebSocketEventType =
+  | "message_received"
+  | "message_sent"
+  | "message_status_update"
+  | "typing_start"
+  | "typing_stop"
+  | "user_online"
+  | "user_offline"
+  | "session_status_update"
+  | "qr_code_update"
+  | "conversation_assigned"
+  | "ticket_created"
+  | "ticket_updated"
   // Enhanced events
-  | 'message_edited'
-  | 'message_deleted'
-  | 'reaction_added'
-  | 'reaction_removed'
-  | 'file_upload_progress'
-  | 'draft_saved';
+  | "message_edited"
+  | "message_deleted"
+  | "reaction_added"
+  | "reaction_removed"
+  | "file_upload_progress"
+  | "draft_saved";
 
 // API Response types
 export interface ApiResponse<T = any> {
@@ -573,17 +616,17 @@ export interface ReportData {
   filters?: ReportFilters;
 }
 
-export type ReportType = 
-  | 'agent_performance'
-  | 'whatsapp_summary'
-  | 'template_effectiveness'
-  | 'chat_resolution'
-  | 'daily_chat'
-  | 'contact_labels'
-  | 'daily_analytics'
-  | 'conversation_labels'
-  | 'campaign_tracking'
-  | 'agent_assignment';
+export type ReportType =
+  | "agent_performance"
+  | "whatsapp_summary"
+  | "template_effectiveness"
+  | "chat_resolution"
+  | "daily_chat"
+  | "contact_labels"
+  | "daily_analytics"
+  | "conversation_labels"
+  | "campaign_tracking"
+  | "agent_assignment";
 
 export interface ReportFilters {
   date_from?: string;
@@ -612,6 +655,7 @@ export interface MessageForm {
   media_file?: File;
   reply_to_message_id?: string;
   quoted_message_id?: string;
+  isDragAndDrop?: boolean; // Flag to indicate drag & drop upload
 }
 
 export interface TicketForm {
@@ -632,13 +676,13 @@ export interface UIState {
   activeTab: string;
   selectedConversation?: Conversation;
   selectedContact?: Contact;
-  theme: 'light' | 'dark';
+  theme: "light" | "dark";
   notifications: Notification[];
 }
 
 export interface Notification {
   id: string;
-  type: 'success' | 'error' | 'warning' | 'info';
+  type: "success" | "error" | "warning" | "info";
   title: string;
   message: string;
   duration?: number;
@@ -648,7 +692,7 @@ export interface Notification {
 export interface NotificationAction {
   label: string;
   action: () => void;
-  variant?: 'default' | 'destructive';
+  variant?: "default" | "destructive";
 }
 
 // Media and File types
@@ -667,7 +711,7 @@ export interface MediaFile {
 
 // Search types
 export interface SearchResult {
-  type: 'message' | 'contact' | 'ticket';
+  type: "message" | "contact" | "ticket";
   id: string;
   title: string;
   content: string;
@@ -677,7 +721,7 @@ export interface SearchResult {
 
 export interface SearchFilters {
   query: string;
-  type?: 'message' | 'contact' | 'ticket' | 'all';
+  type?: "message" | "contact" | "ticket" | "all";
   date_from?: string;
   date_to?: string;
   contact_id?: string;
@@ -689,7 +733,7 @@ export interface SyncOptions {
   create_if_new: boolean;
   update_if_exists: boolean;
   skip_duplicates: boolean;
-  conflict_resolution: 'server_wins' | 'client_wins' | 'merge';
+  conflict_resolution: "server_wins" | "client_wins" | "merge";
   include_metadata?: boolean;
   batch_size?: number;
   parallel_sync?: boolean;
@@ -721,7 +765,7 @@ export interface SyncResult {
   updated_records: number;
   skipped_records: number;
   total_processed: number;
-  status: 'SUCCESS' | 'PARTIAL' | 'FAILED';
+  status: "SUCCESS" | "PARTIAL" | "FAILED";
   duration: string;
   errors?: string[];
   last_sync_at: string;
@@ -745,7 +789,7 @@ export interface SyncStatus {
   contact_name?: string;
   last_sync: string | null;
   message_count: number;
-  status: 'idle' | 'syncing' | 'completed' | 'failed' | 'conflict';
+  status: "idle" | "syncing" | "completed" | "failed" | "conflict";
   sync_progress?: number; // 0-100
   last_error?: string;
   next_sync_at?: string;
@@ -758,19 +802,19 @@ export interface SyncConflict {
   message_id: string;
   local_message: Message;
   remote_message: Message;
-  conflict_type: 'content_mismatch' | 'timestamp_conflict' | 'status_conflict';
+  conflict_type: "content_mismatch" | "timestamp_conflict" | "status_conflict";
   created_at: string;
   resolved: boolean;
-  resolution?: 'local_kept' | 'remote_kept' | 'merged';
+  resolution?: "local_kept" | "remote_kept" | "merged";
 }
 
 export interface SyncHistory {
   id: string;
   phone_number: string;
-  sync_type: 'contact' | 'all';
+  sync_type: "contact" | "all";
   started_at: string;
   completed_at?: string;
-  status: 'running' | 'completed' | 'failed' | 'cancelled';
+  status: "running" | "completed" | "failed" | "cancelled";
   result?: SyncResult;
   error?: string;
   initiated_by: string; // user ID or 'system'
@@ -778,7 +822,7 @@ export interface SyncHistory {
 
 export interface ConflictResolutionRequest {
   phone_number: string;
-  conflict_resolution: 'server_wins' | 'client_wins' | 'merge';
+  conflict_resolution: "server_wins" | "client_wins" | "merge";
   message_ids?: string[];
 }
 
@@ -798,7 +842,7 @@ export interface PhoneNumberValidation {
   formatted_number?: string;
   country_code?: string;
   carrier?: string;
-  type?: 'mobile' | 'landline' | 'voip';
+  type?: "mobile" | "landline" | "voip";
   can_receive_whatsapp: boolean;
   validation_errors?: string[];
 }
@@ -810,7 +854,7 @@ export interface AntiBlockingValidationResult {
   errors?: string[];
   warnings?: string[];
   suggestions?: string[];
-  risk_level?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  risk_level?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 }
 
 export interface AntiBlockingConfig {
@@ -852,7 +896,7 @@ export interface AntiBlockingStats {
 export interface ContactRiskAssessment {
   contact_id: number;
   wa_id: string;
-  risk_level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  risk_level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
   risk_score: number;
   factors: string[];
   last_message_at?: string;
@@ -883,7 +927,7 @@ export interface BulkMessageResult {
   contact_id: number;
   success: boolean;
   error?: string;
-  risk_level?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  risk_level?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
   message_id?: string;
   sent_at?: string;
   validation?: AntiBlockingValidationResult;
@@ -898,7 +942,7 @@ export interface BulkMessageResponse {
   results: BulkMessageResult[];
   total_time: string;
   average_delay: string;
-  risk_level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  risk_level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 }
 
 export interface WaMeLinkRequest {
@@ -910,4 +954,4 @@ export interface WaMeLinkResponse {
   link: string;
 }
 // Export agent types
-export * from './agent';
+export * from "./agent";
