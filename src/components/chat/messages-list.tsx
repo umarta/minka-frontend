@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { MessageBubble } from "./message-bubble";
-import { TypingIndicator } from "./typing-indicator";
 import { useChatStore } from "@/lib/stores/chat";
 import { Message } from "@/types";
 import { format, isToday, isYesterday } from "date-fns";
@@ -26,11 +25,9 @@ export function MessagesList({ contactId }: MessagesListProps) {
   const {
     contactMessages,
     isLoadingMessages,
-    typingUsers,
     markMessagesAsRead,
     activeTicket,
     loadMessages,
-    refreshMessages,
     activeContact,
     searchQuery,
     searchResults,
@@ -42,19 +39,92 @@ export function MessagesList({ contactId }: MessagesListProps) {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [autoScroll, setAutoScroll] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [hasLoadedMessages, setHasLoadedMessages] = useState(false);
   const [paginationMeta, setPaginationMeta] = useState<PaginationMeta | null>(
     null
   );
+  const [scrollTimeout, setScrollTimeout] = useState<NodeJS.Timeout | null>(
+    null
+  );
+  const isUserScrollingRef = useRef(false);
 
   // Determine which messages to display
   const displayMessages =
     searchQuery && searchResults
       ? searchResults
       : contactMessages[contactId] || [];
+
+  // Throttled scroll handler untuk performance
+  const throttledScrollHandler = useCallback(() => {
+    if (scrollTimeout) {
+      clearTimeout(scrollTimeout);
+    }
+
+    const timeout = setTimeout(() => {
+      handleScroll();
+    }, 150); // Throttle 150ms
+
+    setScrollTimeout(timeout);
+  }, [
+    contactId,
+    currentPage,
+    isLoadingOlder,
+    paginationMeta,
+    loadContactMessages,
+  ]);
+
+  // Handle scroll to detect if user scrolled up and load older messages
+  const handleScroll = async () => {
+    if (containerRef.current && !searchQuery) {
+      const container = containerRef.current;
+      const scrollTop = container.scrollTop;
+      const scrollHeight = container.scrollHeight;
+      const clientHeight = container.clientHeight;
+
+      // Track if user is manually scrolling
+      isUserScrollingRef.current = true;
+
+      // Auto-reset user scrolling flag after delay
+      setTimeout(() => {
+        isUserScrollingRef.current = false;
+      }, 1000);
+
+      // Load older messages when user scrolls to top (within 50px from top)
+      if (scrollTop <= 50 && !isLoadingOlder && paginationMeta?.has_next) {
+        const prevScrollHeight = container.scrollHeight;
+
+        setIsLoadingOlder(true);
+        try {
+          const nextPage = currentPage + 1;
+          const response = await loadContactMessages(
+            contactId,
+            nextPage,
+            undefined,
+            true
+          );
+          setCurrentPage(nextPage);
+
+          // Update pagination metadata
+          if (response?.meta?.pagination) {
+            setPaginationMeta(response.meta.pagination);
+          }
+
+          // Maintain scroll position after loading older messages
+          setTimeout(() => {
+            const newScrollHeight = container.scrollHeight;
+            const scrollDiff = newScrollHeight - prevScrollHeight;
+            container.scrollTop = scrollTop + scrollDiff;
+          }, 100);
+        } catch (error) {
+          console.error("Failed to load older messages:", error);
+        } finally {
+          setIsLoadingOlder(false);
+        }
+      }
+    }
+  };
 
   // Load messages when component mounts or contact changes
   useEffect(() => {
@@ -82,14 +152,38 @@ export function MessagesList({ contactId }: MessagesListProps) {
     }
   }, [contactId, loadContactMessages]);
 
-  // Auto-scroll ke bawah hanya saat buka chat baru
+  // Auto-scroll ke bawah saat buka chat baru atau ada pesan baru
   useEffect(() => {
-    if (messagesEndRef.current) {
+    if (messagesEndRef.current && hasLoadedMessages) {
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 100);
     }
-  }, [contactId]);
+  }, [contactId, hasLoadedMessages]);
+
+  // Auto-scroll saat ada pesan baru (tidak saat loading older messages)
+  useEffect(() => {
+    if (
+      messagesEndRef.current &&
+      displayMessages.length > 0 &&
+      !isLoadingOlder &&
+      !isUserScrollingRef.current
+    ) {
+      const container = containerRef.current;
+      if (container) {
+        const isNearBottom =
+          container.scrollHeight -
+            container.scrollTop -
+            container.clientHeight <
+          100;
+        if (isNearBottom) {
+          setTimeout(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+          }, 50);
+        }
+      }
+    }
+  }, [displayMessages.length, isLoadingOlder]);
 
   // Load messages when ticket changes - use optimized loading
   useEffect(() => {
@@ -117,51 +211,14 @@ export function MessagesList({ contactId }: MessagesListProps) {
     }
   }, [displayMessages.length, hasLoadedMessages]);
 
-  // Handle scroll to detect if user scrolled up and load older messages
-  const handleScroll = async () => {
-    if (containerRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
-      const isAtBottom = scrollHeight - scrollTop <= clientHeight + 50;
-      setAutoScroll(isAtBottom);
-
-      // Load older messages when user scrolls to top (reverse pagination)
-      // Only load if we have more pages and user is at the top
-      if (
-        scrollTop < 100 &&
-        !isLoadingOlder &&
-        !searchQuery &&
-        paginationMeta?.has_next
-      ) {
-        setIsLoadingOlder(true);
-        try {
-          const nextPage = currentPage + 1;
-          const response = await loadContactMessages(
-            contactId,
-            nextPage,
-            undefined,
-            true
-          );
-          setCurrentPage(nextPage);
-
-          // Update pagination metadata
-          if (response?.meta?.pagination) {
-            setPaginationMeta(response.meta.pagination);
-          }
-        } catch (error) {
-          console.error("Failed to load older messages:", error);
-        } finally {
-          setIsLoadingOlder(false);
-        }
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
       }
-    }
-  };
-
-  // Handle refresh messages (for manual refresh)
-  const handleRefresh = () => {
-    if (activeTicket) {
-      refreshMessages(activeTicket.id.toString());
-    }
-  };
+    };
+  }, [scrollTimeout]);
 
   const formatMessageDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -175,9 +232,23 @@ export function MessagesList({ contactId }: MessagesListProps) {
     }
   };
 
-  // Group messages by date
-  const groupedMessages = displayMessages.reduce(
-    (groups: { [key: string]: Message[] }, message) => {
+  // Group messages by date and remove duplicates more thoroughly
+  const groupedMessages = displayMessages
+    .reduce((uniqueMessages: Message[], message) => {
+      // Use a more comprehensive unique check
+      const isDuplicate = uniqueMessages.some(
+        (existing) =>
+          existing.id === message.id &&
+          existing.created_at === message.created_at &&
+          existing.content === message.content
+      );
+
+      if (!isDuplicate) {
+        uniqueMessages.push(message);
+      }
+      return uniqueMessages;
+    }, [])
+    .reduce((groups: { [key: string]: Message[] }, message) => {
       const dateKey = format(new Date(message.created_at), "yyyy-MM-dd");
       if (!groups[dateKey]) {
         groups[dateKey] = [];
@@ -185,11 +256,8 @@ export function MessagesList({ contactId }: MessagesListProps) {
 
       groups[dateKey].push(message);
       return groups;
-    },
-    {}
-  );
+    }, {});
 
-  // Show loading state only if we're actively loading and have no messages yet
   if (isLoadingMessages && displayMessages.length === 0 && !hasLoadedMessages) {
     return (
       <div className="flex items-center justify-center flex-1 bg-gray-50">
@@ -198,7 +266,6 @@ export function MessagesList({ contactId }: MessagesListProps) {
     );
   }
 
-  // Show empty state only if we've finished loading and have no messages
   if (!isLoadingMessages && displayMessages.length === 0 && hasLoadedMessages) {
     return (
       <div className="flex items-center justify-center flex-1">
@@ -225,20 +292,11 @@ export function MessagesList({ contactId }: MessagesListProps) {
     <div
       className="flex-1 overflow-y-auto max-h-[77vh] px-2 py-4 pb-24"
       ref={containerRef}
-      onScroll={handleScroll}
+      onScroll={throttledScrollHandler}
     >
-      {/* Loading indicator for older messages */}
       {isLoadingOlder && (
         <div className="flex justify-center py-2">
           <div className="w-6 h-6 border-b-2 border-blue-500 rounded-full animate-spin"></div>
-        </div>
-      )}
-
-      {/* Pagination info (debug) */}
-      {paginationMeta && (
-        <div className="py-1 text-xs text-center text-gray-400">
-          Halaman {paginationMeta.page} dari {paginationMeta.total_pages}
-          {paginationMeta.has_next && " • Ada halaman selanjutnya"}
         </div>
       )}
 
@@ -254,9 +312,9 @@ export function MessagesList({ contactId }: MessagesListProps) {
             </div>
 
             {/* Messages for this date */}
-            {messages.map((message: Message) => (
+            {messages.map((message: Message, index) => (
               <MessageBubble
-                key={message.id}
+                key={`${message.id}-${message.created_at}-${dateKey}-${index}`}
                 message={message}
                 isSearchResult={!!searchQuery}
               />

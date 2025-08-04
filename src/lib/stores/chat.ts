@@ -642,11 +642,37 @@ export const useChatStore = create<ChatStore>()(
           let newMessages: Message[];
 
           if (append && page > 1) {
+            // Create a more comprehensive unique check for appending older messages
+            const existingIds = new Set(
+              existingMessages.map((msg) => `${msg.id}-${msg.created_at}`)
+            );
+
+            // Filter out any duplicates from new messages
+            const uniqueNewMessages = reversedMessages.filter(
+              (msg) => !existingIds.has(`${msg.id}-${msg.created_at}`)
+            );
+
             // Append older messages to the beginning (for pagination)
-            newMessages = [...reversedMessages, ...existingMessages];
+            newMessages = [...uniqueNewMessages, ...existingMessages];
           } else {
             // Replace messages (for initial load or refresh)
-            newMessages = reversedMessages;
+            // Also deduplicate in case of any issues
+            const uniqueMessages = reversedMessages.reduce(
+              (unique: Message[], msg) => {
+                const isDuplicate = unique.some(
+                  (existing) =>
+                    existing.id === msg.id &&
+                    existing.created_at === msg.created_at
+                );
+                if (!isDuplicate) {
+                  unique.push(msg);
+                }
+                return unique;
+              },
+              []
+            );
+
+            newMessages = uniqueMessages;
           }
 
           return {
