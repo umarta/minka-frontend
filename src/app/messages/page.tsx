@@ -117,38 +117,42 @@ export default function MessagesPage() {
           </Button>
           <h1 className="text-xl font-semibold">Backoffice</h1>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Enhanced Sync Panel */}
+        {/* <div className="flex items-center gap-2">
           <Sheet>
             <SheetTrigger asChild>
-              {/* <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm">
                 <Database className="w-4 h-4 mr-2" />
                 Contact & Chat Sync
-              </Button> */}
+              </Button>
             </SheetTrigger>
             <SheetContent className="w-[500px] sm:w-[600px] max-w-[90vw]">
-              {/* <SheetHeader>
+              <SheetHeader>
                 <SheetTitle className="flex items-center gap-2">
                   <Database className="w-5 h-5" />
                   WhatsApp Contact & Chat Sync
                 </SheetTitle>
-              </SheetHeader> */}
+              </SheetHeader>
 
               <div className="mt-6 space-y-6">
                 <Tabs defaultValue="single" className="w-full">
-                  {/* <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="single" className="flex items-center gap-2">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger
+                      value="single"
+                      className="flex items-center gap-2"
+                    >
                       <User className="w-4 h-4" />
                       Single Contact
                     </TabsTrigger>
-                    <TabsTrigger value="bulk" className="flex items-center gap-2">
+                    <TabsTrigger
+                      value="bulk"
+                      className="flex items-center gap-2"
+                    >
                       <Users className="w-4 h-4" />
                       Bulk Sync
                     </TabsTrigger>
-                  </TabsList> */}
+                  </TabsList>
 
-                  {/* Single Contact Sync */}
-                  {/* <TabsContent value="single" className="space-y-4">
+                  <TabsContent value="single" className="space-y-4">
                     <Card>
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-lg">
@@ -160,19 +164,32 @@ export default function MessagesPage() {
                         <UpsertSyncDemo />
                       </CardContent>
                     </Card>
-                    
+
                     <div className="p-4 rounded-lg bg-blue-50">
-                      <h3 className="mb-2 font-semibold text-blue-800">How Upsert Works:</h3>
+                      <h3 className="mb-2 font-semibold text-blue-800">
+                        How Upsert Works:
+                      </h3>
                       <ul className="space-y-1 text-sm text-blue-700">
-                        <li>• <strong>Create if New:</strong> Records that don't exist are created</li>
-                        <li>• <strong>Update if Exists:</strong> Existing records are updated with newer data</li>
-                        <li>• <strong>Skip Duplicates:</strong> Exact duplicates are automatically skipped</li>
-                        <li>• <strong>Conflict Resolution:</strong> Server data wins in case of conflicts</li>
+                        <li>
+                          • <strong>Create if New:</strong> Records that don't
+                          exist are created
+                        </li>
+                        <li>
+                          • <strong>Update if Exists:</strong> Existing records
+                          are updated with newer data
+                        </li>
+                        <li>
+                          • <strong>Skip Duplicates:</strong> Exact duplicates
+                          are automatically skipped
+                        </li>
+                        <li>
+                          • <strong>Conflict Resolution:</strong> Server data
+                          wins in case of conflicts
+                        </li>
                       </ul>
                     </div>
-                  </TabsContent> */}
+                  </TabsContent>
 
-                  {/* Bulk Sync */}
                   <TabsContent value="bulk" className="space-y-4">
                     <Card>
                       <CardHeader>
@@ -291,7 +308,7 @@ export default function MessagesPage() {
           <Button variant="ghost" size="sm">
             <Settings className="w-4 h-4" />
           </Button>
-        </div>
+        </div> */}
       </div>
 
       {/* Chat Interface */}
