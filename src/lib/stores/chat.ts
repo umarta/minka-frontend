@@ -1068,20 +1068,22 @@ export const useChatStore = create<ChatStore>()(
             // Set a custom property in the upload progress to track status
             // We'll use the standard message status for the message itself
 
-            // Track upload progress
+            // Track upload progress (only if not drag and drop)
             const updateProgress = (progress: number) => {
-              // Update progress in store
-              set((state) => ({
-                uploadProgress: {
-                  ...state.uploadProgress,
-                  [newMessage.id]: {
-                    messageId: newMessage.id,
-                    fileName: data.media_file?.name || "unknown",
-                    progress: progress,
-                    status: "uploading",
+              // Only show progress in MessageInput if it's not from drag & drop
+              if (!data.isDragAndDrop) {
+                set((state) => ({
+                  uploadProgress: {
+                    ...state.uploadProgress,
+                    [newMessage.id]: {
+                      messageId: newMessage.id,
+                      fileName: data.media_file?.name || "unknown",
+                      progress: progress,
+                      status: "uploading",
+                    },
                   },
-                },
-              }));
+                }));
+              }
             };
 
             // Send media message using presigned URL flow
@@ -1100,18 +1102,20 @@ export const useChatStore = create<ChatStore>()(
               updateProgress
             );
 
-            // Update progress to complete
-            set((state) => ({
-              uploadProgress: {
-                ...state.uploadProgress,
-                [newMessage.id]: {
-                  messageId: newMessage.id,
-                  fileName: data.media_file?.name || "unknown",
-                  progress: 100,
-                  status: "complete",
+            // Update progress to complete (only if not drag and drop)
+            if (!data.isDragAndDrop) {
+              set((state) => ({
+                uploadProgress: {
+                  ...state.uploadProgress,
+                  [newMessage.id]: {
+                    messageId: newMessage.id,
+                    fileName: data.media_file?.name || "unknown",
+                    progress: 100,
+                    status: "complete",
+                  },
                 },
-              },
-            }));
+              }));
+            }
           } else {
             // Send text message
             response = await messagesApi.send({
@@ -1144,8 +1148,8 @@ export const useChatStore = create<ChatStore>()(
         } catch (sendError) {
           console.error("[Chat] Failed to send message:", sendError);
 
-          // Update upload progress to error if it was a media message
-          if (data.media_file) {
+          // Update upload progress to error if it was a media message (only if not drag and drop)
+          if (data.media_file && !data.isDragAndDrop) {
             set((state) => ({
               uploadProgress: {
                 ...state.uploadProgress,

@@ -66,8 +66,13 @@ export function MessageInput({
   onClearSearch,
   searchQuery,
 }: MessageInputProps) {
-  const { activeContact, sendMessage, isSendingMessage, uploadProgress } =
-    useChatStore();
+  const {
+    activeContact,
+    sendMessage,
+    isSendingMessage,
+    uploadProgress,
+    removeUploadProgress,
+  } = useChatStore();
   const { lastValidation, validateMessage, clear } = useAntiBlockingStore();
 
   // Message State
@@ -92,6 +97,9 @@ export function MessageInput({
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [isDraftSaving, setIsDraftSaving] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
+  const [fadingOutUploads, setFadingOutUploads] = useState<Set<string>>(
+    new Set()
+  );
 
   // Refs
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -251,6 +259,31 @@ export function MessageInput({
       clear();
     }
   }, [message, activeContact, validateMessage, clear]);
+
+  // Auto-remove completed upload progress
+  useEffect(() => {
+    const completedUploads = Object.entries(uploadProgress).filter(
+      ([_, progress]) =>
+        progress.progress === 100 && progress.status === "complete"
+    );
+
+    if (completedUploads.length > 0) {
+      // First, trigger fade out animation
+      const completedFileIds = completedUploads.map(([fileId]) => fileId);
+      setFadingOutUploads(new Set(completedFileIds));
+
+      const timer = setTimeout(() => {
+        // Remove completed uploads from the store after fade animation
+        completedUploads.forEach(([fileId]) => {
+          removeUploadProgress(fileId);
+        });
+        // Clear fading state
+        setFadingOutUploads(new Set());
+      }, 1500); // 1.5 seconds total (0.5s fade + 1s delay)
+
+      return () => clearTimeout(timer);
+    }
+  }, [uploadProgress, removeUploadProgress]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -550,7 +583,13 @@ export function MessageInput({
       {Object.keys(uploadProgress).length > 0 && (
         <div className="p-3 border-b border-gray-100 bg-blue-50">
           {Object.entries(uploadProgress).map(([fileId, progress]) => (
-            <div key={fileId} className="mb-2">
+            <div
+              key={fileId}
+              className={cn(
+                "mb-2 transition-all duration-500",
+                fadingOutUploads.has(fileId) && "opacity-0 scale-95"
+              )}
+            >
               <div className="flex items-center justify-between mb-1">
                 <span className="text-sm font-medium">{progress.fileName}</span>
                 <span className="text-sm text-gray-500">
@@ -560,6 +599,12 @@ export function MessageInput({
               <Progress value={progress.progress} className="h-2" />
               {progress.status === "error" && progress.error && (
                 <p className="mt-1 text-xs text-red-500">{progress.error}</p>
+              )}
+              {progress.progress === 100 && progress.status === "complete" && (
+                <p className="flex items-center gap-1 mt-1 text-xs text-green-600">
+                  <span className="w-3 h-3 text-green-600">✓</span>
+                  Upload completed!
+                </p>
               )}
             </div>
           ))}
