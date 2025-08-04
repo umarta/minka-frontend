@@ -1735,20 +1735,26 @@ export const useChatStore = create<ChatStore>()(
       try {
         const res = await conversationsApi.addLabels(conversationId, labelIds);
 
-        const labels = get().labels.filter((label) =>
-          labelIds.includes(label.id)
-        );
-        set({
-          conversationLabels: {
-            ...get().conversationLabels,
-            [conversationId]: [
-              ...(get().conversationLabels[conversationId] || []),
-              ...labels,
-            ],
-          },
-        });
+        if (res && res.labels !== undefined) {
+          set({
+            conversationLabels: {
+              ...get().conversationLabels,
+              [conversationId]: res.labels || [],
+            },
+          });
+        } else {
+          const labels = get().labels.filter((label) =>
+            labelIds.includes(label.id)
+          );
+          set({
+            conversationLabels: {
+              ...get().conversationLabels,
+              [conversationId]: labels,
+            },
+          });
+        }
 
-        if (res && res.labels && res.labels.length > 0) {
+        if (res && res.labels !== undefined) {
           set((state) => ({
             conversations: state.conversations.map((conv) => {
               const matchesConversationId =
@@ -1759,7 +1765,7 @@ export const useChatStore = create<ChatStore>()(
               if (matchesConversationId || matchesContactId) {
                 return {
                   ...conv,
-                  labels: res.labels || conv.labels,
+                  labels: res.labels || [],
                 };
               }
               return conv;
@@ -1779,17 +1785,29 @@ export const useChatStore = create<ChatStore>()(
           labelIds
         );
 
-        const currentLabels = get().conversationLabels[conversationId] || [];
-        const updatedLabels = currentLabels.filter(
-          (label) => !labelIds.includes(label.id)
-        );
-        set({
-          conversationLabels: {
-            ...get().conversationLabels,
-            [conversationId]: updatedLabels,
-          },
-        });
+        // Update conversationLabels based on response
+        if (res && res.labels !== undefined) {
+          set({
+            conversationLabels: {
+              ...get().conversationLabels,
+              [conversationId]: res.labels || [], // Use response labels directly
+            },
+          });
+        } else {
+          // Fallback: filter existing labels if no response labels
+          const currentLabels = get().conversationLabels[conversationId] || [];
+          const updatedLabels = currentLabels.filter(
+            (label) => !labelIds.includes(label.id)
+          );
+          set({
+            conversationLabels: {
+              ...get().conversationLabels,
+              [conversationId]: updatedLabels,
+            },
+          });
+        }
 
+        // Update conversations state - always use response labels
         if (res && res.labels !== undefined) {
           set((state) => ({
             conversations: state.conversations.map((conv) => {
@@ -1801,7 +1819,7 @@ export const useChatStore = create<ChatStore>()(
               if (matchesConversationId || matchesContactId) {
                 return {
                   ...conv,
-                  labels: res.labels || [],
+                  labels: res.labels || [], // Use response labels or empty array if null
                 };
               }
               return conv;
