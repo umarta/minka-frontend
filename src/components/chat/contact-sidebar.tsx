@@ -61,8 +61,6 @@ export function ContactSidebar() {
     loadMoreConversations,
   } = useChatStore();
 
-  console.log(pagination, "pagination");
-
   // Tambahkan log debug conversations
 
   const [selectedTab, setSelectedTab] = useState<ConversationGroup>("ai_agent");
@@ -121,8 +119,6 @@ export function ContactSidebar() {
       return <span className="text-red-500">🚨</span>;
     return null;
   };
-
-  console.log(conversations, "conversations in sidebar");
 
   // Enhanced search and filtering logic
   const filteredConversations = useMemo(() => {

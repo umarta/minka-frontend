@@ -211,10 +211,6 @@ export const ContactLabelManager = ({
             <div className="p-2">
               {filteredLabels.map((label) => {
                 const isAssigned = pendingLabelIds.includes(label.id);
-                console.log(
-                  `Label "${label.name}" (${label.id}): isAssigned=${isAssigned}, pendingLabelIds:`,
-                  pendingLabelIds
-                );
 
                 return (
                   <div
