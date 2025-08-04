@@ -32,6 +32,7 @@ import {
   Phone,
   Clock3,
   FileImage,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +44,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Message, MessageReaction } from "@/types";
 import { cn } from "@/lib/utils";
 import { format, formatDistanceToNow } from "date-fns";
@@ -77,6 +83,7 @@ export function MessageBubble({
 }: MessageBubbleProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
+  const [showPopover, setShowPopover] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
   const isOutgoing = message.direction === "outgoing";
@@ -137,10 +144,10 @@ export function MessageBubble({
 
     switch (message.status) {
       case "pending":
-        return <Clock className="w-3 h-3 text-gray-400" />;
+        return <Clock className="w-3 h-3 text-white" />;
       case "sent":
       case "delivered":
-        return <Check className="w-3 h-3 text-gray-400" />;
+        return <Check className="w-3 h-3 text-white" />;
       case "read":
         return <CheckCheck className="w-3 h-3 text-blue-500" />;
       case "failed":
@@ -651,112 +658,222 @@ export function MessageBubble({
       {/* Bubble */}
       <div
         className={cn(
-          "max-w-[75%] rounded-lg px-3 py-2 relative",
-          isOutgoing
-            ? "bg-green-500 text-white rounded-br-sm order-2 ml-0"
-            : "bg-white border border-gray-200 rounded-bl-sm shadow-sm order-1 mr-0",
-          isGrouped && isOutgoing && "rounded-br-lg",
-          isGrouped && !isOutgoing && "rounded-bl-lg"
+          "relative min-w-[137px]  max-w-[75%]",
+          isOutgoing ? "order-2 ml-0" : "order-1 mr-0"
         )}
       >
-        {/* Badge Tiket di pojok bubble, hanya mode unified */}
-        {conversationMode === "unified" && message.ticket_id && (
-          <div
-            className={cn(
-              "absolute -top-2 text-xs px-2 py-0.5 rounded-full text-white font-medium",
-              isOutgoing ? "-right-1" : "-left-1",
-              getTicketBadgeColor(message.ticket_id)
-            )}
-          >
-            #{message.ticket_id}
-          </div>
-        )}
-        {/* Nama Admin */}
-        {showAdminName && (
-          <div className="mb-1 text-xs font-semibold text-left text-blue-700">
-            {(message as any).admin_name || "Admin"}
-          </div>
-        )}
+        <div
+          className={cn(
+            "rounded-lg px-3 py-2 relative group",
+            isOutgoing
+              ? "bg-green-500 text-white rounded-br-sm"
+              : "bg-white border border-gray-200 rounded-bl-sm shadow-sm",
+            isGrouped && isOutgoing && "rounded-br-lg",
+            isGrouped && !isOutgoing && "rounded-bl-lg"
+          )}
+        >
+          {!isOutgoing && (
+            <Popover open={showPopover} onOpenChange={setShowPopover}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="absolute w-5 h-5 p-0 transition-opacity duration-200 opacity-0 top-1 right-1 group-hover:opacity-100 hover:bg-gray-100"
+                >
+                  <ChevronDown className="w-3 h-3 text-gray-400" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="p-1 w-fit" side="bottom" align="start">
+                <div className="space-y-1">
+                  {onReply && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="justify-start w-full"
+                      onClick={() => {
+                        onReply(message);
+                        setShowPopover(false);
+                      }}
+                    >
+                      {/* <Reply className="w-4 h-4 mr-2" /> */}
+                      Reply
+                    </Button>
+                  )}
+                  {onForward && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="justify-start w-full"
+                      onClick={() => {
+                        onForward(message);
+                        setShowPopover(false);
+                      }}
+                    >
+                      {/* <Forward className="w-4 h-4 mr-2" /> */}
+                      Forward
+                    </Button>
+                  )}
+                  {onCopy && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="justify-start w-full"
+                      onClick={() => {
+                        onCopy(message.content);
+                        setShowPopover(false);
+                      }}
+                    >
+                      {/* <Copy className="w-4 h-4 mr-2" /> */}
+                      Copy
+                    </Button>
+                  )}
+                  {onReact && (
+                    <>
+                      <div className="my-1 border-t border-gray-200" />
+                      <div className="px-2 py-1">
+                        <p className="mb-2 text-xs text-gray-500">
+                          React with:
+                        </p>
+                        <div className="flex gap-1">
+                          {quickReactions.map((emoji) => (
+                            <Button
+                              key={emoji}
+                              variant="ghost"
+                              size="sm"
+                              className="w-8 h-8 p-0 hover:bg-gray-100"
+                              onClick={() => {
+                                onReact?.(message.id, emoji);
+                                setShowPopover(false);
+                              }}
+                            >
+                              {emoji}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  {onDelete && (
+                    <>
+                      <div className="my-1 border-t border-gray-200" />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="justify-start w-full text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => {
+                          onDelete(message.id);
+                          setShowPopover(false);
+                        }}
+                      >
+                        {/* <Trash2 className="w-4 h-4 mr-2" /> */}
+                        Delete
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
 
-        {/* Sender Name for Outgoing Messages */}
-        {senderName && (
-          <div
-            className={cn("text-xs text-bold font-medium mb-1 text-gray-600")}
-          >
-            {senderName}
-          </div>
-        )}
-        {/* Reply indicator */}
-        {message.quoted_message && (
-          <div
-            className={cn(
-              "border-l-4 pl-3 py-2 mb-2 rounded",
-              isOutgoing
-                ? "border-green-300 bg-green-400/20"
-                : "border-gray-300 bg-gray-50"
-            )}
-          >
-            <p className="mb-1 text-xs opacity-75">
-              {message.quoted_message.direction === "outgoing"
-                ? "You"
-                : "Customer"}
-            </p>
-            <p className="text-sm truncate opacity-90">
-              {message.quoted_message.content}
-            </p>
-          </div>
-        )}
-
-        {/* Forwarded indicator */}
-        {message.forwarded_from && (
-          <div
-            className={cn(
-              "text-xs italic mb-2 flex items-center gap-1",
-              isOutgoing ? "text-green-100" : "text-gray-500"
-            )}
-          >
-            <Forward className="w-3 h-3" />
-            Forwarded
-          </div>
-        )}
-
-        {/* Message Content */}
-        <div className={cn(isOutgoing ? "text-white" : "text-gray-900")}>
-          {renderMediaContent()}
-        </div>
-
-        {/* Edited indicator */}
-        {message.edited_at && (
-          <span
-            className={cn(
-              "text-xs italic mt-1 block",
-              isOutgoing ? "text-green-100" : "text-gray-500"
-            )}
-          >
-            edited
-          </span>
-        )}
-
-        {/* Reactions */}
-        {renderReactions()}
-
-        {/* Message Info */}
-        <div className="flex items-center justify-between mt-2">
-          <div className="flex items-center gap-1">
-            <span
+          {/* Badge Tiket di pojok bubble, hanya mode unified */}
+          {conversationMode === "unified" && message.ticket_id && (
+            <div
               className={cn(
-                "text-xs",
+                "absolute -top-2 text-xs px-2 py-0.5 rounded-full text-white font-medium",
+                isOutgoing ? "-right-1" : "-left-1",
+                getTicketBadgeColor(message.ticket_id)
+              )}
+            >
+              #{message.ticket_id}
+            </div>
+          )}
+          {/* Nama Admin */}
+          {showAdminName && (
+            <div className="mb-1 text-xs font-semibold text-left text-blue-700">
+              {(message as any).admin_name || "Admin"}
+            </div>
+          )}
+
+          {/* Sender Name for Outgoing Messages */}
+          {senderName && (
+            <div
+              className={cn("text-xs text-bold font-medium mb-1 text-gray-600")}
+            >
+              {senderName}
+            </div>
+          )}
+          {/* Reply indicator */}
+          {message.quoted_message && (
+            <div
+              className={cn(
+                "border-l-4 pl-3 py-2 mb-2 rounded",
+                isOutgoing
+                  ? "border-green-300 bg-green-400/20"
+                  : "border-gray-300 bg-gray-50"
+              )}
+            >
+              <p className="mb-1 text-xs opacity-75">
+                {message.quoted_message.direction === "outgoing"
+                  ? "You"
+                  : "Customer"}
+              </p>
+              <p className="text-sm truncate opacity-90">
+                {message.quoted_message.content}
+              </p>
+            </div>
+          )}
+
+          {/* Forwarded indicator */}
+          {message.forwarded_from && (
+            <div
+              className={cn(
+                "text-xs italic mb-2 flex items-center gap-1",
                 isOutgoing ? "text-green-100" : "text-gray-500"
               )}
             >
-              {format(new Date(message.created_at), "HH:mm")}
-            </span>
-            {message.edited_at && <Edit className="w-3 h-3 opacity-50" />}
+              <Forward className="w-3 h-3" />
+              Forwarded
+            </div>
+          )}
+
+          {/* Message Content */}
+          <div className={cn(isOutgoing ? "text-white" : "text-gray-900")}>
+            {renderMediaContent()}
           </div>
 
-          <div className="flex items-center gap-1">
-            {getStatusIcon()}
-            {renderReadReceipts()}
+          {/* Edited indicator */}
+          {message.edited_at && (
+            <span
+              className={cn(
+                "text-xs italic mt-1 block",
+                isOutgoing ? "text-green-100" : "text-gray-500"
+              )}
+            >
+              edited
+            </span>
+          )}
+
+          {/* Reactions */}
+          {renderReactions()}
+
+          {/* Message Info */}
+          <div className="flex items-center justify-end gap-1">
+            <div className="flex items-center gap-1">
+              <span
+                className={cn(
+                  "text-xs",
+                  isOutgoing ? "text-green-100" : "text-gray-500"
+                )}
+              >
+                {format(new Date(message.created_at), "HH:mm")}
+              </span>
+              {message.edited_at && <Edit className="w-3 h-3 opacity-50" />}
+            </div>
+
+            <div className="flex items-center gap-1">
+              {getStatusIcon()}
+              {renderReadReceipts()}
+            </div>
           </div>
         </div>
       </div>

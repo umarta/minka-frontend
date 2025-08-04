@@ -4,36 +4,28 @@ import { useState, useRef, useEffect } from "react";
 import {
   Send,
   Paperclip,
-  Image,
   FileText,
   Smile,
   Mic,
   Search,
   X,
-  Plus,
   Video,
   MapPin,
   CreditCard,
   Zap,
-  Clock,
   Save,
   MicOff,
   Play,
   Pause,
   Camera,
   Upload,
-  Link,
-  FileImage,
   Music,
-  Archive,
-  Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,13 +39,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useChat, useChatStore } from "@/lib/stores/chat";
+import { useChatStore } from "@/lib/stores/chat";
 import { useAntiBlockingStore } from "@/lib/stores/antiBlocking";
-import { MessageType, QuickReplyTemplate, FileUploadProgress } from "@/types";
+import { MessageType, QuickReplyTemplate } from "@/types";
 import { cn } from "@/lib/utils";
 import { AntiBlockingValidation } from "./anti-blocking-validation";
 import { useDragAndDrop } from "@/lib/hooks/useDragAndDrop";
-import { validateFile } from "@/lib/utils/upload";
 
 interface MessageInputProps {
   onSearch?: (query: string) => void;
@@ -61,11 +52,7 @@ interface MessageInputProps {
   searchQuery?: string;
 }
 
-export function MessageInput({
-  onSearch,
-  onClearSearch,
-  searchQuery,
-}: MessageInputProps) {
+export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
   const {
     activeContact,
     sendMessage,
@@ -617,10 +604,23 @@ export function MessageInput({
     <div
       ref={setDropRef}
       className={cn(
-        "border-t bg-background p-4 space-y-4 relative transition-all duration-200",
+        "bg-background p-4 space-y-4 relative transition-all duration-200",
         isDragging && "bg-blue-50 border-blue-300 border-2 border-dashed"
       )}
     >
+      <div className="flex items-center justify-between gap-2 mb-4">
+        <div className="flex-1 p-2 bg-gray-100">
+          <div className="flex flex-col gap-y-1">
+            <h4 className="text-sm font-semibold text-blue-500">
+              Rahmad Umarta
+            </h4>
+            <p className="text-xs text-gray-600 line-clamp-2">
+              This is a preview of your message
+            </p>
+          </div>
+        </div>
+        <X className="w-4 h-4 text-gray-500" />
+      </div>
       {/* Drag & Drop Overlay */}
       {isDragging && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-blue-500 rounded-lg bg-opacity-10">
@@ -645,7 +645,6 @@ export function MessageInput({
           }}
         />
       )}
-
       {/* Search Bar */}
       {showSearch && (
         <div className="p-3 border-b border-gray-100 bg-gray-50">
@@ -675,7 +674,6 @@ export function MessageInput({
           </div>
         </div>
       )}
-
       {/* Typing Indicators */}
       {typingUsers.length > 0 && (
         <div className="px-3 py-2 border-b border-gray-100 bg-blue-50">
@@ -698,7 +696,6 @@ export function MessageInput({
           </div>
         </div>
       )}
-
       {/* Upload Progress */}
       {Object.keys(uploadProgress).length > 0 && (
         <div className="p-3 border-b border-gray-100 bg-blue-50">
@@ -730,7 +727,6 @@ export function MessageInput({
           ))}
         </div>
       )}
-
       {/* Reply Preview */}
       {replyToMessage && (
         <div className="p-3 border-b border-gray-100 bg-gray-50">
@@ -755,7 +751,6 @@ export function MessageInput({
           </div>
         </div>
       )}
-
       {/* Voice Recording Preview */}
       {recordingBlob && (
         <div className="p-3 border-b border-gray-100 bg-green-50">
@@ -789,7 +784,6 @@ export function MessageInput({
           </div>
         </div>
       )}
-
       {/* File Attachments Preview */}
       {attachmentFiles.length > 0 && (
         <div className="p-3 border-b border-gray-100 bg-gray-50">
@@ -828,9 +822,8 @@ export function MessageInput({
           </div>
         </div>
       )}
-
       {/* Main Input Area */}
-      <form onSubmit={handleSubmit} className="p-3">
+      <form onSubmit={handleSubmit}>
         <div className="flex items-end gap-2">
           {/* Left Side Actions */}
           <div className="flex items-center gap-1">
