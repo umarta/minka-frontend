@@ -172,7 +172,7 @@ export function ChatArea(props: ChatAreaProps) {
     <div
       ref={setDropRef}
       className={cn(
-        "flex flex-col flex-1 h-full min-w-0 relative",
+        "flex flex-col flex-1 h-full min-w-0",
         isDragging && "bg-blue-50"
       )}
     >
@@ -220,9 +220,9 @@ export function ChatArea(props: ChatAreaProps) {
             <div className="p-4 overflow-y-auto max-h-96">
               {/* Upload Progress Display */}
               {isUploading && Object.keys(uploadProgress).length > 0 && (
-                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="p-3 mb-4 border border-blue-200 rounded-lg bg-blue-50">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    <div className="w-4 h-4 border-2 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
                     <h4 className="text-sm font-medium text-blue-800">
                       Uploading files...
                     </h4>
@@ -230,7 +230,7 @@ export function ChatArea(props: ChatAreaProps) {
                   {Object.entries(uploadProgress).map(([fileId, progress]) => (
                     <div key={fileId} className="mb-3 last:mb-0">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs text-blue-700 font-medium">
+                        <span className="text-xs font-medium text-blue-700">
                           {fileId.split("-")[0]}
                         </span>
                         <span className="text-xs text-blue-600">
@@ -240,8 +240,8 @@ export function ChatArea(props: ChatAreaProps) {
                       <Progress value={progress} className="h-2 bg-blue-100" />
                       {progress === 100 && (
                         <div className="flex items-center gap-1 mt-1">
-                          <div className="w-3 h-3 bg-green-500 rounded-full flex items-center justify-center">
-                            <span className="text-white text-xs">✓</span>
+                          <div className="flex items-center justify-center w-3 h-3 bg-green-500 rounded-full">
+                            <span className="text-xs text-white">✓</span>
                           </div>
                           <span className="text-xs text-green-600">
                             Completed
@@ -329,7 +329,7 @@ export function ChatArea(props: ChatAreaProps) {
                 >
                   {isUploading ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                      <div className="w-4 h-4 mr-2 border-2 border-white rounded-full border-t-transparent animate-spin"></div>
                       Sending...
                     </>
                   ) : (

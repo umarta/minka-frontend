@@ -35,7 +35,6 @@ export function MessagesList({ contactId }: MessagesListProps) {
   } = useChatStore();
 
   // Ambil mode percakapan dan ticket aktif
-  const conversationMode = useChatStore((state) => state.conversationMode);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -80,8 +79,6 @@ export function MessagesList({ contactId }: MessagesListProps) {
     if (containerRef.current && !searchQuery) {
       const container = containerRef.current;
       const scrollTop = container.scrollTop;
-      const scrollHeight = container.scrollHeight;
-      const clientHeight = container.clientHeight;
 
       // Track if user is manually scrolling
       isUserScrollingRef.current = true;
@@ -290,7 +287,7 @@ export function MessagesList({ contactId }: MessagesListProps) {
 
   return (
     <div
-      className="flex-1 overflow-y-auto max-h-[77vh] px-2 py-4 pb-24"
+      className="flex-1 px-2 py-4 overflow-y-auto"
       ref={containerRef}
       onScroll={throttledScrollHandler}
     >
@@ -299,7 +296,6 @@ export function MessagesList({ contactId }: MessagesListProps) {
           <div className="w-6 h-6 border-b-2 border-blue-500 rounded-full animate-spin"></div>
         </div>
       )}
-
       {Object.entries(groupedMessages)
         .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
         .map(([dateKey, messages]) => (
@@ -317,10 +313,12 @@ export function MessagesList({ contactId }: MessagesListProps) {
                 key={`${message.id}-${message.created_at}-${dateKey}-${index}`}
                 message={message}
                 isSearchResult={!!searchQuery}
+                onReply={() => {}}
               />
             ))}
           </div>
         ))}
+
       <div ref={messagesEndRef} />
     </div>
   );
