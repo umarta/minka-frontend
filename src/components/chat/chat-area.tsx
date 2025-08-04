@@ -68,7 +68,9 @@ export function ChatArea(props: ChatAreaProps) {
         <>
           <ChatHeader />
           <div className="flex-1 overflow-hidden">
-            <TakeoverStatus contact={activeContact} />
+            <div className="py-4">
+              <TakeoverStatus contact={activeContact} />
+            </div>
             <MessagesList contactId={activeContact.id} />
           </div>
           <MessageInput
