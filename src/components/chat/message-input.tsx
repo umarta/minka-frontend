@@ -345,9 +345,10 @@ export function MessageInput({
   };
 
   const getMessageType = (file: File): MessageType => {
-    if (file.type.startsWith("image/")) return "image";
-    if (file.type.startsWith("video/")) return "video";
-    if (file.type.startsWith("audio/")) return "audio";
+    const fileType = file.type || "";
+    if (fileType.startsWith("image/")) return "image";
+    if (fileType.startsWith("video/")) return "video";
+    if (fileType.startsWith("audio/")) return "audio";
     return "document";
   };
 
@@ -355,17 +356,59 @@ export function MessageInput({
     if (!files) return;
 
     const fileArray = Array.from(files);
-    setAttachmentFiles((prev) => [...prev, ...fileArray]);
+
+    // Validate each file before processing
+    const validFiles = fileArray.filter((file) => {
+      // Check if it's a valid File object
+      if (!file) {
+        console.error("❌ File is null or undefined:", file);
+        return false;
+      }
+
+      // Check if it has the necessary File properties
+      if (typeof file !== "object") {
+        console.error("❌ File is not an object:", file);
+        return false;
+      }
+
+      // Check for name property (File objects should have this)
+      if (!file.name && file.name !== "") {
+        console.error("❌ File object missing name property:", file);
+        return false;
+      }
+
+      // Check for size property
+      if (typeof file.size !== "number") {
+        console.error("❌ File object missing or invalid size property:", file);
+        return false;
+      }
+
+      return true;
+    });
+
+    if (validFiles.length === 0) {
+      console.error("❌ No valid files to process");
+      return;
+    }
+
+    setAttachmentFiles((prev) => [...prev, ...validFiles]);
 
     // Create previews for images
-    fileArray.forEach((file, index) => {
-      if (file.type.startsWith("image/")) {
+    validFiles.forEach((file, index) => {
+      // Add extra validation for file type
+      const fileType = file.type || "";
+      if (fileType && fileType.startsWith("image/")) {
         const reader = new FileReader();
         reader.onload = (e) => {
-          setAttachmentPreviews((prev) => [
-            ...prev,
-            e.target?.result as string,
-          ]);
+          if (e.target?.result) {
+            setAttachmentPreviews((prev) => [
+              ...prev,
+              e.target!.result as string,
+            ]);
+          }
+        };
+        reader.onerror = (error) => {
+          console.error("❌ Error reading file:", error);
         };
         reader.readAsDataURL(file);
       }
@@ -472,6 +515,107 @@ export function MessageInput({
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e as any);
+    }
+  };
+
+  const handleOnKeyDown = async (e: React.KeyboardEvent) => {
+    if (e.ctrlKey && e.key === "v") {
+      // Check if Clipboard API is available
+      if (!navigator.clipboard || !navigator.clipboard.read) {
+        return;
+      }
+
+      try {
+        if (navigator.permissions) {
+          try {
+            const permission = await navigator.permissions.query({
+              name: "clipboard-read" as any,
+            });
+            if (permission.state === "denied") {
+              console.log(
+                "ℹ️ Clipboard permission denied, using fallback handlers"
+              );
+              return;
+            }
+          } catch (permError) {
+            console.log("ℹ️ Permission check failed, proceeding anyway");
+          }
+        }
+
+        const clipboardItems = await navigator.clipboard.read();
+
+        for (const clipboardItem of clipboardItems) {
+          if (!clipboardItem || !clipboardItem.types) {
+            console.log("⚠️ Invalid clipboard item, skipping");
+            continue;
+          }
+
+          // Check if clipboard contains image data (from snipping tools)
+          for (const type of clipboardItem.types) {
+            // Validate type string
+            if (!type || typeof type !== "string") {
+              console.log("⚠️ Invalid type, skipping:", type);
+              continue;
+            }
+
+            if (type.startsWith("image/")) {
+              console.log(`📸 Image found in clipboard: ${type}`);
+              e.preventDefault(); // Prevent default paste behavior
+
+              try {
+                const blob = await clipboardItem.getType(type);
+
+                // Validate blob
+                if (!blob || blob.size === 0) {
+                  console.log("⚠️ Invalid or empty blob, skipping");
+                  continue;
+                }
+
+                // Create a proper File object for the snipped image
+                const timestamp =
+                  new Date().toISOString().replace(/[:.]/g, "-").split("T")[0] +
+                  "_" +
+                  new Date().toTimeString().slice(0, 8).replace(/:/g, "-");
+
+                // Safely extract extension
+                const extension =
+                  type && type.includes("/")
+                    ? type.split("/")[1] || "png"
+                    : "png";
+                const fileName = `snipped-image-${timestamp}.${extension}`;
+
+                // Create file with proper validation
+                const file = new File([blob], fileName, {
+                  type: type || "image/png",
+                  lastModified: Date.now(),
+                });
+
+                // Validate file creation
+                if (!file || !file.name || !file.type) {
+                  console.error("❌ Failed to create valid file object");
+                  continue;
+                }
+
+                // Create proper FileList-like object with all necessary properties
+                const fileList = Object.assign([file], {
+                  item: (index: number) => (index === 0 ? file : null),
+                }) as unknown as FileList;
+
+                handleFileSelect(fileList);
+
+                return;
+              } catch (blobError) {
+                console.error("❌ Error processing image blob:", blobError);
+              }
+            }
+          }
+        }
+      } catch (clipboardError) {
+        console.log(
+          "ℹ️ Navigator clipboard API not available or failed, falling back to existing handlers"
+        );
+        console.log("ℹ️ Error details:", clipboardError);
+      }
     }
   };
 
@@ -828,6 +972,7 @@ export function MessageInput({
               value={message}
               onChange={handleTextareaChange}
               onKeyPress={handleKeyPress}
+              onKeyDown={handleOnKeyDown}
               placeholder="Type a message..."
               className="min-h-[40px] max-h-[120px] resize-none pr-20 border-gray-300 focus:border-green-500 focus:ring-green-500"
               rows={1}
