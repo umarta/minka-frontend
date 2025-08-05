@@ -70,7 +70,10 @@ export const ContactLabelManager = ({
 
   useEffect(() => {
     if (isOpen) {
-      loadLabels();
+      loadLabels({
+        page: 1,
+        limit: 100,
+      });
     }
   }, [isOpen]);
 

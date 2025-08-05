@@ -280,7 +280,7 @@ interface ChatActions {
   autoSaveDraft: (contactId: string, content: string) => Promise<void>;
 
   // Label Management
-  loadLabels: () => Promise<void>;
+  loadLabels: (params?: { page: number; limit: number }) => Promise<void>;
   createLabel: (data: {
     name: string;
     color: string;
@@ -1718,10 +1718,10 @@ export const useChatStore = create<ChatStore>()(
     },
 
     // Label Management
-    loadLabels: async () => {
+    loadLabels: async (params?: { page: number; limit: number }) => {
       set({ isLoadingLabels: true, error: null });
       try {
-        const labels = await labelsApi.getAll();
+        const labels = await labelsApi.getAll(params);
         set({ labels, isLoadingLabels: false });
       } catch (error) {
         console.error("Failed to load labels:", error);
