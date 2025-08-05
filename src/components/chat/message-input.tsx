@@ -519,103 +519,79 @@ export function MessageInput({
   };
 
   const handleOnKeyDown = async (e: React.KeyboardEvent) => {
-    if (e.ctrlKey && e.key === "v") {
-      // Check if Clipboard API is available
-      if (!navigator.clipboard || !navigator.clipboard.read) {
-        return;
+    const isPasteShortcut =
+      (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v";
+
+    if (!isPasteShortcut) return;
+
+    if (!navigator.clipboard || !navigator.clipboard.read) {
+      console.warn("Clipboard read API not available in this browser.");
+      return;
+    }
+
+    try {
+      if (navigator.permissions) {
+        try {
+          const permission = await navigator.permissions.query({
+            name: "clipboard-read" as PermissionName,
+          });
+          if (permission.state === "denied") {
+            console.warn("Clipboard permission denied.");
+            return;
+          }
+        } catch (permError) {
+          console.warn(
+            "Permission query failed, proceeding anyway.",
+            permError
+          );
+        }
       }
 
-      try {
-        if (navigator.permissions) {
+      const clipboardItems = await navigator.clipboard.read();
+
+      for (const clipboardItem of clipboardItems) {
+        if (!clipboardItem || !clipboardItem.types) continue;
+
+        for (const type of clipboardItem.types) {
+          if (typeof type !== "string" || !type.startsWith("image/")) continue;
+
+          e.preventDefault();
+
           try {
-            const permission = await navigator.permissions.query({
-              name: "clipboard-read" as any,
-            });
-            if (permission.state === "denied") {
-              console.log(
-                "ℹ️ Clipboard permission denied, using fallback handlers"
-              );
-              return;
-            }
-          } catch (permError) {
-            console.log("ℹ️ Permission check failed, proceeding anyway");
-          }
-        }
+            const blob = await clipboardItem.getType(type);
 
-        const clipboardItems = await navigator.clipboard.read();
-
-        for (const clipboardItem of clipboardItems) {
-          if (!clipboardItem || !clipboardItem.types) {
-            console.log("⚠️ Invalid clipboard item, skipping");
-            continue;
-          }
-
-          // Check if clipboard contains image data (from snipping tools)
-          for (const type of clipboardItem.types) {
-            // Validate type string
-            if (!type || typeof type !== "string") {
-              console.log("⚠️ Invalid type, skipping:", type);
+            if (!blob || blob.size === 0) {
+              console.warn("Empty image blob, skipping.");
               continue;
             }
 
-            if (type.startsWith("image/")) {
-              console.log(`📸 Image found in clipboard: ${type}`);
-              e.preventDefault(); // Prevent default paste behavior
+            const timestamp = new Date()
+              .toISOString()
+              .replace(/[:.]/g, "-")
+              .replace("T", "_")
+              .split("Z")[0];
 
-              try {
-                const blob = await clipboardItem.getType(type);
+            const extension = type.split("/")[1] || "png";
+            const fileName = `snipped-image-${timestamp}.${extension}`;
 
-                // Validate blob
-                if (!blob || blob.size === 0) {
-                  console.log("⚠️ Invalid or empty blob, skipping");
-                  continue;
-                }
+            const file = new File([blob], fileName, {
+              type: type,
+              lastModified: Date.now(),
+            });
 
-                // Create a proper File object for the snipped image
-                const timestamp =
-                  new Date().toISOString().replace(/[:.]/g, "-").split("T")[0] +
-                  "_" +
-                  new Date().toTimeString().slice(0, 8).replace(/:/g, "-");
+            const fileList = Object.assign([file], {
+              item: (index: number) => (index === 0 ? file : null),
+            }) as unknown as FileList;
 
-                // Safely extract extension
-                const extension =
-                  type && type.includes("/")
-                    ? type.split("/")[1] || "png"
-                    : "png";
-                const fileName = `snipped-image-${timestamp}.${extension}`;
-
-                // Create file with proper validation
-                const file = new File([blob], fileName, {
-                  type: type || "image/png",
-                  lastModified: Date.now(),
-                });
-
-                // Validate file creation
-                if (!file || !file.name || !file.type) {
-                  console.error("❌ Failed to create valid file object");
-                  continue;
-                }
-
-                // Create proper FileList-like object with all necessary properties
-                const fileList = Object.assign([file], {
-                  item: (index: number) => (index === 0 ? file : null),
-                }) as unknown as FileList;
-
-                handleFileSelect(fileList);
-
-                return;
-              } catch (blobError) {
-                console.error("❌ Error processing image blob:", blobError);
-              }
-            }
+            handleFileSelect(fileList);
+            return;
+          } catch (blobError) {
+            console.error("Error reading image blob:", blobError);
           }
         }
-      } catch (clipboardError) {
-        console.log(
-          "ℹ️ Navigator clipboard API not available or failed, falling back to existing handlers"
-        );
-        console.log("ℹ️ Error details:", clipboardError);
       }
+    } catch (clipboardError) {
+      console.error("Clipboard read failed:", clipboardError);
     }
   };
 
