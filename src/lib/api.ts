@@ -897,7 +897,7 @@ export const messagesApi = {
       // Map the data to match the backend's SendTextMessageRequest structure
       const messageData = {
         session_name: data.session_id || "default",
-        ticket_id: data.ticket_id ? data.ticket_id : undefined, // Optional field
+        ticket_id: data.ticket_id ? +data.ticket_id : undefined, // Optional field
         to: data.to, // Required field
         text: data.content, // Required field
         ...(data.reply_to && {
@@ -980,7 +980,7 @@ export const messagesApi = {
       // Prepare the message data according to the new WAHA API format
       const messageData = {
         session_name: data.session_id || "default",
-        ticket_id: data.ticket_id ? data.ticket_id : 1, // Use default ticket ID (1) when no ticket available
+        ticket_id: data.ticket_id ? +data.ticket_id : 1, // Use default ticket ID (1) when no ticket available
         to: phoneNumber, // Required field
         media_type: mediaType, // image, video, audio, document
         media_url: presignedUrlData.publicURL || presignedUrlData.file_path, // Use clean URL from backend response

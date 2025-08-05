@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Check,
   CheckCheck,
@@ -22,6 +22,7 @@ import {
   Phone,
   Clock3,
   ChevronDown,
+  Camera,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +36,7 @@ import { Message } from "@/types";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useChatStore } from "@/lib/stores/chat";
+import Image from "next/image";
 
 interface MessageBubbleProps {
   message: Message;
@@ -61,16 +63,28 @@ export function MessageBubble({
   onCopy,
   isSearchResult = false,
 }: MessageBubbleProps) {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [showReactions, setShowReactions] = useState(false);
-  const [showPopover, setShowPopover] = useState(false);
+  const { activeContact, conversationMode } = useChatStore();
+
   const audioRef = useRef<HTMLAudioElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [showPopover, setShowPopover] = useState(false);
+  const [duration, setDuration] = useState<number | undefined>(0);
+  const [currentTime, setCurrentTime] = useState<number>(0);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const isOutgoing = message.direction === "outgoing";
   const isSystem = message.message_type === "system";
 
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, []);
+
   // Ambil mode percakapan
-  const conversationMode = useChatStore((state) => state.conversationMode);
   const showAdminName = isOutgoing && (message as any).admin_name;
 
   // Get sender name for outgoing messages
@@ -140,11 +154,42 @@ export function MessageBubble({
   const handleAudioPlayPause = () => {
     if (audioRef.current) {
       if (isPlaying) {
+        // Pause audio
         audioRef.current.pause();
+        setIsPlaying(false);
+
+        // When pausing, keep current time at current position (remaining time)
+        const remaining = (duration || 0) - audioRef.current.currentTime;
+        setCurrentTime(Math.max(0, remaining));
+
+        // Clear interval when pausing
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
       } else {
+        // Play audio
         audioRef.current.play();
+        setIsPlaying(true);
+
+        // Start countdown interval
+        intervalRef.current = setInterval(() => {
+          if (audioRef.current) {
+            const remaining = (duration || 0) - audioRef.current.currentTime;
+            setCurrentTime(Math.max(0, remaining));
+
+            // Stop when audio ends
+            if (remaining <= 0) {
+              setIsPlaying(false);
+              setCurrentTime(0);
+              if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+              }
+            }
+          }
+        }, 100); // Update every 100ms for smooth countdown
       }
-      setIsPlaying(!isPlaying);
     }
   };
 
@@ -154,6 +199,12 @@ export function MessageBubble({
     const sizes = ["B", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  };
+
+  const formatDuration = (dur: number) => {
+    const minutes = Math.floor(dur / 60);
+    const seconds = Math.floor(dur % 60);
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
   const getFileTypeIcon = (type: string) => {
@@ -227,14 +278,18 @@ export function MessageBubble({
   const renderAudioWaveform = () => {
     if (!message.waveform) return null;
 
+    const progressRatio = duration ? (duration - currentTime) / duration : 0;
+    const activeIndex = Math.floor(progressRatio * message.waveform.length);
+
     return (
       <div className="flex items-center h-8 gap-1">
         {message.waveform.map((height, index) => (
           <div
             key={`${message.id}-waveform-${index}`}
             className={cn(
-              "w-1 bg-green-500 rounded-full transition-all",
-              isPlaying && index < 10 ? "bg-green-600" : "bg-green-300"
+              "w-1 rounded-full transition-all",
+              index <= activeIndex ? "bg-green-500" : "bg-green-200",
+              isPlaying && index <= activeIndex ? "bg-green-600" : ""
             )}
             style={{ height: `${Math.max(4, height * 24)}px` }}
           />
@@ -302,14 +357,23 @@ export function MessageBubble({
                 renderAudioWaveform()
               ) : (
                 <div className="h-1 bg-gray-200 rounded-full">
-                  <div className="w-1/3 h-1 transition-all bg-green-500 rounded-full"></div>
+                  <div
+                    className="h-1 transition-all bg-green-500 rounded-full"
+                    style={{
+                      width: duration
+                        ? `${((duration - currentTime) / duration) * 100}%`
+                        : "0%",
+                    }}
+                  ></div>
                 </div>
               )}
               <div className="flex items-center justify-between mt-1">
                 <span className="text-xs text-gray-500">
-                  {message.duration
-                    ? `${Math.floor(message.duration / 60)}:${(message.duration % 60).toString().padStart(2, "0")}`
-                    : "0:34"}
+                  {currentTime > 0
+                    ? formatDuration(currentTime)
+                    : duration
+                      ? formatDuration(duration)
+                      : "0:00"}
                 </span>
                 <Volume2 className="w-3 h-3 text-gray-400" />
               </div>
@@ -318,9 +382,19 @@ export function MessageBubble({
             <audio
               ref={audioRef}
               src={message.media_url || message.file_url}
-              onEnded={() => setIsPlaying(false)}
+              onEnded={() => {
+                setIsPlaying(false);
+                setCurrentTime(0);
+                if (intervalRef.current) {
+                  clearInterval(intervalRef.current);
+                  intervalRef.current = null;
+                }
+              }}
               onLoadedMetadata={() => {
-                // Update duration if not provided
+                if (audioRef.current?.duration) {
+                  setDuration(audioRef.current.duration);
+                  setCurrentTime(audioRef.current.duration);
+                }
               }}
             />
           </div>
@@ -623,6 +697,22 @@ export function MessageBubble({
     }
   };
 
+  const generateReplyContentIcon = () => {
+    switch (message?.reply_to?.conten_type) {
+      case "image":
+        return <Camera className="w-4 h-4 text-gray-600" />;
+      case "video":
+        return <Video className="w-4 h-4 text-gray-600" />;
+      case "audio":
+        return <Volume2 className="w-4 h-4 text-gray-600" />;
+      case "document":
+        return <FileText className="w-4 h-4 text-gray-600" />;
+
+      default:
+        return <></>;
+    }
+  };
+
   const quickReactions = ["👍", "❤️", "😊", "😮", "😢", "😡"];
 
   return (
@@ -652,15 +742,43 @@ export function MessageBubble({
             isGrouped && !isOutgoing && "rounded-bl-lg"
           )}
         >
+          {isOutgoing && message?.reply_to_message_id && (
+            <div className="p-1 mb-1 bg-white rounded-lg">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col">
+                  <h4 className="m-0 text-sm text-blue-600">
+                    {activeContact?.name}
+                  </h4>
+                  <div className="flex items-center gap-1">
+                    {generateReplyContentIcon()}
+                    <p className="overflow-hidden text-xs text-gray-500 break-all whitespace-pre-wrap line-clamp-2">
+                      {message.reply_to?.content}
+                    </p>
+                  </div>
+                </div>
+                {message?.reply_to?.conten_type === "image" &&
+                  message?.reply_to?.media_url && (
+                    <Image
+                      src={message?.reply_to?.media_url}
+                      alt="Reply Image"
+                      width={48}
+                      height={48}
+                      className="object-cover rounded-lg size-12"
+                    />
+                  )}
+              </div>
+            </div>
+          )}
+
           {!isOutgoing && (
             <Popover open={showPopover} onOpenChange={setShowPopover}>
               <PopoverTrigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="absolute w-5 h-5 p-0 transition-opacity duration-200 opacity-0 top-1 right-1 group-hover:opacity-100 hover:bg-gray-100"
+                  className="absolute z-30 w-5 h-5 p-0 transition-opacity duration-200 bg-gray-100 rounded-full opacity-0 top-1 right-1 group-hover:opacity-100"
                 >
-                  <ChevronDown className="w-3 h-3 text-gray-400" />
+                  <ChevronDown className="w-3 h-3 text-gray-600" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="p-1 w-fit" side="bottom" align="start">
@@ -837,7 +955,7 @@ export function MessageBubble({
           {renderReactions()}
 
           {/* Message Info */}
-          <div className="flex items-center justify-end gap-1">
+          <div className="flex items-center justify-end gap-1 mt-1">
             <div className="flex items-center gap-1">
               <span
                 className={cn(

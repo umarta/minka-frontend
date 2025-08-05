@@ -1,11 +1,38 @@
 import { useChatStore } from "@/lib/stores/chat";
-import { Camera, X } from "lucide-react";
+import { Camera, X, FileText, Video, Mic } from "lucide-react";
 import Image from "next/image";
 
 const MessageReply = () => {
   const { selectedMessage, setSelectedMessage } = useChatStore();
 
   console.log(selectedMessage, "selectedMessage in MessageReply");
+
+  const getFileInfo = () => {
+    if (selectedMessage?.media_url) {
+      try {
+        const url = new URL(selectedMessage.media_url);
+        const fileName = url.pathname.split("/").pop() || "";
+        const extension = fileName.split(".").pop() || "";
+        const nameWithoutExtension = fileName.replace(`.${extension}`, "");
+
+        return {
+          fileName,
+          name: nameWithoutExtension,
+          extension,
+        };
+      } catch (error) {
+        console.error("Error parsing media URL:", error);
+      }
+    }
+
+    return {
+      fileName: "",
+      name: "",
+      extension: "",
+    };
+  };
+
+  const fileInfo = getFileInfo();
 
   const generateReplyContent = () => {
     switch (selectedMessage?.message_type) {
@@ -17,8 +44,38 @@ const MessageReply = () => {
           </div>
         );
 
+      case "document":
+        return (
+          <div className="flex items-center gap-1">
+            <FileText className="object-contain size-4" />
+            <span className="text-sm text-gray-600">{fileInfo.fileName}</span>
+          </div>
+        );
+
+      case "video":
+        return (
+          <div className="flex items-center gap-1">
+            <Video className="object-contain size-4" />
+            <span className="text-sm text-gray-600">{fileInfo.fileName}</span>
+          </div>
+        );
+
+      case "audio":
+        return (
+          <div className="flex items-center gap-1">
+            <Mic className="object-contain size-4" />
+            <span className="text-sm text-gray-600">
+              {fileInfo.fileName || "Audio"}
+            </span>
+          </div>
+        );
+
       default:
-        break;
+        return (
+          <span className="overflow-hidden text-sm text-gray-600 break-all whitespace-pre-wrap line-clamp-2">
+            {selectedMessage?.content}
+          </span>
+        );
     }
   };
 

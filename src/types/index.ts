@@ -118,7 +118,14 @@ export interface Message extends BaseEntity {
   edited_at?: string;
 
   // Threading & Replies
-  reply_to_message_id?: string;
+  reply_to?: {
+    content: string;
+    conten_type: MessageType;
+    message_id: number;
+    target_wa_message_id?: string;
+    media_url?: string;
+  };
+  reply_to_message_id?: number;
   replied_to_id?: string;
   quoted_message?: Message;
   thread_count?: number;
