@@ -6,6 +6,7 @@ import { useChatStore } from "@/lib/stores/chat";
 import { Message } from "@/types";
 import { format, isToday, isYesterday } from "date-fns";
 import { id } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 interface MessagesListProps {
   contactId: string;
@@ -23,6 +24,7 @@ interface PaginationMeta {
 
 export function MessagesList({ contactId }: MessagesListProps) {
   const {
+    selectedMessage,
     setSelectedMessage,
     contactMessages,
     isLoadingMessages,
@@ -284,11 +286,13 @@ export function MessagesList({ contactId }: MessagesListProps) {
     );
   }
 
-  console.log(groupedMessages, "groupedMessages");
-
   return (
     <div
-      className="flex-1 px-2 py-4 overflow-y-auto"
+      className={cn("flex-1 px-2 pt-4 overflow-y-auto", {
+        "max-h-[71vh]": selectedMessage?.content || selectedMessage?.media_url,
+        "max-h-[79vh]":
+          !selectedMessage?.content && !selectedMessage?.media_url,
+      })}
       ref={containerRef}
       onScroll={throttledScrollHandler}
     >

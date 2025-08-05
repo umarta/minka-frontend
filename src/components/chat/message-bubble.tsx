@@ -10,17 +10,12 @@ import {
   Pause,
   Edit,
   Forward,
-  MapPin,
-  CreditCard,
   Link as LinkIcon,
   FileText,
   Image as ImageIcon,
   Video,
   Volume2,
   ExternalLink,
-  Navigation,
-  Phone,
-  Clock3,
   ChevronDown,
   Camera,
 } from "lucide-react";
@@ -43,7 +38,6 @@ interface MessageBubbleProps {
   showTimestamp?: boolean;
   isGrouped?: boolean;
   onReact?: (messageId: string, emoji: string) => void;
-  onEdit?: (messageId: string) => void;
   onReply?: (message: Message) => void;
   onForward?: (message: Message) => void;
   onDelete?: (messageId: string) => void;
@@ -56,7 +50,6 @@ export function MessageBubble({
   message,
   isGrouped = false,
   onReact,
-  onEdit,
   onReply,
   onForward,
   onDelete,
@@ -212,6 +205,13 @@ export function MessageBubble({
     if (type?.startsWith("video/")) return <Video className="w-5 h-5" />;
     if (type?.startsWith("audio/")) return <Volume2 className="w-5 h-5" />;
     return <FileText className="w-5 h-5" />;
+  };
+
+  const handleScrollToElement = (id: string) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth" });
+    }
   };
 
   const renderReactions = () => {
@@ -407,7 +407,7 @@ export function MessageBubble({
               <img
                 src={message.media_url || message.file_url}
                 alt="Image"
-                className="size-[250px] object-cover transition-opacity rounded-lg cursor-pointer hover:opacity-90"
+                className="w-[250px] object-contain h-auto transition-opacity rounded-lg cursor-pointer hover:opacity-90"
                 onClick={() => {
                   window.open(message.media_url || message.file_url, "_blank");
                 }}
@@ -534,160 +534,6 @@ export function MessageBubble({
           </div>
         );
 
-      case "location":
-        return (
-          <div className="max-w-sm">
-            <div className="relative flex items-center justify-center overflow-hidden bg-gray-100 rounded-lg aspect-video">
-              {message.location_lat && message.location_lng ? (
-                <div className="flex flex-col items-center justify-center w-full h-full bg-green-50">
-                  <MapPin className="w-8 h-8 mb-2 text-green-600" />
-                  <p className="text-sm font-medium text-green-800">
-                    Location Shared
-                  </p>
-                  <p className="text-xs text-green-600">
-                    {message.location_lat.toFixed(6)},{" "}
-                    {message.location_lng.toFixed(6)}
-                  </p>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center text-gray-500">
-                  <MapPin className="w-8 h-8 mb-2" />
-                  <span className="text-sm">Location</span>
-                </div>
-              )}
-            </div>
-
-            {message.location_address && (
-              <div className="p-3 mt-3 rounded-lg bg-gray-50">
-                <p className="text-sm font-medium">
-                  {message.location_address}
-                </p>
-                {message.business_name && (
-                  <p className="mt-1 text-sm text-gray-600">
-                    {message.business_name}
-                  </p>
-                )}
-                {message.operating_hours && (
-                  <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-                    <Clock3 className="w-3 h-3" />
-                    <span>{message.operating_hours}</span>
-                  </div>
-                )}
-                <div className="flex gap-2 mt-3">
-                  <Button size="sm" variant="outline" className="flex-1">
-                    <Navigation className="w-3 h-3 mr-1" />
-                    Directions
-                  </Button>
-                  <Button size="sm" variant="outline" className="flex-1">
-                    <Phone className="w-3 h-3 mr-1" />
-                    Call
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {message.content && (
-              <p className="mt-2 text-sm">{message.content}</p>
-            )}
-          </div>
-        );
-
-      case "payment":
-        return (
-          <div className="max-w-sm overflow-hidden border border-gray-200 rounded-lg">
-            <div className="p-4 text-white bg-gradient-to-r from-green-500 to-green-600">
-              <div className="flex items-center gap-2 mb-2">
-                <CreditCard className="w-5 h-5" />
-                <span className="font-medium">Payment Invoice</span>
-              </div>
-              <div className="text-2xl font-bold">
-                {message.payment_currency}{" "}
-                {message.payment_amount?.toLocaleString()}
-              </div>
-            </div>
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-gray-600">Invoice ID</span>
-                <code className="px-2 py-1 font-mono text-sm bg-gray-100 rounded">
-                  {message.payment_invoice_id}
-                </code>
-              </div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-gray-600">Status</span>
-                <Badge
-                  variant={
-                    message.payment_status === "paid" ? "default" : "secondary"
-                  }
-                  className={cn(
-                    message.payment_status === "paid" && "bg-green-500",
-                    message.payment_status === "pending" && "bg-yellow-500",
-                    message.payment_status === "failed" && "bg-red-500"
-                  )}
-                >
-                  {message.payment_status?.toUpperCase()}
-                </Badge>
-              </div>
-              {message.payment_description && (
-                <p className="mb-3 text-sm text-gray-700">
-                  {message.payment_description}
-                </p>
-              )}
-              {message.payment_status === "pending" && (
-                <Button className="w-full" size="sm">
-                  Pay Now
-                </Button>
-              )}
-            </div>
-          </div>
-        );
-
-      case "link":
-        return (
-          <div className="max-w-sm overflow-hidden border border-gray-200 rounded-lg">
-            {message.link_preview?.image && (
-              <img
-                src={message.link_preview.image}
-                alt="Link preview"
-                className="object-cover w-full h-40"
-              />
-            )}
-            <div className="p-4">
-              <h4 className="mb-2 text-sm font-medium line-clamp-2">
-                {message.link_preview?.title || "Link Preview"}
-              </h4>
-              {message.link_preview?.description && (
-                <p className="mb-3 text-xs text-gray-600 line-clamp-3">
-                  {message.link_preview.description}
-                </p>
-              )}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {message.link_preview?.favicon && (
-                    <img
-                      src={message.link_preview.favicon}
-                      alt="Favicon"
-                      className="w-4 h-4"
-                    />
-                  )}
-                  <span className="text-xs text-gray-500">
-                    {message.link_preview?.domain}
-                  </span>
-                </div>
-                <Button size="sm" variant="outline" asChild>
-                  <a
-                    href={message.content}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <ExternalLink className="w-3 h-3 mr-1" />
-                    Open
-                  </a>
-                </Button>
-              </div>
-            </div>
-          </div>
-        );
-
       default:
         return (
           <p className="text-sm break-words whitespace-pre-wrap">
@@ -698,18 +544,51 @@ export function MessageBubble({
   };
 
   const generateReplyContentIcon = () => {
-    switch (message?.reply_to?.conten_type) {
+    switch (message?.reply_to?.content_type) {
       case "image":
-        return <Camera className="w-4 h-4 text-gray-600" />;
+        return (
+          <div className="flex items-center gap-1">
+            <Camera className="w-4 h-4 text-gray-600" />
+            <p className="overflow-hidden text-xs text-gray-500 break-all whitespace-pre-wrap line-clamp-2">
+              {message.reply_to?.content}
+            </p>
+          </div>
+        );
       case "video":
-        return <Video className="w-4 h-4 text-gray-600" />;
+        return (
+          <div className="flex items-center gap-1">
+            <Video className="w-4 h-4 text-gray-600" />
+            <p className="overflow-hidden text-xs text-gray-500 break-all whitespace-pre-wrap line-clamp-2">
+              {message.reply_to?.content || "Video"}
+            </p>
+          </div>
+        );
+
       case "audio":
-        return <Volume2 className="w-4 h-4 text-gray-600" />;
+        return (
+          <div className="flex items-center gap-1">
+            <Volume2 className="w-4 h-4 text-gray-600" />
+            <p className="overflow-hidden text-xs text-gray-500 break-all whitespace-pre-wrap line-clamp-2">
+              {message.reply_to?.content || "Audio"}
+            </p>
+          </div>
+        );
       case "document":
-        return <FileText className="w-4 h-4 text-gray-600" />;
+        return (
+          <div className="flex items-center gap-1">
+            <FileText className="w-4 h-4 text-gray-600" />
+            <p className="overflow-hidden text-xs text-gray-500 break-all whitespace-pre-wrap line-clamp-2">
+              {message.reply_to?.content || "Document"}
+            </p>
+          </div>
+        );
 
       default:
-        return <></>;
+        return (
+          <p className="overflow-hidden text-xs text-gray-500 break-all whitespace-pre-wrap line-clamp-2">
+            {message.reply_to?.content}
+          </p>
+        );
     }
   };
 
@@ -717,6 +596,7 @@ export function MessageBubble({
 
   return (
     <div
+      id={message.wa_message_id}
       key={`message-bubble-${message.id}`}
       className={cn(
         "flex",
@@ -749,14 +629,9 @@ export function MessageBubble({
                   <h4 className="m-0 text-sm text-blue-600">
                     {activeContact?.name}
                   </h4>
-                  <div className="flex items-center gap-1">
-                    {generateReplyContentIcon()}
-                    <p className="overflow-hidden text-xs text-gray-500 break-all whitespace-pre-wrap line-clamp-2">
-                      {message.reply_to?.content}
-                    </p>
-                  </div>
+                  {generateReplyContentIcon()}
                 </div>
-                {message?.reply_to?.conten_type === "image" &&
+                {message?.reply_to?.content_type === "image" &&
                   message?.reply_to?.media_url && (
                     <Image
                       src={message?.reply_to?.media_url}
@@ -895,7 +770,7 @@ export function MessageBubble({
           {/* Sender Name for Outgoing Messages */}
           {senderName && (
             <div
-              className={cn("text-xs text-bold font-medium mb-1 text-gray-600")}
+              className={cn("text-xs text-bold mb-1 font-medium text-gray-600")}
             >
               {senderName}
             </div>

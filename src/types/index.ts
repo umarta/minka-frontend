@@ -120,7 +120,7 @@ export interface Message extends BaseEntity {
   // Threading & Replies
   reply_to?: {
     content: string;
-    conten_type: MessageType;
+    content_type: MessageType;
     message_id: number;
     target_wa_message_id?: string;
     media_url?: string;

@@ -62,7 +62,6 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
     uploadProgress,
     removeUploadProgress,
   } = useChatStore();
-  const { lastValidation, validateMessage, clear } = useAntiBlockingStore();
 
   // Message State
   const [message, setMessage] = useState("");
@@ -92,7 +91,6 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
   // Refs
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const voiceInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -224,29 +222,6 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
   }, [activeContact.id]);
 
   // Auto-validate message when typing
-  useEffect(() => {
-    if (message.trim() && activeContact && message.length > 10) {
-      const timer = setTimeout(async () => {
-        try {
-          await validateMessage({
-            contact_id: parseInt(activeContact.id),
-            session_name: "default",
-            content: message,
-            message_type: "text",
-            admin_id: 1, // TODO: Get from auth store
-          });
-          setShowValidation(true);
-        } catch (error) {
-          console.error("Validation error:", error);
-        }
-      }, 1000);
-
-      return () => clearTimeout(timer);
-    } else {
-      setShowValidation(false);
-      clear();
-    }
-  }, [message, activeContact, validateMessage, clear]);
 
   // Auto-remove completed upload progress
   useEffect(() => {
@@ -284,7 +259,6 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
 
     // Clear validation feedback when sending
     setShowValidation(false);
-    clear();
 
     try {
       let messageType: MessageType = "text";
@@ -625,17 +599,6 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Anti-blocking Validation Feedback */}
-      {showValidation && lastValidation && (
-        <AntiBlockingValidation
-          validation={lastValidation}
-          onDismiss={() => {
-            setShowValidation(false);
-            clear();
-          }}
-        />
       )}
 
       {/* Search Bar */}
