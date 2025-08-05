@@ -45,6 +45,7 @@ import { MessageType, QuickReplyTemplate } from "@/types";
 import { cn } from "@/lib/utils";
 import { AntiBlockingValidation } from "./anti-blocking-validation";
 import { useDragAndDrop } from "@/lib/hooks/useDragAndDrop";
+import MessageReply from "./message-reply";
 
 interface MessageInputProps {
   onSearch?: (query: string) => void;
@@ -54,6 +55,7 @@ interface MessageInputProps {
 
 export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
   const {
+    selectedMessage,
     activeContact,
     sendMessage,
     isSendingMessage,
@@ -64,7 +66,6 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
 
   // Message State
   const [message, setMessage] = useState("");
-  const [replyToMessage, setReplyToMessage] = useState<any>(null);
 
   // File Upload State
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
@@ -304,7 +305,7 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
         contact_id: activeContact.id,
         session_id: "default",
         media_file: mediaFile as File,
-        reply_to_message_id: replyToMessage?.id,
+        reply_to: selectedMessage?.wa_message_id || "",
       });
 
       // Reset form
@@ -319,7 +320,6 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
     setAttachmentFiles([]);
     setAttachmentPreviews([]);
     setRecordingBlob(null);
-    setReplyToMessage(null);
     setRecordingDuration(0);
 
     // Clear draft
@@ -608,19 +608,10 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
         isDragging && "bg-blue-50 border-blue-300 border-2 border-dashed"
       )}
     >
-      <div className="flex items-center justify-between gap-2 mb-4">
-        <div className="flex-1 p-2 bg-gray-100">
-          <div className="flex flex-col gap-y-1">
-            <h4 className="text-sm font-semibold text-blue-500">
-              Rahmad Umarta
-            </h4>
-            <p className="text-xs text-gray-600 line-clamp-2">
-              This is a preview of your message
-            </p>
-          </div>
-        </div>
-        <X className="w-4 h-4 text-gray-500" />
-      </div>
+      {(selectedMessage?.content || selectedMessage?.media_url) && (
+        <MessageReply />
+      )}
+
       {/* Drag & Drop Overlay */}
       {isDragging && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-blue-500 rounded-lg bg-opacity-10">
@@ -635,6 +626,7 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
           </div>
         </div>
       )}
+
       {/* Anti-blocking Validation Feedback */}
       {showValidation && lastValidation && (
         <AntiBlockingValidation
@@ -645,6 +637,7 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
           }}
         />
       )}
+
       {/* Search Bar */}
       {showSearch && (
         <div className="p-3 border-b border-gray-100 bg-gray-50">
@@ -674,6 +667,7 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
           </div>
         </div>
       )}
+
       {/* Typing Indicators */}
       {typingUsers.length > 0 && (
         <div className="px-3 py-2 border-b border-gray-100 bg-blue-50">
@@ -696,6 +690,7 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
           </div>
         </div>
       )}
+
       {/* Upload Progress */}
       {Object.keys(uploadProgress).length > 0 && (
         <div className="p-3 border-b border-gray-100 bg-blue-50">
@@ -727,30 +722,7 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
           ))}
         </div>
       )}
-      {/* Reply Preview */}
-      {replyToMessage && (
-        <div className="p-3 border-b border-gray-100 bg-gray-50">
-          <div className="flex items-start gap-3">
-            <div className="w-1 h-full bg-green-500 rounded-full"></div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-700">
-                Replying to{" "}
-                {replyToMessage.direction === "outgoing" ? "You" : "Customer"}
-              </p>
-              <p className="text-sm text-gray-600 truncate">
-                {replyToMessage.content}
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setReplyToMessage(null)}
-            >
-              <X className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      )}
+
       {/* Voice Recording Preview */}
       {recordingBlob && (
         <div className="p-3 border-b border-gray-100 bg-green-50">

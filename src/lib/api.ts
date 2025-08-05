@@ -14,6 +14,7 @@ import {
   BulkMessageResponse,
   WaMeLinkRequest,
   WaMeLinkResponse,
+  MessageForm,
 } from "@/types";
 
 // Extend AxiosRequestConfig to include retry flag
@@ -891,14 +892,17 @@ export const messagesApi = {
     }
   },
 
-  send: async (data: any) => {
+  send: async (data: MessageForm) => {
     try {
       // Map the data to match the backend's SendTextMessageRequest structure
       const messageData = {
         session_name: data.session_id || "default",
-        ticket_id: data.ticket_id ? parseInt(data.ticket_id) : undefined, // Optional field
+        ticket_id: data.ticket_id ? data.ticket_id : undefined, // Optional field
         to: data.to, // Required field
         text: data.content, // Required field
+        ...(data.reply_to && {
+          reply_to: data.reply_to,
+        }),
         // AdminID is set by the backend from the JWT token
       };
 
@@ -918,9 +922,9 @@ export const messagesApi = {
       session_id: string;
       content?: string;
       message_type: string;
-      reply_to_message_id?: string;
+      reply_to?: string;
       phone_number?: string; // Added phone number parameter
-      ticket_id?: string; // Added ticket ID parameter
+      ticket_id?: number; // Added ticket ID parameter
     },
     onProgress?: (progress: number) => void
   ) => {
@@ -976,11 +980,14 @@ export const messagesApi = {
       // Prepare the message data according to the new WAHA API format
       const messageData = {
         session_name: data.session_id || "default",
-        ticket_id: data.ticket_id ? parseInt(data.ticket_id) : 1, // Use default ticket ID (1) when no ticket available
+        ticket_id: data.ticket_id ? data.ticket_id : 1, // Use default ticket ID (1) when no ticket available
         to: phoneNumber, // Required field
         media_type: mediaType, // image, video, audio, document
         media_url: presignedUrlData.publicURL || presignedUrlData.file_path, // Use clean URL from backend response
         caption: data.content || "",
+        ...(data.reply_to && {
+          reply_to: data.reply_to,
+        }),
         // AdminID is set by the backend from the JWT token
       };
 

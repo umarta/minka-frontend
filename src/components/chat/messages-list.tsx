@@ -23,6 +23,7 @@ interface PaginationMeta {
 
 export function MessagesList({ contactId }: MessagesListProps) {
   const {
+    setSelectedMessage,
     contactMessages,
     isLoadingMessages,
     markMessagesAsRead,
@@ -33,8 +34,6 @@ export function MessagesList({ contactId }: MessagesListProps) {
     searchResults,
     loadContactMessages,
   } = useChatStore();
-
-  // Ambil mode percakapan dan ticket aktif
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -285,6 +284,8 @@ export function MessagesList({ contactId }: MessagesListProps) {
     );
   }
 
+  console.log(groupedMessages, "groupedMessages");
+
   return (
     <div
       className="flex-1 px-2 py-4 overflow-y-auto"
@@ -313,7 +314,16 @@ export function MessagesList({ contactId }: MessagesListProps) {
                 key={`${message.id}-${message.created_at}-${dateKey}-${index}`}
                 message={message}
                 isSearchResult={!!searchQuery}
-                onReply={() => {}}
+                onReply={(msg) =>
+                  setSelectedMessage({
+                    wa_message_id: msg.wa_message_id,
+                    content: msg.content,
+                    name: activeContact?.name || "",
+                    message_type: msg.message_type,
+                    direction: msg.direction || "incoming",
+                    media_url: msg.media_url || undefined,
+                  })
+                }
               />
             ))}
           </div>
