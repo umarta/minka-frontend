@@ -9,12 +9,7 @@ import {
   Play,
   Pause,
   Edit,
-  Reply,
   Forward,
-  Copy,
-  Star,
-  Trash2,
-  MoreVertical,
   MapPin,
   CreditCard,
   Link as LinkIcon,
@@ -22,36 +17,23 @@ import {
   Image as ImageIcon,
   Video,
   Volume2,
-  Heart,
-  ThumbsUp,
-  Smile,
-  Eye,
-  Users,
   ExternalLink,
   Navigation,
   Phone,
   Clock3,
-  FileImage,
   ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Message, MessageReaction } from "@/types";
+import { Message } from "@/types";
 import { cn } from "@/lib/utils";
-import { format, formatDistanceToNow } from "date-fns";
+import { format } from "date-fns";
 import { useChatStore } from "@/lib/stores/chat";
 
 interface MessageBubbleProps {
@@ -70,7 +52,6 @@ interface MessageBubbleProps {
 
 export function MessageBubble({
   message,
-  showTimestamp = false,
   isGrouped = false,
   onReact,
   onEdit,
@@ -78,7 +59,6 @@ export function MessageBubble({
   onForward,
   onDelete,
   onCopy,
-  showTicketBadge = false,
   isSearchResult = false,
 }: MessageBubbleProps) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -353,7 +333,7 @@ export function MessageBubble({
               <img
                 src={message.media_url || message.file_url}
                 alt="Image"
-                className="h-auto max-w-full transition-opacity rounded-lg cursor-pointer hover:opacity-90"
+                className="size-[250px] object-cover transition-opacity rounded-lg cursor-pointer hover:opacity-90"
                 onClick={() => {
                   window.open(message.media_url || message.file_url, "_blank");
                 }}
@@ -402,7 +382,7 @@ export function MessageBubble({
             <div className="relative">
               <video
                 src={message.media_url || message.file_url}
-                className="h-auto max-w-full rounded-lg"
+                className="size-[250px] object-cover rounded-lg"
                 controls
                 poster={message.thumbnail_url}
               />

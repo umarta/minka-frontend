@@ -26,15 +26,13 @@ interface ChatAreaProps {
   searchQuery?: string;
   searchResults?: Message[];
   isSearching?: boolean;
-  replyToMessage?: Message | null;
-  setReplyToMessage?: (message: Message | null) => void;
   editingMessage?: string | null;
   setEditingMessage?: (messageId: string | null) => void;
   onFilesDropped?: (files: File[]) => void;
 }
 
 export function ChatArea(props: ChatAreaProps) {
-  const { activeContact, sendMessage } = useChatStore();
+  const { selectedMessage, activeContact, sendMessage } = useChatStore();
 
   const [droppedFiles, setDroppedFiles] = useState<File[]>([]);
   const [showDroppedFiles, setShowDroppedFiles] = useState(false);
@@ -102,7 +100,8 @@ export function ChatArea(props: ChatAreaProps) {
           contact_id: activeContact.id,
           session_id: "default",
           media_file: file,
-          isDragAndDrop: true, // Flag to indicate this is from drag & drop
+          isDragAndDrop: true,
+          reply_to: selectedMessage?.wa_message_id || "",
         });
 
         // Complete the progress
@@ -352,7 +351,7 @@ export function ChatArea(props: ChatAreaProps) {
       ) : (
         <>
           <ChatHeader />
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-y-auto">
             <div className="py-4">
               <TakeoverStatus contact={activeContact} />
             </div>

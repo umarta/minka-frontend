@@ -11,6 +11,8 @@ import {
   ContactNote,
   DraftMessage,
   ConversationGroup,
+  MessageDirection,
+  MessageType,
 } from "@/types";
 import {
   contactsApi,
@@ -104,6 +106,15 @@ interface ContactConversation {
   conversationAge: string;
 }
 
+interface SelectedMessage {
+  wa_message_id?: string;
+  content: string;
+  name: string;
+  message_type?: MessageType;
+  media_url?: string | undefined;
+  direction: MessageDirection;
+}
+
 interface ChatState {
   // Contact-based conversations
   conversations: Conversation[];
@@ -119,6 +130,7 @@ interface ChatState {
   activeConversation: Conversation | null;
   activeTicket: Ticket | null;
   selectedContactId: string | null;
+  selectedMessage: SelectedMessage;
 
   // Messages (keeping for backward compatibility)
   messages: Record<string, Message[]>; // ticketId -> messages
@@ -246,6 +258,7 @@ interface ChatActions {
   addMessage: (message: Message) => void;
   updateMessage: (messageId: string, updates: Partial<Message>) => void;
   markMessagesAsRead: (contactId: string) => void;
+  setSelectedMessage: (message: SelectedMessage) => void;
 
   // Quick Reply Templates
   loadQuickReplyTemplates: () => Promise<void>;
@@ -430,6 +443,14 @@ export const useChatStore = create<ChatStore>()(
       hasMore: false,
     },
     isLoadingMore: false,
+    selectedMessage: {
+      wa_message_id: undefined,
+      content: "",
+      name: "",
+      direction: "incoming",
+      media_url: undefined,
+      message_type: "text",
+    },
 
     // Actions
     loadConversations: async () => {
@@ -1101,7 +1122,9 @@ export const useChatStore = create<ChatStore>()(
                 session_id: data.session_id || "default",
                 content: data.content || "",
                 message_type: data.message_type,
-                reply_to_message_id: data.reply_to_message_id,
+                ...(data.reply_to && {
+                  reply_to: data.reply_to,
+                }),
                 phone_number: activeContact.phone_number, // Pass the phone number we already have
                 // Ticket is optional in our system, but backend requires it
                 // We'll handle this in the API layer
@@ -1135,8 +1158,10 @@ export const useChatStore = create<ChatStore>()(
                 activeContact.phone_number ||
                 activeContact.phone ||
                 "",
-              reply_to_message_id: data.reply_to_message_id,
-              ticket_id: ticketToUse ? ticketToUse.id.toString() : undefined, // Pass ticket ID if available
+              ...(data.reply_to && {
+                reply_to: data.reply_to,
+              }),
+              ticket_id: ticketToUse ? ticketToUse.id.toString() : undefined,
             });
           }
 
@@ -1293,6 +1318,12 @@ export const useChatStore = create<ChatStore>()(
       } catch (error) {
         console.error("Failed to mark messages as read:", error);
       }
+    },
+    setSelectedMessage: (message: SelectedMessage) => {
+      set((state) => ({
+        ...state,
+        selectedMessage: message,
+      }));
     },
 
     // Real-time handlers
