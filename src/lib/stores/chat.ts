@@ -601,6 +601,8 @@ export const useChatStore = create<ChatStore>()(
           order: "timestamp DESC", // Get newest messages first
         });
 
+        console.log(response, "response");
+
         // Handle different response formats
         let messages: Message[] = [];
         if (response.data?.messages) {
@@ -613,6 +615,8 @@ export const useChatStore = create<ChatStore>()(
 
         const total =
           response.meta?.total || response.data?.meta?.total || messages.length;
+
+        console.log(messages, "messages");
 
         // Convert backend message format to frontend format
         const formattedMessages: Message[] = messages.map((msg: any) => ({
@@ -631,7 +635,7 @@ export const useChatStore = create<ChatStore>()(
             msg.timestamp || msg.created_at || new Date().toISOString(),
           updated_at: msg.updated_at || new Date().toISOString(),
           read_at: msg.read_at,
-          sender_name: msg.sender?.username,
+          sender_name: msg.sender_name,
         }));
 
         // For reverse pagination: reverse the messages to show oldest to newest
@@ -674,6 +678,9 @@ export const useChatStore = create<ChatStore>()(
 
             newMessages = uniqueMessages;
           }
+
+          console.log(state.contactMessages, "contactMessages before update");
+          console.log(newMessages, "newMessages after update");
 
           return {
             contactMessages: {
