@@ -43,7 +43,6 @@ export function ChatArea(props: ChatAreaProps) {
 
   const { isDragging, setDropRef } = useDragAndDrop({
     onFilesDropped: (files) => {
-      console.log("Files dropped in chat area:", files);
       setDroppedFiles(files);
       setShowDroppedFiles(true);
 

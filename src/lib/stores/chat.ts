@@ -239,6 +239,7 @@ interface ChatActions {
   selectTicketEpisode: (ticketId: string) => void;
   toggleConversationMode: () => void;
   toggleTicketHistory: () => void;
+  setSelectedContactId: (contactId: string | null) => void;
 
   // Messages
   loadMessages: (
@@ -617,7 +618,7 @@ export const useChatStore = create<ChatStore>()(
         // Use the unified contact messages endpoint with DESC order for reverse pagination
         const response = await messagesApi.getByContact(contactId, {
           page,
-          limit: 200,
+          limit: 1000,
           query,
           order: "timestamp DESC", // Get newest messages first
         });
@@ -839,6 +840,10 @@ export const useChatStore = create<ChatStore>()(
       set((state) => ({
         showTicketHistory: !state.showTicketHistory,
       }));
+    },
+
+    setSelectedContactId: (contactId: string | null) => {
+      set({ selectedContactId: contactId });
     },
 
     loadMessages: async (ticketId: string, page = 1, forceRefresh = false) => {
