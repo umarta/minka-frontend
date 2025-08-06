@@ -118,7 +118,14 @@ export interface Message extends BaseEntity {
   edited_at?: string;
 
   // Threading & Replies
-  reply_to_message_id?: string;
+  reply_to?: {
+    content: string;
+    content_type: MessageType;
+    message_id: number;
+    target_wa_message_id?: string;
+    media_url?: string;
+  };
+  reply_to_message_id?: number;
   replied_to_id?: string;
   quoted_message?: Message;
   thread_count?: number;
@@ -154,6 +161,8 @@ export interface Message extends BaseEntity {
   // Metadata
   metadata?: Record<string, any>;
   edit_history?: EditHistory[];
+
+  wa_message_id?: string;
 }
 
 // Enhanced Message Types (9 types)
@@ -652,10 +661,12 @@ export interface MessageForm {
   message_type: MessageType;
   contact_id: string;
   session_id: string;
+  ticket_id?: number;
+  to?: string | number;
   media_file?: File;
-  reply_to_message_id?: string;
+  reply_to?: string;
   quoted_message_id?: string;
-  isDragAndDrop?: boolean; // Flag to indicate drag & drop upload
+  isDragAndDrop?: boolean;
 }
 
 export interface TicketForm {

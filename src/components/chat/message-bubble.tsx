@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Check,
   CheckCheck,
@@ -9,81 +9,77 @@ import {
   Play,
   Pause,
   Edit,
-  Reply,
   Forward,
-  Copy,
-  Star,
-  Trash2,
-  MoreVertical,
-  MapPin,
-  CreditCard,
   Link as LinkIcon,
   FileText,
   Image as ImageIcon,
   Video,
   Volume2,
-  Heart,
-  ThumbsUp,
-  Smile,
-  Eye,
-  Users,
   ExternalLink,
-  Navigation,
-  Phone,
-  Clock3,
-  FileImage,
+  ChevronDown,
+  Camera,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Message, MessageReaction } from "@/types";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Message } from "@/types";
 import { cn } from "@/lib/utils";
-import { format, formatDistanceToNow } from "date-fns";
+import { format } from "date-fns";
 import { useChatStore } from "@/lib/stores/chat";
+import Image from "next/image";
 
 interface MessageBubbleProps {
   message: Message;
   showTimestamp?: boolean;
   isGrouped?: boolean;
   onReact?: (messageId: string, emoji: string) => void;
-  onEdit?: (messageId: string) => void;
   onReply?: (message: Message) => void;
   onForward?: (message: Message) => void;
   onDelete?: (messageId: string) => void;
   onCopy?: (content: string) => void;
+  onScrollToElement?: (id: string) => void;
   showTicketBadge?: boolean;
   isSearchResult?: boolean;
 }
 
 export function MessageBubble({
   message,
-  showTimestamp = false,
   isGrouped = false,
   onReact,
-  onEdit,
   onReply,
   onForward,
   onDelete,
   onCopy,
-  showTicketBadge = false,
+  onScrollToElement,
   isSearchResult = false,
 }: MessageBubbleProps) {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [showReactions, setShowReactions] = useState(false);
+  const { activeContact, conversationMode } = useChatStore();
+
   const audioRef = useRef<HTMLAudioElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [showPopover, setShowPopover] = useState(false);
+  const [duration, setDuration] = useState<number | undefined>(0);
+  const [currentTime, setCurrentTime] = useState<number>(0);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const isOutgoing = message.direction === "outgoing";
   const isSystem = message.message_type === "system";
 
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, []);
+
   // Ambil mode percakapan
-  const conversationMode = useChatStore((state) => state.conversationMode);
   const showAdminName = isOutgoing && (message as any).admin_name;
 
   // Get sender name for outgoing messages
@@ -137,10 +133,10 @@ export function MessageBubble({
 
     switch (message.status) {
       case "pending":
-        return <Clock className="w-3 h-3 text-gray-400" />;
+        return <Clock className="w-3 h-3 text-white" />;
       case "sent":
       case "delivered":
-        return <Check className="w-3 h-3 text-gray-400" />;
+        return <Check className="w-3 h-3 text-white" />;
       case "read":
         return <CheckCheck className="w-3 h-3 text-blue-500" />;
       case "failed":
@@ -153,11 +149,42 @@ export function MessageBubble({
   const handleAudioPlayPause = () => {
     if (audioRef.current) {
       if (isPlaying) {
+        // Pause audio
         audioRef.current.pause();
+        setIsPlaying(false);
+
+        // When pausing, keep current time at current position (remaining time)
+        const remaining = (duration || 0) - audioRef.current.currentTime;
+        setCurrentTime(Math.max(0, remaining));
+
+        // Clear interval when pausing
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
       } else {
+        // Play audio
         audioRef.current.play();
+        setIsPlaying(true);
+
+        // Start countdown interval
+        intervalRef.current = setInterval(() => {
+          if (audioRef.current) {
+            const remaining = (duration || 0) - audioRef.current.currentTime;
+            setCurrentTime(Math.max(0, remaining));
+
+            // Stop when audio ends
+            if (remaining <= 0) {
+              setIsPlaying(false);
+              setCurrentTime(0);
+              if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+              }
+            }
+          }
+        }, 100); // Update every 100ms for smooth countdown
       }
-      setIsPlaying(!isPlaying);
     }
   };
 
@@ -167,6 +194,12 @@ export function MessageBubble({
     const sizes = ["B", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  };
+
+  const formatDuration = (dur: number) => {
+    const minutes = Math.floor(dur / 60);
+    const seconds = Math.floor(dur % 60);
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
   const getFileTypeIcon = (type: string) => {
@@ -240,14 +273,18 @@ export function MessageBubble({
   const renderAudioWaveform = () => {
     if (!message.waveform) return null;
 
+    const progressRatio = duration ? (duration - currentTime) / duration : 0;
+    const activeIndex = Math.floor(progressRatio * message.waveform.length);
+
     return (
       <div className="flex items-center h-8 gap-1">
         {message.waveform.map((height, index) => (
           <div
             key={`${message.id}-waveform-${index}`}
             className={cn(
-              "w-1 bg-green-500 rounded-full transition-all",
-              isPlaying && index < 10 ? "bg-green-600" : "bg-green-300"
+              "w-1 rounded-full transition-all",
+              index <= activeIndex ? "bg-green-500" : "bg-green-200",
+              isPlaying && index <= activeIndex ? "bg-green-600" : ""
             )}
             style={{ height: `${Math.max(4, height * 24)}px` }}
           />
@@ -315,14 +352,23 @@ export function MessageBubble({
                 renderAudioWaveform()
               ) : (
                 <div className="h-1 bg-gray-200 rounded-full">
-                  <div className="w-1/3 h-1 transition-all bg-green-500 rounded-full"></div>
+                  <div
+                    className="h-1 transition-all bg-green-500 rounded-full"
+                    style={{
+                      width: duration
+                        ? `${((duration - currentTime) / duration) * 100}%`
+                        : "0%",
+                    }}
+                  ></div>
                 </div>
               )}
               <div className="flex items-center justify-between mt-1">
                 <span className="text-xs text-gray-500">
-                  {message.duration
-                    ? `${Math.floor(message.duration / 60)}:${(message.duration % 60).toString().padStart(2, "0")}`
-                    : "0:34"}
+                  {currentTime > 0
+                    ? formatDuration(currentTime)
+                    : duration
+                      ? formatDuration(duration)
+                      : "0:00"}
                 </span>
                 <Volume2 className="w-3 h-3 text-gray-400" />
               </div>
@@ -331,9 +377,19 @@ export function MessageBubble({
             <audio
               ref={audioRef}
               src={message.media_url || message.file_url}
-              onEnded={() => setIsPlaying(false)}
+              onEnded={() => {
+                setIsPlaying(false);
+                setCurrentTime(0);
+                if (intervalRef.current) {
+                  clearInterval(intervalRef.current);
+                  intervalRef.current = null;
+                }
+              }}
               onLoadedMetadata={() => {
-                // Update duration if not provided
+                if (audioRef.current?.duration) {
+                  setDuration(audioRef.current.duration);
+                  setCurrentTime(audioRef.current.duration);
+                }
               }}
             />
           </div>
@@ -346,7 +402,7 @@ export function MessageBubble({
               <img
                 src={message.media_url || message.file_url}
                 alt="Image"
-                className="h-auto max-w-full transition-opacity rounded-lg cursor-pointer hover:opacity-90"
+                className="w-[250px] object-contain h-auto transition-opacity rounded-lg cursor-pointer hover:opacity-90"
                 onClick={() => {
                   window.open(message.media_url || message.file_url, "_blank");
                 }}
@@ -395,7 +451,7 @@ export function MessageBubble({
             <div className="relative">
               <video
                 src={message.media_url || message.file_url}
-                className="h-auto max-w-full rounded-lg"
+                className="size-[250px] object-cover rounded-lg"
                 controls
                 poster={message.thumbnail_url}
               />
@@ -473,160 +529,6 @@ export function MessageBubble({
           </div>
         );
 
-      case "location":
-        return (
-          <div className="max-w-sm">
-            <div className="relative flex items-center justify-center overflow-hidden bg-gray-100 rounded-lg aspect-video">
-              {message.location_lat && message.location_lng ? (
-                <div className="flex flex-col items-center justify-center w-full h-full bg-green-50">
-                  <MapPin className="w-8 h-8 mb-2 text-green-600" />
-                  <p className="text-sm font-medium text-green-800">
-                    Location Shared
-                  </p>
-                  <p className="text-xs text-green-600">
-                    {message.location_lat.toFixed(6)},{" "}
-                    {message.location_lng.toFixed(6)}
-                  </p>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center text-gray-500">
-                  <MapPin className="w-8 h-8 mb-2" />
-                  <span className="text-sm">Location</span>
-                </div>
-              )}
-            </div>
-
-            {message.location_address && (
-              <div className="p-3 mt-3 rounded-lg bg-gray-50">
-                <p className="text-sm font-medium">
-                  {message.location_address}
-                </p>
-                {message.business_name && (
-                  <p className="mt-1 text-sm text-gray-600">
-                    {message.business_name}
-                  </p>
-                )}
-                {message.operating_hours && (
-                  <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-                    <Clock3 className="w-3 h-3" />
-                    <span>{message.operating_hours}</span>
-                  </div>
-                )}
-                <div className="flex gap-2 mt-3">
-                  <Button size="sm" variant="outline" className="flex-1">
-                    <Navigation className="w-3 h-3 mr-1" />
-                    Directions
-                  </Button>
-                  <Button size="sm" variant="outline" className="flex-1">
-                    <Phone className="w-3 h-3 mr-1" />
-                    Call
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {message.content && (
-              <p className="mt-2 text-sm">{message.content}</p>
-            )}
-          </div>
-        );
-
-      case "payment":
-        return (
-          <div className="max-w-sm overflow-hidden border border-gray-200 rounded-lg">
-            <div className="p-4 text-white bg-gradient-to-r from-green-500 to-green-600">
-              <div className="flex items-center gap-2 mb-2">
-                <CreditCard className="w-5 h-5" />
-                <span className="font-medium">Payment Invoice</span>
-              </div>
-              <div className="text-2xl font-bold">
-                {message.payment_currency}{" "}
-                {message.payment_amount?.toLocaleString()}
-              </div>
-            </div>
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-gray-600">Invoice ID</span>
-                <code className="px-2 py-1 font-mono text-sm bg-gray-100 rounded">
-                  {message.payment_invoice_id}
-                </code>
-              </div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-gray-600">Status</span>
-                <Badge
-                  variant={
-                    message.payment_status === "paid" ? "default" : "secondary"
-                  }
-                  className={cn(
-                    message.payment_status === "paid" && "bg-green-500",
-                    message.payment_status === "pending" && "bg-yellow-500",
-                    message.payment_status === "failed" && "bg-red-500"
-                  )}
-                >
-                  {message.payment_status?.toUpperCase()}
-                </Badge>
-              </div>
-              {message.payment_description && (
-                <p className="mb-3 text-sm text-gray-700">
-                  {message.payment_description}
-                </p>
-              )}
-              {message.payment_status === "pending" && (
-                <Button className="w-full" size="sm">
-                  Pay Now
-                </Button>
-              )}
-            </div>
-          </div>
-        );
-
-      case "link":
-        return (
-          <div className="max-w-sm overflow-hidden border border-gray-200 rounded-lg">
-            {message.link_preview?.image && (
-              <img
-                src={message.link_preview.image}
-                alt="Link preview"
-                className="object-cover w-full h-40"
-              />
-            )}
-            <div className="p-4">
-              <h4 className="mb-2 text-sm font-medium line-clamp-2">
-                {message.link_preview?.title || "Link Preview"}
-              </h4>
-              {message.link_preview?.description && (
-                <p className="mb-3 text-xs text-gray-600 line-clamp-3">
-                  {message.link_preview.description}
-                </p>
-              )}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {message.link_preview?.favicon && (
-                    <img
-                      src={message.link_preview.favicon}
-                      alt="Favicon"
-                      className="w-4 h-4"
-                    />
-                  )}
-                  <span className="text-xs text-gray-500">
-                    {message.link_preview?.domain}
-                  </span>
-                </div>
-                <Button size="sm" variant="outline" asChild>
-                  <a
-                    href={message.content}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <ExternalLink className="w-3 h-3 mr-1" />
-                    Open
-                  </a>
-                </Button>
-              </div>
-            </div>
-          </div>
-        );
-
       default:
         return (
           <p className="text-sm break-words whitespace-pre-wrap">
@@ -636,10 +538,60 @@ export function MessageBubble({
     }
   };
 
+  const generateReplyContentIcon = () => {
+    switch (message?.reply_to?.content_type) {
+      case "image":
+        return (
+          <div className="flex items-center gap-1">
+            <Camera className="w-4 h-4 text-gray-600" />
+            <p className="overflow-hidden text-xs text-gray-500 break-all whitespace-pre-wrap line-clamp-2">
+              {message.reply_to?.content}
+            </p>
+          </div>
+        );
+      case "video":
+        return (
+          <div className="flex items-center gap-1">
+            <Video className="w-4 h-4 text-gray-600" />
+            <p className="overflow-hidden text-xs text-gray-500 break-all whitespace-pre-wrap line-clamp-2">
+              {message.reply_to?.content || "Video"}
+            </p>
+          </div>
+        );
+
+      case "audio":
+        return (
+          <div className="flex items-center gap-1">
+            <Volume2 className="w-4 h-4 text-gray-600" />
+            <p className="overflow-hidden text-xs text-gray-500 break-all whitespace-pre-wrap line-clamp-2">
+              {message.reply_to?.content || "Audio"}
+            </p>
+          </div>
+        );
+      case "document":
+        return (
+          <div className="flex items-center gap-1">
+            <FileText className="w-4 h-4 text-gray-600" />
+            <p className="overflow-hidden text-xs text-gray-500 break-all whitespace-pre-wrap line-clamp-2">
+              {message.reply_to?.content || "Document"}
+            </p>
+          </div>
+        );
+
+      default:
+        return (
+          <p className="overflow-hidden text-xs text-gray-500 break-all whitespace-pre-wrap line-clamp-2">
+            {message.reply_to?.content}
+          </p>
+        );
+    }
+  };
+
   const quickReactions = ["👍", "❤️", "😊", "😮", "😢", "😡"];
 
   return (
     <div
+      id={message.wa_message_id}
       key={`message-bubble-${message.id}`}
       className={cn(
         "flex",
@@ -651,112 +603,251 @@ export function MessageBubble({
       {/* Bubble */}
       <div
         className={cn(
-          "max-w-[75%] rounded-lg px-3 py-2 relative",
-          isOutgoing
-            ? "bg-green-500 text-white rounded-br-sm order-2 ml-0"
-            : "bg-white border border-gray-200 rounded-bl-sm shadow-sm order-1 mr-0",
-          isGrouped && isOutgoing && "rounded-br-lg",
-          isGrouped && !isOutgoing && "rounded-bl-lg"
+          "relative min-w-[137px]  max-w-[75%]",
+          isOutgoing ? "order-2 ml-0" : "order-1 mr-0"
         )}
       >
-        {/* Badge Tiket di pojok bubble, hanya mode unified */}
-        {conversationMode === "unified" && message.ticket_id && (
-          <div
-            className={cn(
-              "absolute -top-2 text-xs px-2 py-0.5 rounded-full text-white font-medium",
-              isOutgoing ? "-right-1" : "-left-1",
-              getTicketBadgeColor(message.ticket_id)
-            )}
-          >
-            #{message.ticket_id}
-          </div>
-        )}
-        {/* Nama Admin */}
-        {showAdminName && (
-          <div className="mb-1 text-xs font-semibold text-left text-blue-700">
-            {(message as any).admin_name || "Admin"}
-          </div>
-        )}
+        <div
+          className={cn(
+            "rounded-lg px-3 py-2 relative group",
+            isOutgoing
+              ? "bg-green-500 text-white rounded-br-sm"
+              : "bg-white border border-gray-200 rounded-bl-sm shadow-sm",
+            isGrouped && isOutgoing && "rounded-br-lg",
+            isGrouped && !isOutgoing && "rounded-bl-lg"
+          )}
+        >
+          {isOutgoing && message?.reply_to_message_id && (
+            <div
+              className="p-1 mb-1 bg-white rounded-lg"
+              onClick={() =>
+                onScrollToElement &&
+                onScrollToElement(message.reply_to?.target_wa_message_id || "")
+              }
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col">
+                  <h4 className="m-0 text-sm text-blue-600">
+                    {activeContact?.name}
+                  </h4>
+                  {generateReplyContentIcon()}
+                </div>
+                {message?.reply_to?.content_type === "image" &&
+                  message?.reply_to?.media_url && (
+                    <Image
+                      src={message?.reply_to?.media_url}
+                      alt="Reply Image"
+                      width={48}
+                      height={48}
+                      className="object-cover rounded-lg size-12"
+                    />
+                  )}
+              </div>
+            </div>
+          )}
 
-        {/* Sender Name for Outgoing Messages */}
-        {senderName && (
-          <div
-            className={cn("text-xs text-bold font-medium mb-1 text-gray-600")}
-          >
-            {senderName}
-          </div>
-        )}
-        {/* Reply indicator */}
-        {message.quoted_message && (
-          <div
-            className={cn(
-              "border-l-4 pl-3 py-2 mb-2 rounded",
-              isOutgoing
-                ? "border-green-300 bg-green-400/20"
-                : "border-gray-300 bg-gray-50"
-            )}
-          >
-            <p className="mb-1 text-xs opacity-75">
-              {message.quoted_message.direction === "outgoing"
-                ? "You"
-                : "Customer"}
-            </p>
-            <p className="text-sm truncate opacity-90">
-              {message.quoted_message.content}
-            </p>
-          </div>
-        )}
+          {!isOutgoing && (
+            <Popover open={showPopover} onOpenChange={setShowPopover}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="absolute z-30 w-5 h-5 p-0 transition-opacity duration-200 bg-gray-100 rounded-full opacity-0 top-1 right-1 group-hover:opacity-100"
+                >
+                  <ChevronDown className="w-3 h-3 text-gray-600" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="p-1 w-fit" side="bottom" align="start">
+                <div className="space-y-1">
+                  {onReply && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="justify-start w-full"
+                      onClick={() => {
+                        onReply(message);
+                        setShowPopover(false);
+                      }}
+                    >
+                      {/* <Reply className="w-4 h-4 mr-2" /> */}
+                      Reply
+                    </Button>
+                  )}
+                  {onForward && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="justify-start w-full"
+                      onClick={() => {
+                        onForward(message);
+                        setShowPopover(false);
+                      }}
+                    >
+                      {/* <Forward className="w-4 h-4 mr-2" /> */}
+                      Forward
+                    </Button>
+                  )}
+                  {onCopy && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="justify-start w-full"
+                      onClick={() => {
+                        onCopy(message.content);
+                        setShowPopover(false);
+                      }}
+                    >
+                      {/* <Copy className="w-4 h-4 mr-2" /> */}
+                      Copy
+                    </Button>
+                  )}
+                  {onReact && (
+                    <>
+                      <div className="my-1 border-t border-gray-200" />
+                      <div className="px-2 py-1">
+                        <p className="mb-2 text-xs text-gray-500">
+                          React with:
+                        </p>
+                        <div className="flex gap-1">
+                          {quickReactions.map((emoji) => (
+                            <Button
+                              key={emoji}
+                              variant="ghost"
+                              size="sm"
+                              className="w-8 h-8 p-0 hover:bg-gray-100"
+                              onClick={() => {
+                                onReact?.(message.id, emoji);
+                                setShowPopover(false);
+                              }}
+                            >
+                              {emoji}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  {onDelete && (
+                    <>
+                      <div className="my-1 border-t border-gray-200" />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="justify-start w-full text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => {
+                          onDelete(message.id);
+                          setShowPopover(false);
+                        }}
+                      >
+                        {/* <Trash2 className="w-4 h-4 mr-2" /> */}
+                        Delete
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
 
-        {/* Forwarded indicator */}
-        {message.forwarded_from && (
-          <div
-            className={cn(
-              "text-xs italic mb-2 flex items-center gap-1",
-              isOutgoing ? "text-green-100" : "text-gray-500"
-            )}
-          >
-            <Forward className="w-3 h-3" />
-            Forwarded
-          </div>
-        )}
-
-        {/* Message Content */}
-        <div className={cn(isOutgoing ? "text-white" : "text-gray-900")}>
-          {renderMediaContent()}
-        </div>
-
-        {/* Edited indicator */}
-        {message.edited_at && (
-          <span
-            className={cn(
-              "text-xs italic mt-1 block",
-              isOutgoing ? "text-green-100" : "text-gray-500"
-            )}
-          >
-            edited
-          </span>
-        )}
-
-        {/* Reactions */}
-        {renderReactions()}
-
-        {/* Message Info */}
-        <div className="flex items-center justify-between mt-2">
-          <div className="flex items-center gap-1">
-            <span
+          {/* Badge Tiket di pojok bubble, hanya mode unified */}
+          {conversationMode === "unified" && message.ticket_id && (
+            <div
               className={cn(
-                "text-xs",
+                "absolute -top-2 text-xs px-2 py-0.5 rounded-full text-white font-medium",
+                isOutgoing ? "-right-1" : "-left-1",
+                getTicketBadgeColor(message.ticket_id)
+              )}
+            >
+              #{message.ticket_id}
+            </div>
+          )}
+          {/* Nama Admin */}
+          {showAdminName && (
+            <div className="mb-1 text-xs font-semibold text-left text-blue-700">
+              {(message as any).admin_name || "Admin"}
+            </div>
+          )}
+
+          {/* Sender Name for Outgoing Messages */}
+          {senderName && (
+            <div
+              className={cn("text-xs text-bold mb-1 font-medium text-gray-600")}
+            >
+              {senderName}
+            </div>
+          )}
+          {/* Reply indicator */}
+          {message.quoted_message && (
+            <div
+              className={cn(
+                "border-l-4 pl-3 py-2 mb-2 rounded",
+                isOutgoing
+                  ? "border-green-300 bg-green-400/20"
+                  : "border-gray-300 bg-gray-50"
+              )}
+            >
+              <p className="mb-1 text-xs opacity-75">
+                {message.quoted_message.direction === "outgoing"
+                  ? "You"
+                  : "Customer"}
+              </p>
+              <p className="text-sm truncate opacity-90">
+                {message.quoted_message.content}
+              </p>
+            </div>
+          )}
+
+          {/* Forwarded indicator */}
+          {message.forwarded_from && (
+            <div
+              className={cn(
+                "text-xs italic mb-2 flex items-center gap-1",
                 isOutgoing ? "text-green-100" : "text-gray-500"
               )}
             >
-              {format(new Date(message.created_at), "HH:mm")}
-            </span>
-            {message.edited_at && <Edit className="w-3 h-3 opacity-50" />}
+              <Forward className="w-3 h-3" />
+              Forwarded
+            </div>
+          )}
+
+          {/* Message Content */}
+          <div className={cn(isOutgoing ? "text-white" : "text-gray-900")}>
+            {renderMediaContent()}
           </div>
 
-          <div className="flex items-center gap-1">
-            {getStatusIcon()}
-            {renderReadReceipts()}
+          {/* Edited indicator */}
+          {message.edited_at && (
+            <span
+              className={cn(
+                "text-xs italic mt-1 block",
+                isOutgoing ? "text-green-100" : "text-gray-500"
+              )}
+            >
+              edited
+            </span>
+          )}
+
+          {/* Reactions */}
+          {renderReactions()}
+
+          {/* Message Info */}
+          <div className="flex items-center justify-end gap-1 mt-1">
+            <div className="flex items-center gap-1">
+              <span
+                className={cn(
+                  "text-xs",
+                  isOutgoing ? "text-green-100" : "text-gray-500"
+                )}
+              >
+                {format(new Date(message.created_at), "HH:mm")}
+              </span>
+              {message.edited_at && <Edit className="w-3 h-3 opacity-50" />}
+            </div>
+
+            <div className="flex items-center gap-1">
+              {getStatusIcon()}
+              {renderReadReceipts()}
+            </div>
           </div>
         </div>
       </div>

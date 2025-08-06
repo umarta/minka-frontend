@@ -11,6 +11,8 @@ import {
   ContactNote,
   DraftMessage,
   ConversationGroup,
+  MessageDirection,
+  MessageType,
 } from "@/types";
 import {
   contactsApi,
@@ -104,6 +106,15 @@ interface ContactConversation {
   conversationAge: string;
 }
 
+interface SelectedMessage {
+  wa_message_id?: string;
+  content: string;
+  name: string;
+  message_type?: MessageType;
+  media_url?: string | undefined;
+  direction: MessageDirection;
+}
+
 interface ChatState {
   // Contact-based conversations
   conversations: Conversation[];
@@ -119,6 +130,7 @@ interface ChatState {
   activeConversation: Conversation | null;
   activeTicket: Ticket | null;
   selectedContactId: string | null;
+  selectedMessage: SelectedMessage;
 
   // Messages (keeping for backward compatibility)
   messages: Record<string, Message[]>; // ticketId -> messages
@@ -246,6 +258,7 @@ interface ChatActions {
   addMessage: (message: Message) => void;
   updateMessage: (messageId: string, updates: Partial<Message>) => void;
   markMessagesAsRead: (contactId: string) => void;
+  setSelectedMessage: (message: SelectedMessage) => void;
 
   // Quick Reply Templates
   loadQuickReplyTemplates: () => Promise<void>;
@@ -430,6 +443,14 @@ export const useChatStore = create<ChatStore>()(
       hasMore: false,
     },
     isLoadingMore: false,
+    selectedMessage: {
+      wa_message_id: undefined,
+      content: "",
+      name: "",
+      direction: "incoming",
+      media_url: undefined,
+      message_type: "text",
+    },
 
     // Actions
     loadConversations: async () => {
@@ -596,12 +617,10 @@ export const useChatStore = create<ChatStore>()(
         // Use the unified contact messages endpoint with DESC order for reverse pagination
         const response = await messagesApi.getByContact(contactId, {
           page,
-          limit: 20,
+          limit: 200,
           query,
           order: "timestamp DESC", // Get newest messages first
         });
-
-        console.log(response, "response");
 
         // Handle different response formats
         let messages: Message[] = [];
@@ -612,11 +631,6 @@ export const useChatStore = create<ChatStore>()(
         } else if (response.data && response.data.data) {
           messages = response.data.data;
         }
-
-        const total =
-          response.meta?.total || response.data?.meta?.total || messages.length;
-
-        console.log(messages, "messages");
 
         // Convert backend message format to frontend format
         const formattedMessages: Message[] = messages.map((msg: any) => ({
@@ -636,6 +650,8 @@ export const useChatStore = create<ChatStore>()(
           updated_at: msg.updated_at || new Date().toISOString(),
           read_at: msg.read_at,
           sender_name: msg.sender_name,
+          reply_to_message_id: msg.reply_to_message_id,
+          reply_to: msg.reply_to,
         }));
 
         // For reverse pagination: reverse the messages to show oldest to newest
@@ -678,9 +694,6 @@ export const useChatStore = create<ChatStore>()(
 
             newMessages = uniqueMessages;
           }
-
-          console.log(state.contactMessages, "contactMessages before update");
-          console.log(newMessages, "newMessages after update");
 
           return {
             contactMessages: {
@@ -1101,7 +1114,9 @@ export const useChatStore = create<ChatStore>()(
                 session_id: data.session_id || "default",
                 content: data.content || "",
                 message_type: data.message_type,
-                reply_to_message_id: data.reply_to_message_id,
+                ...(data.reply_to && {
+                  reply_to: data.reply_to,
+                }),
                 phone_number: activeContact.phone_number, // Pass the phone number we already have
                 // Ticket is optional in our system, but backend requires it
                 // We'll handle this in the API layer
@@ -1135,8 +1150,10 @@ export const useChatStore = create<ChatStore>()(
                 activeContact.phone_number ||
                 activeContact.phone ||
                 "",
-              reply_to_message_id: data.reply_to_message_id,
-              ticket_id: ticketToUse ? ticketToUse.id.toString() : undefined, // Pass ticket ID if available
+              ...(data.reply_to && {
+                reply_to: data.reply_to,
+              }),
+              ticket_id: ticketToUse ? ticketToUse.id.toString() : undefined,
             });
           }
 
@@ -1194,6 +1211,17 @@ export const useChatStore = create<ChatStore>()(
           isSendingMessage: false,
         });
         throw error;
+      } finally {
+        set(() => ({
+          selectedMessage: {
+            content: "",
+            name: "",
+            direction: "incoming",
+            wa_message_id: undefined,
+            media_url: undefined,
+            message_type: "text",
+          },
+        }));
       }
     },
 
@@ -1293,6 +1321,12 @@ export const useChatStore = create<ChatStore>()(
       } catch (error) {
         console.error("Failed to mark messages as read:", error);
       }
+    },
+    setSelectedMessage: (message: SelectedMessage) => {
+      set((state) => ({
+        ...state,
+        selectedMessage: message,
+      }));
     },
 
     // Real-time handlers

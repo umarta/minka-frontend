@@ -6,6 +6,7 @@ import { useChatStore } from "@/lib/stores/chat";
 import { Message } from "@/types";
 import { format, isToday, isYesterday } from "date-fns";
 import { id } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 interface MessagesListProps {
   contactId: string;
@@ -23,6 +24,8 @@ interface PaginationMeta {
 
 export function MessagesList({ contactId }: MessagesListProps) {
   const {
+    selectedMessage,
+    setSelectedMessage,
     contactMessages,
     isLoadingMessages,
     markMessagesAsRead,
@@ -33,9 +36,6 @@ export function MessagesList({ contactId }: MessagesListProps) {
     searchResults,
     loadContactMessages,
   } = useChatStore();
-
-  // Ambil mode percakapan dan ticket aktif
-  const conversationMode = useChatStore((state) => state.conversationMode);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -80,8 +80,6 @@ export function MessagesList({ contactId }: MessagesListProps) {
     if (containerRef.current && !searchQuery) {
       const container = containerRef.current;
       const scrollTop = container.scrollTop;
-      const scrollHeight = container.scrollHeight;
-      const clientHeight = container.clientHeight;
 
       // Track if user is manually scrolling
       isUserScrollingRef.current = true;
@@ -232,6 +230,52 @@ export function MessagesList({ contactId }: MessagesListProps) {
     }
   };
 
+  const handleScrollToElement = (id: string) => {
+    const element = document.getElementById(id);
+    if (element) {
+      const container = containerRef.current;
+
+      if (container) {
+        const existingHighlighted =
+          container.querySelectorAll(".message-highlight");
+        existingHighlighted.forEach((el) =>
+          el.classList.remove("message-highlight")
+        );
+      } else {
+        const existingHighlighted =
+          document.querySelectorAll(".message-highlight");
+        existingHighlighted.forEach((el) =>
+          el.classList.remove("message-highlight")
+        );
+      }
+
+      element.classList.add("message-highlight");
+
+      if (container) {
+        const elementTop = element.offsetTop;
+        const containerHeight = container.clientHeight;
+        const elementHeight = element.offsetHeight;
+
+        const scrollTop = elementTop - containerHeight / 2 + elementHeight / 2;
+
+        container.scrollTo({
+          top: Math.max(0, scrollTop),
+          behavior: "smooth",
+        });
+      } else {
+        element.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+          inline: "nearest",
+        });
+      }
+
+      setTimeout(() => {
+        element.classList.remove("message-highlight");
+      }, 3000);
+    }
+  };
+
   // Group messages by date and remove duplicates more thoroughly
   const groupedMessages = displayMessages
     .reduce((uniqueMessages: Message[], message) => {
@@ -290,7 +334,11 @@ export function MessagesList({ contactId }: MessagesListProps) {
 
   return (
     <div
-      className="flex-1 overflow-y-auto max-h-[77vh] px-2 py-4 pb-24"
+      className={cn("flex-1 px-2 pt-4 overflow-y-auto", {
+        "max-h-[71vh]": selectedMessage?.content || selectedMessage?.media_url,
+        "max-h-[79vh]":
+          !selectedMessage?.content && !selectedMessage?.media_url,
+      })}
       ref={containerRef}
       onScroll={throttledScrollHandler}
     >
@@ -299,7 +347,6 @@ export function MessagesList({ contactId }: MessagesListProps) {
           <div className="w-6 h-6 border-b-2 border-blue-500 rounded-full animate-spin"></div>
         </div>
       )}
-
       {Object.entries(groupedMessages)
         .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
         .map(([dateKey, messages]) => (
@@ -317,10 +364,22 @@ export function MessagesList({ contactId }: MessagesListProps) {
                 key={`${message.id}-${message.created_at}-${dateKey}-${index}`}
                 message={message}
                 isSearchResult={!!searchQuery}
+                onReply={(msg) =>
+                  setSelectedMessage({
+                    wa_message_id: msg.wa_message_id,
+                    content: msg.content,
+                    name: activeContact?.name || "",
+                    message_type: msg.message_type,
+                    direction: msg.direction || "incoming",
+                    media_url: msg.media_url || undefined,
+                  })
+                }
+                onScrollToElement={(v) => handleScrollToElement(v)}
               />
             ))}
           </div>
         ))}
+
       <div ref={messagesEndRef} />
     </div>
   );

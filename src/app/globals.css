@@ -120,3 +120,28 @@
     @apply bg-background text-foreground;
   }
 }
+
+.message-highlight {
+  animation: messageHighlight 3s ease-out;
+  background-color: rgba(59, 130, 246, 0.1) !important;
+  border-left: 4px solid rgb(59, 130, 246) !important;
+  transform: scale(1.02);
+  transition:
+    transform 0.3s ease,
+    background-color 0.3s ease;
+}
+
+@keyframes messageHighlight {
+  0% {
+    background-color: rgba(59, 130, 246, 0.3);
+    transform: scale(1.05);
+  }
+  50% {
+    background-color: rgba(59, 130, 246, 0.2);
+    transform: scale(1.02);
+  }
+  100% {
+    background-color: rgba(59, 130, 246, 0.1);
+    transform: scale(1.02);
+  }
+}

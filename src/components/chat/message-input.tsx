@@ -4,36 +4,28 @@ import { useState, useRef, useEffect } from "react";
 import {
   Send,
   Paperclip,
-  Image,
   FileText,
   Smile,
   Mic,
   Search,
   X,
-  Plus,
   Video,
   MapPin,
   CreditCard,
   Zap,
-  Clock,
   Save,
   MicOff,
   Play,
   Pause,
   Camera,
   Upload,
-  Link,
-  FileImage,
   Music,
-  Archive,
-  Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,13 +39,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useChat, useChatStore } from "@/lib/stores/chat";
+import { useChatStore } from "@/lib/stores/chat";
 import { useAntiBlockingStore } from "@/lib/stores/antiBlocking";
-import { MessageType, QuickReplyTemplate, FileUploadProgress } from "@/types";
+import { MessageType, QuickReplyTemplate } from "@/types";
 import { cn } from "@/lib/utils";
 import { AntiBlockingValidation } from "./anti-blocking-validation";
 import { useDragAndDrop } from "@/lib/hooks/useDragAndDrop";
-import { validateFile } from "@/lib/utils/upload";
+import MessageReply from "./message-reply";
 
 interface MessageInputProps {
   onSearch?: (query: string) => void;
@@ -61,23 +53,18 @@ interface MessageInputProps {
   searchQuery?: string;
 }
 
-export function MessageInput({
-  onSearch,
-  onClearSearch,
-  searchQuery,
-}: MessageInputProps) {
+export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
   const {
+    selectedMessage,
     activeContact,
     sendMessage,
     isSendingMessage,
     uploadProgress,
     removeUploadProgress,
   } = useChatStore();
-  const { lastValidation, validateMessage, clear } = useAntiBlockingStore();
 
   // Message State
   const [message, setMessage] = useState("");
-  const [replyToMessage, setReplyToMessage] = useState<any>(null);
 
   // File Upload State
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
@@ -104,7 +91,6 @@ export function MessageInput({
   // Refs
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const voiceInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -236,29 +222,6 @@ export function MessageInput({
   }, [activeContact.id]);
 
   // Auto-validate message when typing
-  useEffect(() => {
-    if (message.trim() && activeContact && message.length > 10) {
-      const timer = setTimeout(async () => {
-        try {
-          await validateMessage({
-            contact_id: parseInt(activeContact.id),
-            session_name: "default",
-            content: message,
-            message_type: "text",
-            admin_id: 1, // TODO: Get from auth store
-          });
-          setShowValidation(true);
-        } catch (error) {
-          console.error("Validation error:", error);
-        }
-      }, 1000);
-
-      return () => clearTimeout(timer);
-    } else {
-      setShowValidation(false);
-      clear();
-    }
-  }, [message, activeContact, validateMessage, clear]);
 
   // Auto-remove completed upload progress
   useEffect(() => {
@@ -296,7 +259,6 @@ export function MessageInput({
 
     // Clear validation feedback when sending
     setShowValidation(false);
-    clear();
 
     try {
       let messageType: MessageType = "text";
@@ -317,7 +279,7 @@ export function MessageInput({
         contact_id: activeContact.id,
         session_id: "default",
         media_file: mediaFile as File,
-        reply_to_message_id: replyToMessage?.id,
+        reply_to: selectedMessage?.wa_message_id || "",
       });
 
       // Reset form
@@ -332,7 +294,6 @@ export function MessageInput({
     setAttachmentFiles([]);
     setAttachmentPreviews([]);
     setRecordingBlob(null);
-    setReplyToMessage(null);
     setRecordingDuration(0);
 
     // Clear draft
@@ -617,10 +578,14 @@ export function MessageInput({
     <div
       ref={setDropRef}
       className={cn(
-        "border-t bg-background p-4 space-y-4 relative transition-all duration-200",
+        "bg-background p-4 space-y-4 relative transition-all duration-200",
         isDragging && "bg-blue-50 border-blue-300 border-2 border-dashed"
       )}
     >
+      {(selectedMessage?.content || selectedMessage?.media_url) && (
+        <MessageReply />
+      )}
+
       {/* Drag & Drop Overlay */}
       {isDragging && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-blue-500 rounded-lg bg-opacity-10">
@@ -634,16 +599,6 @@ export function MessageInput({
             </div>
           </div>
         </div>
-      )}
-      {/* Anti-blocking Validation Feedback */}
-      {showValidation && lastValidation && (
-        <AntiBlockingValidation
-          validation={lastValidation}
-          onDismiss={() => {
-            setShowValidation(false);
-            clear();
-          }}
-        />
       )}
 
       {/* Search Bar */}
@@ -731,31 +686,6 @@ export function MessageInput({
         </div>
       )}
 
-      {/* Reply Preview */}
-      {replyToMessage && (
-        <div className="p-3 border-b border-gray-100 bg-gray-50">
-          <div className="flex items-start gap-3">
-            <div className="w-1 h-full bg-green-500 rounded-full"></div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-700">
-                Replying to{" "}
-                {replyToMessage.direction === "outgoing" ? "You" : "Customer"}
-              </p>
-              <p className="text-sm text-gray-600 truncate">
-                {replyToMessage.content}
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setReplyToMessage(null)}
-            >
-              <X className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      )}
-
       {/* Voice Recording Preview */}
       {recordingBlob && (
         <div className="p-3 border-b border-gray-100 bg-green-50">
@@ -789,7 +719,6 @@ export function MessageInput({
           </div>
         </div>
       )}
-
       {/* File Attachments Preview */}
       {attachmentFiles.length > 0 && (
         <div className="p-3 border-b border-gray-100 bg-gray-50">
@@ -828,9 +757,8 @@ export function MessageInput({
           </div>
         </div>
       )}
-
       {/* Main Input Area */}
-      <form onSubmit={handleSubmit} className="p-3">
+      <form onSubmit={handleSubmit}>
         <div className="flex items-end gap-2">
           {/* Left Side Actions */}
           <div className="flex items-center gap-1">
