@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/popover";
 import { useChatStore } from "@/lib/stores/chat";
 import { MessageType, QuickReplyTemplate } from "@/types";
-import { cn } from "@/lib/utils";
+import { cn, formatDuration } from "@/lib/utils";
 import { useDragAndDrop } from "@/lib/hooks/useDragAndDrop";
 import MessageReply from "./message-reply";
 
@@ -72,15 +72,15 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
   // Voice Recording State
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
-  const [recordingBlob, setRecordingBlob] = useState<Blob | null>(null);
-  const [isPlayingPreview, setIsPlayingPreview] = useState(false);
+  const [recordingBlob, setRecordingBlob] = useState<File | Blob | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentPlayTime, setCurrentPlayTime] = useState(0); // Current playback position in seconds
 
   // UI State
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchLocal, setSearchLocal] = useState("");
-  const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [isDraftSaving, setIsDraftSaving] = useState(false);
   const [fadingOutUploads, setFadingOutUploads] = useState<Set<string>>(
     new Set()
@@ -91,7 +91,8 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const playbackIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Drag and Drop
   const { isDragging, setDropRef } = useDragAndDrop({
@@ -275,7 +276,6 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
         reply_to: selectedMessage?.wa_message_id || "",
       });
 
-      // Reset form
       resetForm();
     } catch (error) {
       console.error("Failed to send message:", error);
@@ -288,6 +288,17 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
     setAttachmentPreviews([]);
     setRecordingBlob(null);
     setRecordingDuration(0);
+    setIsPlaying(false);
+    setCurrentPlayTime(0);
+
+    // Stop and cleanup audio if playing
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    if (playbackIntervalRef.current) {
+      clearInterval(playbackIntervalRef.current);
+    }
 
     // Clear draft
     localStorage.removeItem(`draft_${activeContact.id}`);
@@ -371,10 +382,10 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
     });
   };
 
-  const removeAttachment = (index: number) => {
-    setAttachmentFiles((prev) => prev.filter((_, i) => i !== index));
-    setAttachmentPreviews((prev) => prev.filter((_, i) => i !== index));
-  };
+  // const removeAttachment = (index: number) => {
+  //   setAttachmentFiles((prev) => prev.filter((_, i) => i !== index));
+  //   setAttachmentPreviews((prev) => prev.filter((_, i) => i !== index));
+  // };
 
   const startVoiceRecording = async () => {
     try {
@@ -386,7 +397,22 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
       mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
       mediaRecorder.onstop = () => {
         const blob = new Blob(chunks, { type: "audio/wav" });
-        setRecordingBlob(blob);
+
+        // Create a File object with proper name
+        const timestamp = new Date()
+          .toISOString()
+          .replace(/[:.]/g, "-")
+          .replace("T", "_")
+          .split("Z")[0];
+
+        const fileName = `voice-recording-${timestamp}.wav`;
+
+        const audioFile = new File([blob], fileName, {
+          type: "audio/wav",
+          lastModified: Date.now(),
+        });
+
+        setRecordingBlob(audioFile);
         stream.getTracks().forEach((track) => track.stop());
       };
 
@@ -414,23 +440,84 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
     }
   };
 
-  const playRecordingPreview = () => {
-    if (recordingBlob) {
-      const audio = new Audio(URL.createObjectURL(recordingBlob));
-      previewAudioRef.current = audio;
-      audio.play();
-      setIsPlayingPreview(true);
+  const handleAudioPlayPause = () => {
+    if (!recordingBlob) return;
 
-      audio.onended = () => {
-        setIsPlayingPreview(false);
-      };
+    if (isPlaying) {
+      // Pause audio
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      if (playbackIntervalRef.current) {
+        clearInterval(playbackIntervalRef.current);
+      }
+      setIsPlaying(false);
+    } else {
+      // Play audio
+      if (audioRef.current) {
+        audioRef.current.play();
+      } else {
+        // Create audio element if not exists
+        const audio = new Audio(URL.createObjectURL(recordingBlob));
+        audioRef.current = audio;
+
+        // Set current time to where we left off
+        audio.currentTime = currentPlayTime;
+
+        // Setup event listeners
+        audio.onended = () => {
+          setIsPlaying(false);
+          setCurrentPlayTime(0);
+          if (playbackIntervalRef.current) {
+            clearInterval(playbackIntervalRef.current);
+          }
+        };
+
+        audio.onerror = (error) => {
+          console.error("Audio playback error:", error);
+          setIsPlaying(false);
+          if (playbackIntervalRef.current) {
+            clearInterval(playbackIntervalRef.current);
+          }
+        };
+
+        audio.play();
+      }
+
+      setIsPlaying(true);
+
+      // Start countdown timer
+      playbackIntervalRef.current = setInterval(() => {
+        setCurrentPlayTime((prev) => {
+          const newTime = prev + 1;
+          // Stop when we reach the total duration
+          if (newTime >= recordingDuration) {
+            setIsPlaying(false);
+            if (playbackIntervalRef.current) {
+              clearInterval(playbackIntervalRef.current);
+            }
+            return 0; // Reset to beginning
+          }
+          return newTime;
+        });
+      }, 1000);
     }
   };
 
   const deleteRecording = () => {
+    // Stop playback if playing
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    if (playbackIntervalRef.current) {
+      clearInterval(playbackIntervalRef.current);
+    }
+
     setRecordingBlob(null);
     setRecordingDuration(0);
-    setIsPlayingPreview(false);
+    setIsPlaying(false);
+    setCurrentPlayTime(0);
   };
 
   const insertTemplate = async (template: QuickReplyTemplate) => {
@@ -561,14 +648,7 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
     textarea.style.height = Math.min(textarea.scrollHeight, 120) + "px";
   };
 
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
-
   useEffect(() => {
-    setTypingUsers([]);
     setAttachmentFiles([]);
     setAttachmentPreviews([]);
     setSelectedMessage({
@@ -586,6 +666,22 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
     deleteRecording();
     setIsRecording(false);
   }, [selectedContactId]);
+
+  // Cleanup intervals on unmount
+  useEffect(() => {
+    return () => {
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
+      }
+      if (playbackIntervalRef.current) {
+        clearInterval(playbackIntervalRef.current);
+      }
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <div
@@ -629,31 +725,7 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
         </div>
       )}
 
-      {/* Typing Indicators */}
-      {typingUsers.length > 0 && (
-        <div className="px-3 py-2 border-b border-gray-100 bg-blue-50">
-          <div className="flex items-center gap-2 text-sm text-blue-600">
-            <div className="flex space-x-1">
-              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
-              <div
-                className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"
-                style={{ animationDelay: "0.1s" }}
-              ></div>
-              <div
-                className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"
-                style={{ animationDelay: "0.2s" }}
-              ></div>
-            </div>
-            <span>
-              {typingUsers.join(", ")} {typingUsers.length === 1 ? "is" : "are"}{" "}
-              typing...
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* Upload Progress */}
-      {Object.keys(uploadProgress).length > 0 && (
+      {/* {Object.keys(uploadProgress).length > 0 && (
         <div className="p-3 border-b border-gray-100 bg-blue-50">
           {Object.entries(uploadProgress).map(([fileId, progress]) => (
             <div
@@ -682,44 +754,9 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
             </div>
           ))}
         </div>
-      )}
+      )} */}
 
-      {/* Voice Recording Preview */}
-      {recordingBlob && (
-        <div className="p-3 border-b border-gray-100 bg-green-50">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 bg-green-100 rounded-lg">
-              <Mic className="w-5 h-5 text-green-600" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-green-800">
-                Voice Recording
-              </p>
-              <p className="text-sm text-green-600">
-                Duration: {formatDuration(recordingDuration)}
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={playRecordingPreview}
-              disabled={isPlayingPreview}
-            >
-              {isPlayingPreview ? (
-                <Pause className="w-4 h-4" />
-              ) : (
-                <Play className="w-4 h-4" />
-              )}
-            </Button>
-            <Button variant="ghost" size="sm" onClick={deleteRecording}>
-              <X className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* File Attachments Preview */}
-      {attachmentFiles.length > 0 && (
+      {/* {attachmentFiles.length > 0 && (
         <div className="absolute inset-x-0 z-20 -top-[83px] px-4 pt-4 mb-0 bg-white">
           <div className="flex flex-wrap gap-3">
             {attachmentFiles.map((file, index) => (
@@ -755,208 +792,51 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
             ))}
           </div>
         </div>
-      )}
+      )} */}
       {/* Main Input Area */}
       <form onSubmit={handleSubmit}>
-        <div className="flex items-end gap-2">
-          {/* Left Side Actions */}
-          <div className="flex items-center gap-1">
-            {/* File Upload Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  type="button"
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <Paperclip className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="top" align="start" className="w-48">
-                <DropdownMenuLabel>Upload Files</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => {
-                    if (fileInputRef.current) {
-                      fileInputRef.current.accept = "image/*";
-                      fileInputRef.current.click();
-                    }
-                  }}
-                >
-                  <Camera className="w-4 h-4 mr-2" />
-                  Photos
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    if (fileInputRef.current) {
-                      fileInputRef.current.accept = "video/*";
-                      fileInputRef.current.click();
-                    }
-                  }}
-                >
-                  <Video className="w-4 h-4 mr-2" />
-                  Videos
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    if (fileInputRef.current) {
-                      fileInputRef.current.accept =
-                        ".pdf,.doc,.docx,.xls,.xlsx,.txt";
-                      fileInputRef.current.click();
-                    }
-                  }}
-                >
-                  <FileText className="w-4 h-4 mr-2" />
-                  Documents
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    if (fileInputRef.current) {
-                      fileInputRef.current.accept = "audio/*";
-                      fileInputRef.current.click();
-                    }
-                  }}
-                >
-                  <Music className="w-4 h-4 mr-2" />
-                  Audio
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <MapPin className="w-4 h-4 mr-2" />
-                  Location
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <CreditCard className="w-4 h-4 mr-2" />
-                  Payment Link
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Voice Recording */}
-            <Button
-              variant="ghost"
-              size="sm"
-              type="button"
-              className={cn(
-                "text-gray-500 hover:text-gray-700",
-                isRecording && "bg-red-100 text-red-600"
-              )}
-              onMouseDown={startVoiceRecording}
-              onMouseUp={stopVoiceRecording}
-              onMouseLeave={stopVoiceRecording}
-            >
-              {isRecording ? (
-                <MicOff className="w-4 h-4" />
-              ) : (
-                <Mic className="w-4 h-4" />
-              )}
-            </Button>
-          </div>
-
-          {/* Message Input */}
-          <div className="relative flex-1">
-            <Textarea
-              ref={textareaRef}
-              value={message}
-              onChange={handleTextareaChange}
-              onKeyPress={handleKeyPress}
-              onKeyDown={handleOnKeyDown}
-              placeholder="Type a message..."
-              className="min-h-[40px] max-h-[120px] resize-none pr-20 border-gray-300 focus:border-green-500 focus:ring-green-500"
-              rows={1}
-            />
-
-            {/* Right Side Actions in Input */}
-            <div className="absolute flex items-center gap-1 transform -translate-y-1/2 right-2 top-1/2">
-              {/* Emoji Picker */}
-              <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    type="button"
-                    className="w-6 h-6 p-0 text-gray-500 hover:text-gray-700"
-                  >
-                    <Smile className="w-4 h-4" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="p-0 w-80" side="top">
-                  <div className="p-3">
-                    <div className="grid grid-cols-8 gap-2">
-                      {emojiCategories.faces.map((emoji) => (
-                        <button
-                          key={emoji}
-                          className="p-2 text-lg rounded hover:bg-gray-100"
-                          onClick={() => insertEmoji(emoji)}
-                        >
-                          {emoji}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
-
-              {/* Draft Status */}
-              {isDraftSaving && (
-                <Save className="w-3 h-3 text-blue-500 animate-pulse" />
-              )}
-            </div>
-          </div>
-
-          {/* Right Side Actions */}
-          <div className="flex items-center gap-1">
-            {/* Quick Templates */}
-            <Popover open={showTemplates} onOpenChange={setShowTemplates}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  type="button"
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <Zap className="w-4 h-4" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="p-0 w-80" side="top">
-                <div className="p-3">
-                  <h4 className="mb-3 font-medium">Quick Reply Templates</h4>
-                  <div className="space-y-2 overflow-y-auto max-h-60">
-                    {quickReplyTemplates.length > 0 ? (
-                      quickReplyTemplates.map((template) => (
-                        <div
-                          key={template.id}
-                          className="p-2 rounded cursor-pointer hover:bg-gray-100"
-                          onClick={() => insertTemplate(template)}
-                        >
-                          <div className="flex items-start justify-between mb-1">
-                            <span className="text-sm font-medium">
-                              {template.title}
-                            </span>
-                            <Badge variant="secondary" className="text-xs">
-                              {template.usage_count}
-                            </Badge>
-                          </div>
-                          <p className="text-xs text-gray-600 line-clamp-2">
-                            {template.content}
-                          </p>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="p-4 text-sm text-center text-gray-500">
-                        <p>No quick reply templates available.</p>
-                        <p className="mt-1 text-xs">
-                          Create templates in the Quick Replies page.
-                        </p>
-                      </div>
-                    )}
-                  </div>
+        {recordingBlob ? (
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex-1">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-10 h-10 bg-green-100 rounded-lg">
+                  <Mic className="w-5 h-5 text-green-600" />
                 </div>
-              </PopoverContent>
-            </Popover>
-
-            {/* Send Button */}
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-green-800">
+                    Voice Recording
+                  </p>
+                  <p className="text-sm text-green-600">
+                    Duration:{" "}
+                    {formatDuration(
+                      isPlaying
+                        ? recordingDuration - currentPlayTime
+                        : recordingDuration
+                    )}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleAudioPlayPause}
+                >
+                  {isPlaying ? (
+                    <Pause className="w-4 h-4" />
+                  ) : (
+                    <Play className="w-4 h-4" />
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={deleteRecording}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
             <Button
               type="submit"
               disabled={
@@ -970,9 +850,243 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
               <Send className="w-4 h-4" />
             </Button>
           </div>
-        </div>
+        ) : (
+          <div className="flex items-end gap-2">
+            {!recordingBlob && (
+              <div className="flex items-center gap-1">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      type="button"
+                      className="text-gray-500 hover:text-gray-700"
+                    >
+                      <Paperclip className="w-4 h-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    side="top"
+                    align="start"
+                    className="w-48"
+                  >
+                    <DropdownMenuLabel>Upload Files</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => {
+                        if (fileInputRef.current) {
+                          fileInputRef.current.accept = "image/*";
+                          fileInputRef.current.click();
+                        }
+                      }}
+                    >
+                      <Camera className="w-4 h-4 mr-2" />
+                      Photos
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        if (fileInputRef.current) {
+                          fileInputRef.current.accept = "video/*";
+                          fileInputRef.current.click();
+                        }
+                      }}
+                    >
+                      <Video className="w-4 h-4 mr-2" />
+                      Videos
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        if (fileInputRef.current) {
+                          fileInputRef.current.accept =
+                            ".pdf,.doc,.docx,.xls,.xlsx,.txt";
+                          fileInputRef.current.click();
+                        }
+                      }}
+                    >
+                      <FileText className="w-4 h-4 mr-2" />
+                      Documents
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        if (fileInputRef.current) {
+                          fileInputRef.current.accept = "audio/*";
+                          fileInputRef.current.click();
+                        }
+                      }}
+                    >
+                      <Music className="w-4 h-4 mr-2" />
+                      Audio
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem>
+                      <MapPin className="w-4 h-4 mr-2" />
+                      Location
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <CreditCard className="w-4 h-4 mr-2" />
+                      Payment Link
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-        {/* Hidden file input */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  className={cn(
+                    "text-gray-500 hover:text-gray-700",
+                    isRecording && "bg-red-100 text-red-600"
+                  )}
+                  onMouseDown={startVoiceRecording}
+                  onMouseUp={stopVoiceRecording}
+                  onMouseLeave={stopVoiceRecording}
+                >
+                  {isRecording ? (
+                    <MicOff className="w-4 h-4" />
+                  ) : (
+                    <Mic className="w-4 h-4" />
+                  )}
+                </Button>
+              </div>
+            )}
+
+            {isRecording && !recordingBlob && (
+              <div className="relative flex-1">
+                <div className="flex items-center justify-center gap-2 mt-2 text-red-600">
+                  <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                  <span className="text-sm font-medium">
+                    Recording... {formatDuration(recordingDuration)}
+                  </span>
+                  <span className="text-xs">(Release to stop)</span>
+                </div>
+              </div>
+            )}
+
+            {!isRecording && !recordingBlob && (
+              <div className="relative flex-1">
+                <Textarea
+                  ref={textareaRef}
+                  value={message}
+                  onChange={handleTextareaChange}
+                  onKeyPress={handleKeyPress}
+                  onKeyDown={handleOnKeyDown}
+                  placeholder="Type a message..."
+                  className="min-h-[40px] max-h-[120px] resize-none pr-20 border-gray-300 focus:border-green-500 focus:ring-green-500"
+                  rows={1}
+                />
+
+                {/* Right Side Actions in Input */}
+                <div className="absolute flex items-center gap-1 transform -translate-y-1/2 right-2 top-1/2">
+                  {/* Emoji Picker */}
+                  <Popover
+                    open={showEmojiPicker}
+                    onOpenChange={setShowEmojiPicker}
+                  >
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        type="button"
+                        className="w-6 h-6 p-0 text-gray-500 hover:text-gray-700"
+                      >
+                        <Smile className="w-4 h-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-0 w-80" side="top">
+                      <div className="p-3">
+                        <div className="grid grid-cols-8 gap-2">
+                          {emojiCategories.faces.map((emoji) => (
+                            <button
+                              key={emoji}
+                              className="p-2 text-lg rounded hover:bg-gray-100"
+                              onClick={() => insertEmoji(emoji)}
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+
+                  {/* Draft Status */}
+                  {isDraftSaving && (
+                    <Save className="w-3 h-3 text-blue-500 animate-pulse" />
+                  )}
+                </div>
+              </div>
+            )}
+
+            {!recordingBlob && (
+              <div className="flex items-center gap-1">
+                <Popover open={showTemplates} onOpenChange={setShowTemplates}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      type="button"
+                      className="text-gray-500 hover:text-gray-700"
+                    >
+                      <Zap className="w-4 h-4" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="p-0 w-80" side="top">
+                    <div className="p-3">
+                      <h4 className="mb-3 font-medium">
+                        Quick Reply Templates
+                      </h4>
+                      <div className="space-y-2 overflow-y-auto max-h-60">
+                        {quickReplyTemplates.length > 0 ? (
+                          quickReplyTemplates.map((template) => (
+                            <div
+                              key={template.id}
+                              className="p-2 rounded cursor-pointer hover:bg-gray-100"
+                              onClick={() => insertTemplate(template)}
+                            >
+                              <div className="flex items-start justify-between mb-1">
+                                <span className="text-sm font-medium">
+                                  {template.title}
+                                </span>
+                                <Badge variant="secondary" className="text-xs">
+                                  {template.usage_count}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-gray-600 line-clamp-2">
+                                {template.content}
+                              </p>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="p-4 text-sm text-center text-gray-500">
+                            <p>No quick reply templates available.</p>
+                            <p className="mt-1 text-xs">
+                              Create templates in the Quick Replies page.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+
+                {/* Send Button */}
+                <Button
+                  type="submit"
+                  disabled={
+                    (!message.trim() &&
+                      attachmentFiles.length === 0 &&
+                      !recordingBlob) ||
+                    isSendingMessage
+                  }
+                  className="px-4 text-white bg-green-600 hover:bg-green-700"
+                >
+                  <Send className="w-4 h-4" />
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
         <input
           ref={fileInputRef}
           type="file"
@@ -980,17 +1094,6 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
           multiple
           onChange={(e) => handleFileSelect(e.target.files)}
         />
-
-        {/* Recording Status */}
-        {isRecording && (
-          <div className="flex items-center justify-center gap-2 mt-2 text-red-600">
-            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-            <span className="text-sm font-medium">
-              Recording... {formatDuration(recordingDuration)}
-            </span>
-            <span className="text-xs">(Release to stop)</span>
-          </div>
-        )}
       </form>
     </div>
   );

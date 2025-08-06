@@ -28,7 +28,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Message, MessageDirection } from "@/types";
-import { cn } from "@/lib/utils";
+import { cn, formatDuration } from "@/lib/utils";
 import { format } from "date-fns";
 import { useChatStore } from "@/lib/stores/chat";
 import Image from "next/image";
@@ -215,12 +215,6 @@ export function MessageBubble({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
-  const formatDuration = (dur: number) => {
-    const minutes = Math.floor(dur / 60);
-    const seconds = Math.floor(dur % 60);
-    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-  };
-
   const getFileTypeIcon = (type: string) => {
     if (type?.startsWith("image/")) return <ImageIcon className="w-5 h-5" />;
     if (type?.startsWith("video/")) return <Video className="w-5 h-5" />;
@@ -340,7 +334,7 @@ export function MessageBubble({
                   )}
                   <div className="flex items-center gap-2 mt-2">
                     <LinkIcon className="w-3 h-3" />
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-gray-600">
                       {message.link_preview.domain}
                     </span>
                   </div>
@@ -382,20 +376,32 @@ export function MessageBubble({
                 </div>
               )}
               <div className="flex items-center justify-between mt-1">
-                <span className="text-xs text-gray-500">
-                  {currentTime > 0
-                    ? formatDuration(currentTime)
-                    : duration
-                      ? formatDuration(duration)
-                      : "0:00"}
+                <span
+                  className={cn("text-xs", {
+                    "text-white": isOutgoing,
+                    "text-gray-600": !isOutgoing,
+                  })}
+                >
+                  {isOutgoing
+                    ? ""
+                    : currentTime > 0
+                      ? formatDuration(currentTime)
+                      : duration
+                        ? formatDuration(duration)
+                        : "0:00"}
                 </span>
-                <Volume2 className="w-3 h-3 text-gray-400" />
+                <Volume2
+                  className={cn("w-3 h-3", {
+                    "text-white": isOutgoing,
+                    "text-gray-600": !isOutgoing,
+                  })}
+                />
               </div>
             </div>
 
             <audio
               ref={audioRef}
-              src={message.media_url || message.file_url}
+              src={message.media_url}
               onEnded={() => {
                 setIsPlaying(false);
                 setCurrentTime(0);
@@ -457,7 +463,7 @@ export function MessageBubble({
               <p className="mt-2 text-sm">{message.content}</p>
             )}
             {(message.file_size || message.media_size) && (
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 text-xs text-gray-600">
                 {formatFileSize(message.file_size || message.media_size || 0)}
               </p>
             )}
@@ -490,7 +496,7 @@ export function MessageBubble({
             {message.content && (
               <p className="mt-2 text-sm">{message.content}</p>
             )}
-            <div className="flex items-center justify-between mt-1 text-xs text-gray-500">
+            <div className="flex items-center justify-between mt-1 text-xs text-gray-600">
               {message.resolution && <span>{message.resolution}</span>}
               {(message.file_size || message.media_size) && (
                 <span>
@@ -511,7 +517,7 @@ export function MessageBubble({
               <p className="text-sm font-medium truncate">
                 {message.file_name || message.media_filename || "Document"}
               </p>
-              <div className="flex items-center gap-2 text-xs text-gray-500">
+              <div className="flex items-center gap-2 text-xs text-gray-600">
                 <span>
                   {message.file_type?.toUpperCase() ||
                     message.media_filename?.split(".").pop()?.toUpperCase() ||
@@ -563,7 +569,7 @@ export function MessageBubble({
         return (
           <div className="flex items-center gap-1">
             <Camera className="w-4 h-4 text-gray-600" />
-            <p className="overflow-hidden text-xs text-gray-500 break-all whitespace-pre-wrap line-clamp-2">
+            <p className="overflow-hidden text-xs text-gray-600 break-all whitespace-pre-wrap line-clamp-2">
               {message.reply_to?.content}
             </p>
           </div>
@@ -572,7 +578,7 @@ export function MessageBubble({
         return (
           <div className="flex items-center gap-1">
             <Video className="w-4 h-4 text-gray-600" />
-            <p className="overflow-hidden text-xs text-gray-500 break-all whitespace-pre-wrap line-clamp-2">
+            <p className="overflow-hidden text-xs text-gray-600 break-all whitespace-pre-wrap line-clamp-2">
               {message.reply_to?.content || "Video"}
             </p>
           </div>
@@ -582,7 +588,7 @@ export function MessageBubble({
         return (
           <div className="flex items-center gap-1">
             <Volume2 className="w-4 h-4 text-gray-600" />
-            <p className="overflow-hidden text-xs text-gray-500 break-all whitespace-pre-wrap line-clamp-2">
+            <p className="overflow-hidden text-xs text-gray-600 break-all whitespace-pre-wrap line-clamp-2">
               {message.reply_to?.content || "Audio"}
             </p>
           </div>
@@ -591,7 +597,7 @@ export function MessageBubble({
         return (
           <div className="flex items-center gap-1">
             <FileText className="w-4 h-4 text-gray-600" />
-            <p className="overflow-hidden text-xs text-gray-500 break-all whitespace-pre-wrap line-clamp-2">
+            <p className="overflow-hidden text-xs text-gray-600 break-all whitespace-pre-wrap line-clamp-2">
               {message.reply_to?.content || "Document"}
             </p>
           </div>
@@ -599,7 +605,7 @@ export function MessageBubble({
 
       default:
         return (
-          <p className="overflow-hidden text-xs text-gray-500 break-all whitespace-pre-wrap line-clamp-2">
+          <p className="overflow-hidden text-xs text-gray-600 break-all whitespace-pre-wrap line-clamp-2">
             {message.reply_to?.content}
           </p>
         );
@@ -729,7 +735,7 @@ export function MessageBubble({
                     <>
                       <div className="my-1 border-t border-gray-200" />
                       <div className="px-2 py-1">
-                        <p className="mb-2 text-xs text-gray-500">
+                        <p className="mb-2 text-xs text-gray-600">
                           React with:
                         </p>
                         <div className="flex gap-1">
@@ -826,7 +832,7 @@ export function MessageBubble({
             <div
               className={cn(
                 "text-xs italic mb-2 flex items-center gap-1",
-                isOutgoing ? "text-green-100" : "text-gray-500"
+                isOutgoing ? "text-green-100" : "text-gray-600"
               )}
             >
               <Forward className="w-3 h-3" />
@@ -844,7 +850,7 @@ export function MessageBubble({
             <span
               className={cn(
                 "text-xs italic mt-1 block",
-                isOutgoing ? "text-green-100" : "text-gray-500"
+                isOutgoing ? "text-green-100" : "text-gray-600"
               )}
             >
               edited
@@ -860,7 +866,7 @@ export function MessageBubble({
               <span
                 className={cn(
                   "text-xs",
-                  isOutgoing ? "text-green-100" : "text-gray-500"
+                  isOutgoing ? "text-green-100" : "text-gray-600"
                 )}
               >
                 {format(new Date(message.created_at), "HH:mm")}

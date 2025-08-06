@@ -273,7 +273,6 @@ export function MessagesList({ contactId }: MessagesListProps) {
       const firstChild = element.children[0] as HTMLElement;
 
       const secondChild = firstChild.children[0] as HTMLElement;
-      console.log(secondChild, "secondChild");
       if (secondChild) {
         secondChild.classList.add("message-highlight");
       } else {
