@@ -42,6 +42,7 @@ interface MessageBubbleProps {
   onForward?: (message: Message) => void;
   onDelete?: (messageId: string) => void;
   onCopy?: (content: string) => void;
+  onScrollToElement?: (id: string) => void;
   showTicketBadge?: boolean;
   isSearchResult?: boolean;
 }
@@ -54,6 +55,7 @@ export function MessageBubble({
   onForward,
   onDelete,
   onCopy,
+  onScrollToElement,
   isSearchResult = false,
 }: MessageBubbleProps) {
   const { activeContact, conversationMode } = useChatStore();
@@ -205,13 +207,6 @@ export function MessageBubble({
     if (type?.startsWith("video/")) return <Video className="w-5 h-5" />;
     if (type?.startsWith("audio/")) return <Volume2 className="w-5 h-5" />;
     return <FileText className="w-5 h-5" />;
-  };
-
-  const handleScrollToElement = (id: string) => {
-    const element = document.getElementById(id);
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth" });
-    }
   };
 
   const renderReactions = () => {
@@ -623,7 +618,13 @@ export function MessageBubble({
           )}
         >
           {isOutgoing && message?.reply_to_message_id && (
-            <div className="p-1 mb-1 bg-white rounded-lg">
+            <div
+              className="p-1 mb-1 bg-white rounded-lg"
+              onClick={() =>
+                onScrollToElement &&
+                onScrollToElement(message.reply_to?.target_wa_message_id || "")
+              }
+            >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex flex-col">
                   <h4 className="m-0 text-sm text-blue-600">

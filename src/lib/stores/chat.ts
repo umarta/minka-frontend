@@ -617,7 +617,7 @@ export const useChatStore = create<ChatStore>()(
         // Use the unified contact messages endpoint with DESC order for reverse pagination
         const response = await messagesApi.getByContact(contactId, {
           page,
-          limit: 20,
+          limit: 200,
           query,
           order: "timestamp DESC", // Get newest messages first
         });

@@ -230,6 +230,52 @@ export function MessagesList({ contactId }: MessagesListProps) {
     }
   };
 
+  const handleScrollToElement = (id: string) => {
+    const element = document.getElementById(id);
+    if (element) {
+      const container = containerRef.current;
+
+      if (container) {
+        const existingHighlighted =
+          container.querySelectorAll(".message-highlight");
+        existingHighlighted.forEach((el) =>
+          el.classList.remove("message-highlight")
+        );
+      } else {
+        const existingHighlighted =
+          document.querySelectorAll(".message-highlight");
+        existingHighlighted.forEach((el) =>
+          el.classList.remove("message-highlight")
+        );
+      }
+
+      element.classList.add("message-highlight");
+
+      if (container) {
+        const elementTop = element.offsetTop;
+        const containerHeight = container.clientHeight;
+        const elementHeight = element.offsetHeight;
+
+        const scrollTop = elementTop - containerHeight / 2 + elementHeight / 2;
+
+        container.scrollTo({
+          top: Math.max(0, scrollTop),
+          behavior: "smooth",
+        });
+      } else {
+        element.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+          inline: "nearest",
+        });
+      }
+
+      setTimeout(() => {
+        element.classList.remove("message-highlight");
+      }, 3000);
+    }
+  };
+
   // Group messages by date and remove duplicates more thoroughly
   const groupedMessages = displayMessages
     .reduce((uniqueMessages: Message[], message) => {
@@ -328,6 +374,7 @@ export function MessagesList({ contactId }: MessagesListProps) {
                     media_url: msg.media_url || undefined,
                   })
                 }
+                onScrollToElement={(v) => handleScrollToElement(v)}
               />
             ))}
           </div>
