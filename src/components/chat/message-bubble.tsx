@@ -27,7 +27,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Message } from "@/types";
+import { Message, MessageDirection } from "@/types";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useChatStore } from "@/lib/stores/chat";

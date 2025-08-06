@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { MessageBubble } from "./message-bubble";
 import { useChatStore } from "@/lib/stores/chat";
-import { Message } from "@/types";
+import { Message, MessageDirection } from "@/types";
 import { format, isToday, isYesterday } from "date-fns";
 import { id } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -249,7 +249,15 @@ export function MessagesList({ contactId }: MessagesListProps) {
         );
       }
 
-      element.classList.add("message-highlight");
+      const firstChild = element.children[0] as HTMLElement;
+
+      const secondChild = firstChild.children[0] as HTMLElement;
+      console.log(secondChild, "secondChild");
+      if (secondChild) {
+        secondChild.classList.add("message-highlight");
+      } else {
+        element.classList.add("message-highlight");
+      }
 
       if (container) {
         const elementTop = element.offsetTop;
@@ -271,7 +279,7 @@ export function MessagesList({ contactId }: MessagesListProps) {
       }
 
       setTimeout(() => {
-        element.classList.remove("message-highlight");
+        secondChild.classList.remove("message-highlight");
       }, 3000);
     }
   };
