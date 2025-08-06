@@ -1950,7 +1950,310 @@ export const draftMessagesApi = {
   },
 };
 
-// --- Anti-Blocking API ---
+// --- Global Search API ---
+export const searchApi = {
+  globalSearch: async (params: {
+    query: string;
+    filter?: 'all' | 'contacts' | 'messages';
+    page?: number;
+    limit?: number;
+  }) => {
+    try {
+      const response = await api.get('/global-search', { params });
+      return handleSingleResponse<any>(response);
+    } catch (error) {
+      handleApiError(error as AxiosError<ApiResponse>);
+      // Return mock data for testing scrollable functionality
+      return {
+        contacts: [
+          {
+            id: 1,
+            name: "Dodik kkr",
+            phone: "+62 812-3456-7890",
+            phone_number: "+62 812-3456-7890",
+            avatar_url: "",
+            is_blocked: false,
+            created_at: "2025-01-28T10:30:00Z",
+            updated_at: "2025-01-28T10:30:00Z",
+            last_seen: "2025-01-28T10:30:00Z"
+          },
+                      {
+              id: 2,
+              name: "Sasmita DP",
+              phone: "+62 812-3456-7891",
+              phone_number: "+62 812-3456-7891",
+              avatar_url: "",
+              is_blocked: false,
+              created_at: "2025-01-28T10:30:00Z",
+              updated_at: "2025-01-28T10:30:00Z",
+              last_seen: "2025-01-28T10:30:00Z"
+            },
+                      {
+              id: 3,
+              name: "Asmuni Pak Unik",
+              phone: "+62 812-3456-7892",
+              phone_number: "+62 812-3456-7892",
+              avatar_url: "",
+              is_blocked: false,
+              created_at: "2025-01-28T10:30:00Z",
+              updated_at: "2025-01-28T10:30:00Z",
+              last_seen: "2025-01-28T10:30:00Z"
+            },
+            {
+              id: 4,
+              name: "Muchlasi Aras",
+              phone: "+62 812-3456-7893",
+              phone_number: "+62 812-3456-7893",
+              avatar_url: "",
+              is_blocked: false,
+              created_at: "2025-01-28T10:30:00Z",
+              updated_at: "2025-01-28T10:30:00Z",
+              last_seen: "2025-01-28T10:30:00Z"
+            },
+            {
+              id: 5,
+              name: "Firnadetha Gamas",
+              phone: "+62 812-3456-7894",
+              phone_number: "+62 812-3456-7894",
+              avatar_url: "",
+              is_blocked: false,
+              created_at: "2025-01-28T10:30:00Z",
+              updated_at: "2025-01-28T10:30:00Z",
+              last_seen: "2025-01-28T10:30:00Z"
+            },
+            {
+              id: 6,
+              name: "Ilyas",
+              phone: "+62 812-3456-7895",
+              phone_number: "+62 812-3456-7895",
+              avatar_url: "",
+              is_blocked: false,
+              created_at: "2025-01-28T10:30:00Z",
+              updated_at: "2025-01-28T10:30:00Z",
+              last_seen: "2025-01-28T10:30:00Z"
+            },
+            {
+              id: 7,
+              name: "Sascha",
+              phone: "+62 812-3456-7896",
+              phone_number: "+62 812-3456-7896",
+              avatar_url: "",
+              is_blocked: false,
+              created_at: "2025-01-28T10:30:00Z",
+              updated_at: "2025-01-28T10:30:00Z",
+              last_seen: "2025-01-28T10:30:00Z"
+            },
+            {
+              id: 8,
+              name: "Ahmad Basuki",
+              phone: "+62 812-3456-7897",
+              phone_number: "+62 812-3456-7897",
+              avatar_url: "",
+              is_blocked: false,
+              created_at: "2025-01-28T10:30:00Z",
+              updated_at: "2025-01-28T10:30:00Z",
+              last_seen: "2025-01-28T10:30:00Z"
+            },
+            {
+              id: 9,
+              name: "Budi Santoso",
+              phone: "+62 812-3456-7898",
+              phone_number: "+62 812-3456-7898",
+              avatar_url: "",
+              is_blocked: false,
+              created_at: "2025-01-28T10:30:00Z",
+              updated_at: "2025-01-28T10:30:00Z",
+              last_seen: "2025-01-28T10:30:00Z"
+            },
+            {
+              id: 10,
+              name: "Citra Dewi",
+              phone: "+62 812-3456-7899",
+              phone_number: "+62 812-3456-7899",
+              avatar_url: "",
+              is_blocked: false,
+              created_at: "2025-01-28T10:30:00Z",
+              updated_at: "2025-01-28T10:30:00Z",
+              last_seen: "2025-01-28T10:30:00Z"
+            },
+            {
+              id: 11,
+              name: "Dedi Kurniawan",
+              phone: "+62 812-3456-7900",
+              phone_number: "+62 812-3456-7900",
+              avatar_url: "",
+              is_blocked: false,
+              created_at: "2025-01-28T10:30:00Z",
+              updated_at: "2025-01-28T10:30:00Z",
+              last_seen: "2025-01-28T10:30:00Z"
+            },
+            {
+              id: 12,
+              name: "Eka Putri",
+              phone: "+62 812-3456-7901",
+              phone_number: "+62 812-3456-7901",
+              avatar_url: "",
+              is_blocked: false,
+              created_at: "2025-01-28T10:30:00Z",
+              updated_at: "2025-01-28T10:30:00Z",
+              last_seen: "2025-01-28T10:30:00Z"
+            }
+        ],
+        messages: [
+          {
+            id: "msg_123",
+            contact_id: 1,
+            session_id: "default",
+            content: "Pajak itu bukan perpuluhan Kristen dodol",
+            message_type: "text",
+            direction: "incoming",
+            status: "sent",
+            created_at: "2025-07-29T15:30:00Z",
+            updated_at: "2025-07-29T15:30:00Z",
+            sender_name: "Kim Jo Un",
+            wa_message_id: "wa_msg_123"
+          },
+          {
+            id: "msg_124",
+            contact_id: 2,
+            session_id: "default",
+            content: "Halo, saya ingin bertanya tentang layanan",
+            message_type: "text",
+            direction: "incoming",
+            status: "sent",
+            created_at: "2025-07-29T14:30:00Z",
+            updated_at: "2025-07-29T14:30:00Z",
+            sender_name: "Sasmita DP",
+            wa_message_id: "wa_msg_124"
+          },
+          {
+            id: "msg_125",
+            contact_id: 3,
+            session_id: "default",
+            content: "Terima kasih atas bantuannya",
+            message_type: "text",
+            direction: "incoming",
+            status: "sent",
+            created_at: "2025-07-29T13:30:00Z",
+            updated_at: "2025-07-29T13:30:00Z",
+            sender_name: "Asmuni Pak Unik",
+            wa_message_id: "wa_msg_125"
+          },
+          {
+            id: "msg_126",
+            contact_id: 4,
+            session_id: "default",
+            content: "Saya sudah menerima file yang dikirim",
+            message_type: "text",
+            direction: "incoming",
+            status: "sent",
+            created_at: "2025-07-29T12:30:00Z",
+            updated_at: "2025-07-29T12:30:00Z",
+            sender_name: "Muchlasi Aras"
+          },
+          {
+            id: "msg_127",
+            contact_id: 5,
+            session_id: "default",
+            content: "Kapan saya bisa mendapatkan update?",
+            message_type: "text",
+            direction: "incoming",
+            status: "sent",
+            created_at: "2025-07-29T11:30:00Z",
+            updated_at: "2025-07-29T11:30:00Z",
+            sender_name: "Firnadetha Gamas"
+          },
+          {
+            id: "msg_128",
+            contact_id: 6,
+            session_id: "default",
+            content: "Apakah ada promo khusus hari ini?",
+            message_type: "text",
+            direction: "incoming",
+            status: "sent",
+            created_at: "2025-07-29T10:30:00Z",
+            updated_at: "2025-07-29T10:30:00Z",
+            sender_name: "Ilyas"
+          },
+          {
+            id: "msg_129",
+            contact_id: 7,
+            session_id: "default",
+            content: "Saya ingin mendaftar untuk layanan premium",
+            message_type: "text",
+            direction: "incoming",
+            status: "sent",
+            created_at: "2025-07-29T09:30:00Z",
+            updated_at: "2025-07-29T09:30:00Z",
+            sender_name: "Sascha"
+          },
+          {
+            id: "msg_130",
+            contact_id: 8,
+            session_id: "default",
+            content: "Bagaimana cara mengaktifkan fitur baru?",
+            message_type: "text",
+            direction: "incoming",
+            status: "sent",
+            created_at: "2025-07-29T08:30:00Z",
+            updated_at: "2025-07-29T08:30:00Z",
+            sender_name: "Ahmad Basuki"
+          },
+          {
+            id: "msg_131",
+            contact_id: 9,
+            session_id: "default",
+            content: "Saya mengalami masalah dengan aplikasi",
+            message_type: "text",
+            direction: "incoming",
+            status: "sent",
+            created_at: "2025-07-29T07:30:00Z",
+            updated_at: "2025-07-29T07:30:00Z",
+            sender_name: "Budi Santoso"
+          },
+          {
+            id: "msg_132",
+            contact_id: 10,
+            session_id: "default",
+            content: "Apakah ada tutorial untuk fitur ini?",
+            message_type: "text",
+            direction: "incoming",
+            status: "sent",
+            created_at: "2025-07-29T06:30:00Z",
+            updated_at: "2025-07-29T06:30:00Z",
+            sender_name: "Citra Dewi"
+          },
+          {
+            id: "msg_133",
+            contact_id: 11,
+            session_id: "default",
+            content: "Saya ingin upgrade ke paket yang lebih tinggi",
+            message_type: "text",
+            direction: "incoming",
+            status: "sent",
+            created_at: "2025-07-29T05:30:00Z",
+            updated_at: "2025-07-29T05:30:00Z",
+            sender_name: "Dedi Kurniawan"
+          },
+          {
+            id: "msg_134",
+            contact_id: 12,
+            session_id: "default",
+            content: "Terima kasih atas dukungannya",
+            message_type: "text",
+            direction: "incoming",
+            status: "sent",
+            created_at: "2025-07-29T04:30:00Z",
+            updated_at: "2025-07-29T04:30:00Z",
+            sender_name: "Eka Putri"
+          }
+        ],
+        total: 24,
+      };
+    }
+  },
+};
+
 export const antiBlockingApi = {
   validateMessage: async (payload: {
     contact_id: number;

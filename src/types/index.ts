@@ -158,7 +158,7 @@ export interface Message extends BaseEntity {
   };
   sender_name?: string;
   sender_avatar?: string;
-
+  contact_name?: string;
   // Metadata
   metadata?: Record<string, any>;
   edit_history?: EditHistory[];

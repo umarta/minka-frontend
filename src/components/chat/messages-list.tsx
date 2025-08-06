@@ -35,6 +35,7 @@ export function MessagesList({ contactId }: MessagesListProps) {
     searchQuery,
     searchResults,
     loadContactMessages,
+    selectedMessageFromSearch,
   } = useChatStore();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -217,6 +218,26 @@ export function MessagesList({ contactId }: MessagesListProps) {
       }
     };
   }, [scrollTimeout]);
+
+  // Scroll to selected message from global search using wa_message_id
+  useEffect(() => {
+    console.log('MessagesList useEffect - selectedMessageFromSearch:', selectedMessageFromSearch);
+    console.log('MessagesList useEffect - displayMessages length:', displayMessages.length);
+    
+    if (selectedMessageFromSearch && displayMessages.length > 0) {
+      
+      
+      console.log('Looking for wa_message_id:', selectedMessageFromSearch.wa_message_id);
+      console.log('Available wa_message_ids:', displayMessages.map(msg => msg.wa_message_id));
+      
+        // Wait a bit for the messages to render, then scroll
+      setTimeout(() => {
+        console.log('Scrolling to message with wa_message_id:', selectedMessageFromSearch.wa_message_id);
+        handleScrollToElement(selectedMessageFromSearch.wa_message_id || '');
+      }, 1000); // Increased timeout to ensure messages are loaded
+      
+    }
+  }, [selectedMessageFromSearch, displayMessages]);
 
   const formatMessageDate = (dateString: string) => {
     const date = new Date(dateString);
