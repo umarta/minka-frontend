@@ -124,6 +124,7 @@ export interface Message extends BaseEntity {
     message_id: number;
     target_wa_message_id?: string;
     media_url?: string;
+    sender_name?: string;
   };
   reply_to_message_id?: number;
   replied_to_id?: string;

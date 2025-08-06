@@ -6,8 +6,6 @@ import Image from "next/image";
 const MessageReply = () => {
   const { selectedMessage, setSelectedMessage } = useChatStore();
 
-  console.log(selectedMessage, "selectedMessage in MessageReply");
-
   const getFileInfo = () => {
     if (selectedMessage?.media_url) {
       try {

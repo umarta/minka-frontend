@@ -18,7 +18,6 @@ import {
   Play,
   Pause,
   Camera,
-  Upload,
   Music,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -40,10 +39,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useChatStore } from "@/lib/stores/chat";
-import { useAntiBlockingStore } from "@/lib/stores/antiBlocking";
 import { MessageType, QuickReplyTemplate } from "@/types";
 import { cn } from "@/lib/utils";
-import { AntiBlockingValidation } from "./anti-blocking-validation";
 import { useDragAndDrop } from "@/lib/hooks/useDragAndDrop";
 import MessageReply from "./message-reply";
 
@@ -55,7 +52,9 @@ interface MessageInputProps {
 
 export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
   const {
+    selectedContactId,
     selectedMessage,
+    setSelectedMessage,
     activeContact,
     sendMessage,
     isSendingMessage,
@@ -83,7 +82,6 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
   const [searchLocal, setSearchLocal] = useState("");
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [isDraftSaving, setIsDraftSaving] = useState(false);
-  const [showValidation, setShowValidation] = useState(false);
   const [fadingOutUploads, setFadingOutUploads] = useState<Set<string>>(
     new Set()
   );
@@ -221,8 +219,6 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
     }
   }, [activeContact.id]);
 
-  // Auto-validate message when typing
-
   // Auto-remove completed upload progress
   useEffect(() => {
     const completedUploads = Object.entries(uploadProgress).filter(
@@ -256,9 +252,6 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
       isSendingMessage
     )
       return;
-
-    // Clear validation feedback when sending
-    setShowValidation(false);
 
     try {
       let messageType: MessageType = "text";
@@ -574,6 +567,26 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
+  useEffect(() => {
+    setTypingUsers([]);
+    setAttachmentFiles([]);
+    setAttachmentPreviews([]);
+    setSelectedMessage({
+      wa_message_id: "",
+      content: "",
+      media_url: "",
+      message_type: "text",
+      direction: "incoming",
+      name: "",
+    });
+    setSearchLocal("");
+    onSearch?.("");
+    onClearSearch?.();
+    setMessage("");
+    deleteRecording();
+    setIsRecording(false);
+  }, [selectedContactId]);
+
   return (
     <div
       ref={setDropRef}
@@ -584,21 +597,6 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
     >
       {(selectedMessage?.content || selectedMessage?.media_url) && (
         <MessageReply />
-      )}
-
-      {/* Drag & Drop Overlay */}
-      {isDragging && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-blue-500 rounded-lg bg-opacity-10">
-          <div className="p-6 bg-white border-2 border-blue-300 border-dashed rounded-lg shadow-lg">
-            <div className="flex flex-col items-center gap-3 text-blue-600">
-              <Upload className="w-12 h-12" />
-              <p className="text-lg font-semibold">Drop files here</p>
-              <p className="text-sm text-gray-600">
-                Support images, videos, audio, and documents
-              </p>
-            </div>
-          </div>
-        </div>
       )}
 
       {/* Search Bar */}
@@ -719,9 +717,10 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
           </div>
         </div>
       )}
+
       {/* File Attachments Preview */}
       {attachmentFiles.length > 0 && (
-        <div className="p-3 border-b border-gray-100 bg-gray-50">
+        <div className="absolute inset-x-0 z-20 -top-[83px] px-4 pt-4 mb-0 bg-white">
           <div className="flex flex-wrap gap-3">
             {attachmentFiles.map((file, index) => (
               <div key={index} className="relative">
@@ -762,20 +761,6 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
         <div className="flex items-end gap-2">
           {/* Left Side Actions */}
           <div className="flex items-center gap-1">
-            {/* Search Toggle */}
-            <Button
-              variant="ghost"
-              size="sm"
-              type="button"
-              className={cn(
-                "text-gray-500 hover:text-gray-700",
-                showSearch && "bg-blue-100 text-blue-600"
-              )}
-              onClick={() => setShowSearch(!showSearch)}
-            >
-              <Search className="w-4 h-4" />
-            </Button>
-
             {/* File Upload Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

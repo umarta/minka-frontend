@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import {
   Check,
   CheckCheck,
@@ -105,6 +105,25 @@ export function MessageBubble({
   };
 
   const senderName = getSenderName();
+
+  const phoneNumber = useMemo(() => {
+    if (activeContact?.phone_number) {
+      const phone = activeContact?.phone_number.split("@")[0] || "";
+
+      if (phone.startsWith("62")) {
+        const number = phone.substring(2);
+        if (number.length >= 9) {
+          const part1 = number.substring(0, 3);
+          const part2 = number.substring(3, 7);
+          const part3 = number.substring(7);
+          return `+62 ${part1}-${part2}-${part3}`;
+        }
+      }
+
+      return phone.startsWith("+") ? phone : `+${phone}`;
+    }
+    return "";
+  }, [activeContact]);
 
   // Badge color per ticket
   const getTicketBadgeColor = (ticketId: any) => {
@@ -617,9 +636,12 @@ export function MessageBubble({
             isGrouped && !isOutgoing && "rounded-bl-lg"
           )}
         >
-          {isOutgoing && message?.reply_to_message_id && (
+          {message?.reply_to_message_id && (
             <div
-              className="p-1 mb-1 bg-white rounded-lg"
+              className={cn("p-1 mb-1 rounded-lg", {
+                "bg-gray-100": !isOutgoing,
+                "bg-white": isOutgoing,
+              })}
               onClick={() =>
                 onScrollToElement &&
                 onScrollToElement(message.reply_to?.target_wa_message_id || "")
@@ -628,7 +650,9 @@ export function MessageBubble({
               <div className="flex items-start justify-between gap-4">
                 <div className="flex flex-col">
                   <h4 className="m-0 text-sm text-blue-600">
-                    {activeContact?.name}
+                    {isOutgoing
+                      ? activeContact?.name || phoneNumber
+                      : message.reply_to?.sender_name || "-"}
                   </h4>
                   {generateReplyContentIcon()}
                 </div>

@@ -1,4 +1,4 @@
-import React, { useCallback, memo } from "react";
+import React, { useCallback, memo, useMemo } from "react";
 import { Conversation, ConversationGroup } from "@/types";
 import { useChat, useChatStore } from "@/lib/stores/chat";
 import { format, isToday } from "date-fns";
@@ -38,8 +38,26 @@ export const ConversationItem = memo<ConversationItemProps>(
       (state) => state.moveConversationToGroup
     );
 
-    const hasUnread = (conversation.unread_count || 0) > 0;
     const isActive = activeContact?.id === conversation.contact?.id;
+
+    const phoneNumber = useMemo(() => {
+      if (conversation?.contact?.phone_number) {
+        const phone = conversation.contact.phone_number.split("@")[0] || "";
+
+        if (phone.startsWith("62")) {
+          const number = phone.substring(2);
+          if (number.length >= 9) {
+            const part1 = number.substring(0, 3);
+            const part2 = number.substring(3, 7);
+            const part3 = number.substring(7);
+            return `+62 ${part1}-${part2}-${part3}`;
+          }
+        }
+
+        return phone.startsWith("+") ? phone : `+${phone}`;
+      }
+      return "";
+    }, [conversation]);
 
     const handleClick = useCallback(() => {
       selectConversation(conversation.contact);
@@ -118,7 +136,7 @@ export const ConversationItem = memo<ConversationItemProps>(
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center min-w-0 gap-2">
               <h4 className="font-medium text-gray-900 truncate">
-                {conversation.contact?.name || "Unknown Contact"}
+                {conversation.contact?.name || phoneNumber}
               </h4>
               {priorityIcon}
             </div>
