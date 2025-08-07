@@ -3,37 +3,9 @@
 import { useState, useEffect } from "react";
 import { ContactSidebar } from "./contact-sidebar";
 import { ChatArea } from "./chat-area";
-import { InfoPanel } from "./info-panel";
-import TicketHistoryPanel from "./ticket-history-panel";
-import {
-  useChatStore,
-  useRightSidebarMode,
-  useSetRightSidebarMode,
-  useRightSidebarVisible,
-  useSidebarCollapsed,
-} from "@/lib/stores/chat";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { useChatStore } from "@/lib/stores/chat";
 import { toast } from "@/hooks/use-toast";
-import {
-  Info,
-  MessageSquare,
-  History,
-  ToggleLeft,
-  ToggleRight,
-  Users,
-  Bot,
-  CheckCircle,
-  AlertCircle,
-  Search,
-  X,
-  Settings,
-  Filter,
-  SortAsc,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
 import { Message } from "@/types";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
 
 function useMediaQuery(query: string) {
   const [matches, setMatches] = useState(false);
@@ -47,41 +19,19 @@ function useMediaQuery(query: string) {
   return matches;
 }
 
-export function ChatLayout({ children }: { children?: React.ReactNode }) {
+export function ChatLayout() {
   const {
     activeContact,
-    rightSidebarVisible,
-    toggleRightSidebar,
-    sidebarCollapsed,
-    toggleSidebar,
     loadConversations,
-    updateMessage,
-    // New contact conversation features
-    conversationMode,
-    showTicketHistory,
-    toggleConversationMode,
-    toggleTicketHistory,
     activeContactConversation,
-    ticketEpisodes,
     loadContactConversation,
-    selectTicketEpisode,
   } = useChatStore();
-
-  const rightSidebarMode = useRightSidebarMode();
-  const setRightSidebarMode = useSetRightSidebarMode();
-
-  const [mobileView, setMobileView] = useState<
-    "sidebar" | "chat" | "info" | "history"
-  >("sidebar");
-  const [rightPanelMode, setRightPanelMode] = useState<"info" | "history">(
-    "info"
-  );
 
   // Enhanced Search State
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Message[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [searchFilters, setSearchFilters] = useState({
+  const [searchFilters, __] = useState({
     messageType: "all" as
       | "all"
       | "text"
@@ -96,9 +46,7 @@ export function ChatLayout({ children }: { children?: React.ReactNode }) {
   // Enhanced Message Actions State
   const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
   const [editingMessage, setEditingMessage] = useState<string | null>(null);
-  const [forwardingMessage, setForwardingMessage] = useState<Message | null>(
-    null
-  );
+  const [_, setForwardingMessage] = useState<Message | null>(null);
 
   // Load conversations when component mounts
   useEffect(() => {
@@ -243,58 +191,6 @@ export function ChatLayout({ children }: { children?: React.ReactNode }) {
       });
     }
   };
-
-  // Mock data for demonstration (replace with real data from store)
-  const mockTicketEpisodes = activeContact
-    ? [
-        {
-          ticket: { id: 1, status: "OPEN" } as any,
-          messageCount: 12,
-          startDate: new Date().toISOString(),
-          category: "PERLU_DIBALAS" as const,
-          unreadCount: 3,
-          status: "OPEN",
-        },
-        {
-          ticket: { id: 2, status: "CLOSED" } as any,
-          messageCount: 8,
-          startDate: new Date(Date.now() - 86400000).toISOString(),
-          endDate: new Date(Date.now() - 3600000).toISOString(),
-          category: "SELESAI" as const,
-          unreadCount: 0,
-          status: "CLOSED",
-        },
-      ]
-    : [];
-
-  const handleEpisodeSelect = (ticketId: string) => {
-    selectTicketEpisode(ticketId);
-    if (mobileView !== "chat") {
-      setMobileView("chat");
-    }
-  };
-
-  const handleShowAllMessages = () => {
-    if (activeContact) {
-      loadContactConversation(activeContact.id);
-      setMobileView("chat");
-    }
-  };
-
-  // Get conversation stats for UI
-  const conversationStats = activeContactConversation
-    ? {
-        perluDibalas: activeContactConversation.ticketEpisodes.filter(
-          (ep) => ep.category === "PERLU_DIBALAS"
-        ).length,
-        otomatis: activeContactConversation.ticketEpisodes.filter(
-          (ep) => ep.category === "OTOMATIS"
-        ).length,
-        selesai: activeContactConversation.ticketEpisodes.filter(
-          (ep) => ep.category === "SELESAI"
-        ).length,
-      }
-    : { perluDibalas: 1, otomatis: 0, selesai: 1 };
 
   // Enhanced props for ChatArea
   const enhancedChatAreaProps = {

@@ -1,18 +1,14 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Send,
   Paperclip,
   FileText,
-  Smile,
   Mic,
   Search,
   X,
   Video,
-  MapPin,
-  CreditCard,
-  Zap,
   Save,
   MicOff,
   Play,
@@ -23,8 +19,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,24 +27,31 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { useChatStore } from "@/lib/stores/chat";
-import { MessageType, QuickReplyTemplate } from "@/types";
+import { MessageType } from "@/types";
 import { cn, formatDuration } from "@/lib/utils";
-import { useDragAndDrop } from "@/lib/hooks/useDragAndDrop";
+import { useDebounce } from "@/hooks/use-debounce";
 import MessageReply from "./message-reply";
+import EmojiPicker from "./emoji-picker";
 
 interface MessageInputProps {
+  fileInputRef?: React.RefObject<HTMLInputElement | null>;
   onSearch?: (query: string) => void;
   onClearSearch?: () => void;
   searchQuery?: string;
+  onOpenFilePicker?: (type: "image" | "video" | "audio" | "document") => void;
+  onFilesChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onKeyboardShortcut?: (event: React.KeyboardEvent) => void;
 }
 
-export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
+export function MessageInput({
+  fileInputRef,
+  onSearch,
+  onClearSearch,
+  onOpenFilePicker,
+  onFilesChange,
+  onKeyboardShortcut,
+}: MessageInputProps) {
   const {
     selectedContactId,
     selectedMessage,
@@ -64,10 +65,7 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
 
   // Message State
   const [message, setMessage] = useState("");
-
-  // File Upload State
-  const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
-  const [attachmentPreviews, setAttachmentPreviews] = useState<string[]>([]);
+  const debouncedMessage = useDebounce(message, 800); // Debounce message for auto-save
 
   // Voice Recording State
   const [isRecording, setIsRecording] = useState(false);
@@ -82,112 +80,17 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
   const [showSearch, setShowSearch] = useState(false);
   const [searchLocal, setSearchLocal] = useState("");
   const [isDraftSaving, setIsDraftSaving] = useState(false);
-  const [fadingOutUploads, setFadingOutUploads] = useState<Set<string>>(
-    new Set()
-  );
 
   // Refs
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const playbackIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Drag and Drop
-  const { isDragging, setDropRef } = useDragAndDrop({
-    onFilesDropped: (files) => {
-      handleFileSelect({
-        length: files.length,
-        item: (i) => files[i],
-      } as FileList);
-    },
-    acceptedTypes: ["image/*", "video/*", "audio/*", "application/*"],
-    maxFiles: 5,
-    maxSize: 50 * 1024 * 1024, // 50MB
-    onError: (error) => {
-      console.error("❌ Drag & Drop Error:", error);
-      // You could show a toast notification here
-    },
-  });
-
   // Get quick reply templates from store
   const { quickReplyTemplates, loadQuickReplyTemplates, useQuickReply } =
     useChatStore();
-
-  // Emoji categories
-  const emojiCategories = {
-    recent: ["👍", "❤️", "😊", "🎉", "👏", "🔥", "💯", "✨"],
-    faces: [
-      "😀",
-      "😃",
-      "😄",
-      "😁",
-      "😆",
-      "😅",
-      "😂",
-      "🤣",
-      "😊",
-      "😇",
-      "🙂",
-      "🙃",
-      "😉",
-      "😌",
-      "😍",
-      "🥰",
-      "😘",
-      "😗",
-      "😙",
-      "😚",
-      "😋",
-      "😛",
-      "😝",
-      "😜",
-    ],
-    gestures: [
-      "👍",
-      "👎",
-      "👏",
-      "🙌",
-      "👐",
-      "🤲",
-      "🤝",
-      "🙏",
-      "✍️",
-      "💪",
-      "🦾",
-      "🦿",
-      "🦵",
-      "🦶",
-      "👂",
-      "🦻",
-      "👃",
-      "🧠",
-      "🦷",
-      "🦴",
-    ],
-    objects: [
-      "❤️",
-      "🧡",
-      "💛",
-      "💚",
-      "💙",
-      "💜",
-      "🖤",
-      "🤍",
-      "🤎",
-      "💔",
-      "❣️",
-      "💕",
-      "💞",
-      "💓",
-      "💗",
-      "💖",
-      "💘",
-      "💝",
-      "💟",
-    ],
-  };
 
   if (!activeContact) return null;
 
@@ -196,20 +99,20 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
     loadQuickReplyTemplates();
   }, [loadQuickReplyTemplates]);
 
-  // Auto-save draft
+  // Auto-save draft with debounce
   useEffect(() => {
-    if (message.trim() && !isDraftSaving) {
-      const timer = setTimeout(() => {
-        setIsDraftSaving(true);
-        // Simulate API call
-        setTimeout(() => {
-          setIsDraftSaving(false);
-        }, 500);
-      }, 2000);
+    if (!debouncedMessage.trim()) return;
 
-      return () => clearTimeout(timer);
-    }
-  }, [message, activeContact.id, isDraftSaving]);
+    setIsDraftSaving(true);
+    // Save to localStorage
+    localStorage.setItem(`draft_${activeContact.id}`, debouncedMessage);
+    // Simulate API call completion
+    const timer = setTimeout(() => {
+      setIsDraftSaving(false);
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [debouncedMessage, activeContact.id]);
 
   // Load saved draft
   useEffect(() => {
@@ -220,39 +123,10 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
     }
   }, [activeContact.id]);
 
-  // Auto-remove completed upload progress
-  useEffect(() => {
-    const completedUploads = Object.entries(uploadProgress).filter(
-      ([_, progress]) =>
-        progress.progress === 100 && progress.status === "complete"
-    );
-
-    if (completedUploads.length > 0) {
-      // First, trigger fade out animation
-      const completedFileIds = completedUploads.map(([fileId]) => fileId);
-      setFadingOutUploads(new Set(completedFileIds));
-
-      const timer = setTimeout(() => {
-        // Remove completed uploads from the store after fade animation
-        completedUploads.forEach(([fileId]) => {
-          removeUploadProgress(fileId);
-        });
-        // Clear fading state
-        setFadingOutUploads(new Set());
-      }, 1500); // 1.5 seconds total (0.5s fade + 1s delay)
-
-      return () => clearTimeout(timer);
-    }
-  }, [uploadProgress, removeUploadProgress]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (
-      (!message.trim() && attachmentFiles.length === 0 && !recordingBlob) ||
-      isSendingMessage
-    )
-      return;
+    if ((!message.trim() && !recordingBlob) || isSendingMessage) return;
 
     try {
       let messageType: MessageType = "text";
@@ -261,10 +135,6 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
       if (recordingBlob) {
         messageType = "audio";
         mediaFile = recordingBlob;
-      } else if (attachmentFiles.length > 0) {
-        const file = attachmentFiles[0];
-        messageType = getMessageType(file);
-        mediaFile = file;
       }
 
       await sendMessage({
@@ -284,8 +154,6 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
 
   const resetForm = () => {
     setMessage("");
-    setAttachmentFiles([]);
-    setAttachmentPreviews([]);
     setRecordingBlob(null);
     setRecordingDuration(0);
     setIsPlaying(false);
@@ -308,84 +176,6 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
       textareaRef.current.style.height = "auto";
     }
   };
-
-  const getMessageType = (file: File): MessageType => {
-    const fileType = file.type || "";
-    if (fileType.startsWith("image/")) return "image";
-    if (fileType.startsWith("video/")) return "video";
-    if (fileType.startsWith("audio/")) return "audio";
-    return "document";
-  };
-
-  const handleFileSelect = (files: FileList | null) => {
-    if (!files) return;
-
-    const fileArray = Array.from(files);
-
-    // Validate each file before processing
-    const validFiles = fileArray.filter((file) => {
-      // Check if it's a valid File object
-      if (!file) {
-        console.error("❌ File is null or undefined:", file);
-        return false;
-      }
-
-      // Check if it has the necessary File properties
-      if (typeof file !== "object") {
-        console.error("❌ File is not an object:", file);
-        return false;
-      }
-
-      // Check for name property (File objects should have this)
-      if (!file.name && file.name !== "") {
-        console.error("❌ File object missing name property:", file);
-        return false;
-      }
-
-      // Check for size property
-      if (typeof file.size !== "number") {
-        console.error("❌ File object missing or invalid size property:", file);
-        return false;
-      }
-
-      return true;
-    });
-
-    if (validFiles.length === 0) {
-      console.error("❌ No valid files to process");
-      return;
-    }
-
-    setAttachmentFiles((prev) => [...prev, ...validFiles]);
-
-    // Create previews for images
-    validFiles.forEach((file, index) => {
-      // Add extra validation for file type
-      const fileType = file.type || "";
-      if (fileType && fileType.startsWith("image/")) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          if (e.target?.result) {
-            setAttachmentPreviews((prev) => [
-              ...prev,
-              e.target!.result as string,
-            ]);
-          }
-        };
-        reader.onerror = (error) => {
-          console.error("❌ Error reading file:", error);
-        };
-        reader.readAsDataURL(file);
-      }
-
-      // Upload progress will be handled by chat store when message is sent
-    });
-  };
-
-  // const removeAttachment = (index: number) => {
-  //   setAttachmentFiles((prev) => prev.filter((_, i) => i !== index));
-  //   setAttachmentPreviews((prev) => prev.filter((_, i) => i !== index));
-  // };
 
   const startVoiceRecording = async () => {
     try {
@@ -520,21 +310,18 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
     setCurrentPlayTime(0);
   };
 
-  const insertTemplate = async (template: QuickReplyTemplate) => {
-    // Insert template content
-    setMessage((prev) => prev + (prev ? "\n\n" : "") + template.content);
-    setShowTemplates(false);
+  // const insertTemplate = async (template: QuickReplyTemplate) => {
+  //   setMessage((prev) => prev + (prev ? "\n\n" : "") + template.content);
+  //   setShowTemplates(false);
 
-    // Track usage via API
-    try {
-      await useQuickReply(template.id);
-    } catch (error) {
-      console.error("Failed to track template usage:", error);
-    }
+  //   try {
+  //     await useQuickReply(template.id);
+  //   } catch (error) {
+  //     console.error("Failed to track template usage:", error);
+  //   }
 
-    // Focus textarea
-    textareaRef.current?.focus();
-  };
+  //   textareaRef.current?.focus();
+  // };
 
   const insertEmoji = (emoji: string) => {
     const textarea = textareaRef.current;
@@ -559,98 +346,22 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
     }
   };
 
-  const handleOnKeyDown = async (e: React.KeyboardEvent) => {
-    const isPasteShortcut =
-      (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v";
+  const handleTextareaChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const value = e.target.value;
+      setMessage(value);
 
-    if (!isPasteShortcut) return;
-
-    if (!navigator.clipboard || !navigator.clipboard.read) {
-      console.warn("Clipboard read API not available in this browser.");
-      return;
-    }
-
-    try {
-      if (navigator.permissions) {
-        try {
-          const permission = await navigator.permissions.query({
-            name: "clipboard-read" as PermissionName,
-          });
-          if (permission.state === "denied") {
-            console.warn("Clipboard permission denied.");
-            return;
-          }
-        } catch (permError) {
-          console.warn(
-            "Permission query failed, proceeding anyway.",
-            permError
-          );
-        }
-      }
-
-      const clipboardItems = await navigator.clipboard.read();
-
-      for (const clipboardItem of clipboardItems) {
-        if (!clipboardItem || !clipboardItem.types) continue;
-
-        for (const type of clipboardItem.types) {
-          if (typeof type !== "string" || !type.startsWith("image/")) continue;
-
-          e.preventDefault();
-
-          try {
-            const blob = await clipboardItem.getType(type);
-
-            if (!blob || blob.size === 0) {
-              console.warn("Empty image blob, skipping.");
-              continue;
-            }
-
-            const timestamp = new Date()
-              .toISOString()
-              .replace(/[:.]/g, "-")
-              .replace("T", "_")
-              .split("Z")[0];
-
-            const extension = type.split("/")[1] || "png";
-            const fileName = `snipped-image-${timestamp}.${extension}`;
-
-            const file = new File([blob], fileName, {
-              type: type,
-              lastModified: Date.now(),
-            });
-
-            const fileList = Object.assign([file], {
-              item: (index: number) => (index === 0 ? file : null),
-            }) as unknown as FileList;
-
-            handleFileSelect(fileList);
-            return;
-          } catch (blobError) {
-            console.error("Error reading image blob:", blobError);
-          }
-        }
-      }
-    } catch (clipboardError) {
-      console.error("Clipboard read failed:", clipboardError);
-    }
-  };
-
-  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setMessage(e.target.value);
-
-    // Save to localStorage for draft
-    localStorage.setItem(`draft_${activeContact.id}`, e.target.value);
-
-    // Auto-resize textarea
-    const textarea = e.target;
-    textarea.style.height = "auto";
-    textarea.style.height = Math.min(textarea.scrollHeight, 120) + "px";
-  };
+      // Auto-resize textarea using requestAnimationFrame for better performance
+      const textarea = e.target;
+      requestAnimationFrame(() => {
+        textarea.style.height = "auto";
+        textarea.style.height = Math.min(textarea.scrollHeight, 120) + "px";
+      });
+    },
+    []
+  );
 
   useEffect(() => {
-    setAttachmentFiles([]);
-    setAttachmentPreviews([]);
     setSelectedMessage({
       wa_message_id: "",
       content: "",
@@ -684,13 +395,7 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
   }, []);
 
   return (
-    <div
-      ref={setDropRef}
-      className={cn(
-        "bg-background p-4 space-y-4 relative transition-all duration-200",
-        isDragging && "bg-blue-50 border-blue-300 border-2 border-dashed"
-      )}
-    >
+    <div className="relative p-4 space-y-4 transition-all duration-200 bg-background">
       {(selectedMessage?.content || selectedMessage?.media_url) && (
         <MessageReply />
       )}
@@ -725,74 +430,6 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
         </div>
       )}
 
-      {/* {Object.keys(uploadProgress).length > 0 && (
-        <div className="p-3 border-b border-gray-100 bg-blue-50">
-          {Object.entries(uploadProgress).map(([fileId, progress]) => (
-            <div
-              key={fileId}
-              className={cn(
-                "mb-2 transition-all duration-500",
-                fadingOutUploads.has(fileId) && "opacity-0 scale-95"
-              )}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm font-medium">{progress.fileName}</span>
-                <span className="text-sm text-gray-500">
-                  {progress.progress}%
-                </span>
-              </div>
-              <Progress value={progress.progress} className="h-2" />
-              {progress.status === "error" && progress.error && (
-                <p className="mt-1 text-xs text-red-500">{progress.error}</p>
-              )}
-              {progress.progress === 100 && progress.status === "complete" && (
-                <p className="flex items-center gap-1 mt-1 text-xs text-green-600">
-                  <span className="w-3 h-3 text-green-600">✓</span>
-                  Upload completed!
-                </p>
-              )}
-            </div>
-          ))}
-        </div>
-      )} */}
-
-      {/* {attachmentFiles.length > 0 && (
-        <div className="absolute inset-x-0 z-20 -top-[83px] px-4 pt-4 mb-0 bg-white">
-          <div className="flex flex-wrap gap-3">
-            {attachmentFiles.map((file, index) => (
-              <div key={index} className="relative">
-                <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-lg p-2 min-w-[200px]">
-                  {attachmentPreviews[index] ? (
-                    <img
-                      src={attachmentPreviews[index]}
-                      alt="Preview"
-                      className="object-cover w-12 h-12 rounded"
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center w-12 h-12 bg-gray-200 rounded">
-                      <FileText className="w-6 h-6 text-gray-500" />
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{file.name}</p>
-                    <p className="text-xs text-gray-500">
-                      {(file.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeAttachment(index)}
-                    className="w-6 h-6 p-0"
-                  >
-                    <X className="w-3 h-3" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )} */}
       {/* Main Input Area */}
       <form onSubmit={handleSubmit}>
         {recordingBlob ? (
@@ -839,12 +476,7 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
             </div>
             <Button
               type="submit"
-              disabled={
-                (!message.trim() &&
-                  attachmentFiles.length === 0 &&
-                  !recordingBlob) ||
-                isSendingMessage
-              }
+              disabled={(!message.trim() && !recordingBlob) || isSendingMessage}
               className="px-4 text-white bg-green-600 hover:bg-green-700"
             >
               <Send className="w-4 h-4" />
@@ -873,58 +505,36 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
                     <DropdownMenuLabel>Upload Files</DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      onClick={() => {
-                        if (fileInputRef.current) {
-                          fileInputRef.current.accept = "image/*";
-                          fileInputRef.current.click();
-                        }
-                      }}
+                      onClick={() =>
+                        onOpenFilePicker && onOpenFilePicker("image")
+                      }
                     >
                       <Camera className="w-4 h-4 mr-2" />
                       Photos
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onClick={() => {
-                        if (fileInputRef.current) {
-                          fileInputRef.current.accept = "video/*";
-                          fileInputRef.current.click();
-                        }
-                      }}
+                      onClick={() =>
+                        onOpenFilePicker && onOpenFilePicker("video")
+                      }
                     >
                       <Video className="w-4 h-4 mr-2" />
                       Videos
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onClick={() => {
-                        if (fileInputRef.current) {
-                          fileInputRef.current.accept =
-                            ".pdf,.doc,.docx,.xls,.xlsx,.txt";
-                          fileInputRef.current.click();
-                        }
-                      }}
+                      onClick={() =>
+                        onOpenFilePicker && onOpenFilePicker("document")
+                      }
                     >
                       <FileText className="w-4 h-4 mr-2" />
                       Documents
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onClick={() => {
-                        if (fileInputRef.current) {
-                          fileInputRef.current.accept = "audio/*";
-                          fileInputRef.current.click();
-                        }
-                      }}
+                      onClick={() =>
+                        onOpenFilePicker && onOpenFilePicker("audio")
+                      }
                     >
                       <Music className="w-4 h-4 mr-2" />
                       Audio
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem>
-                      <MapPin className="w-4 h-4 mr-2" />
-                      Location
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <CreditCard className="w-4 h-4 mr-2" />
-                      Payment Link
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -969,7 +579,7 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
                   value={message}
                   onChange={handleTextareaChange}
                   onKeyPress={handleKeyPress}
-                  onKeyDown={handleOnKeyDown}
+                  onKeyDown={(e) => onKeyboardShortcut && onKeyboardShortcut(e)}
                   placeholder="Type a message..."
                   className="min-h-[40px] max-h-[120px] resize-none pr-20 border-gray-300 focus:border-green-500 focus:ring-green-500"
                   rows={1}
@@ -977,37 +587,11 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
 
                 {/* Right Side Actions in Input */}
                 <div className="absolute flex items-center gap-1 transform -translate-y-1/2 right-2 top-1/2">
-                  {/* Emoji Picker */}
-                  <Popover
-                    open={showEmojiPicker}
-                    onOpenChange={setShowEmojiPicker}
-                  >
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        type="button"
-                        className="w-6 h-6 p-0 text-gray-500 hover:text-gray-700"
-                      >
-                        <Smile className="w-4 h-4" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="p-0 w-80" side="top">
-                      <div className="p-3">
-                        <div className="grid grid-cols-8 gap-2">
-                          {emojiCategories.faces.map((emoji) => (
-                            <button
-                              key={emoji}
-                              className="p-2 text-lg rounded hover:bg-gray-100"
-                              onClick={() => insertEmoji(emoji)}
-                            >
-                              {emoji}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
+                  <EmojiPicker
+                    onInsertEmoji={(v) => insertEmoji(v)}
+                    emojiOpen={showEmojiPicker}
+                    onEmojiOpen={setShowEmojiPicker}
+                  />
 
                   {/* Draft Status */}
                   {isDraftSaving && (
@@ -1019,7 +603,7 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
 
             {!recordingBlob && (
               <div className="flex items-center gap-1">
-                <Popover open={showTemplates} onOpenChange={setShowTemplates}>
+                {/* <Popover open={showTemplates} onOpenChange={setShowTemplates}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="ghost"
@@ -1067,16 +651,12 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
                       </div>
                     </div>
                   </PopoverContent>
-                </Popover>
+                </Popover> */}
 
-                {/* Send Button */}
                 <Button
                   type="submit"
                   disabled={
-                    (!message.trim() &&
-                      attachmentFiles.length === 0 &&
-                      !recordingBlob) ||
-                    isSendingMessage
+                    (!message.trim() && !recordingBlob) || isSendingMessage
                   }
                   className="px-4 text-white bg-green-600 hover:bg-green-700"
                 >
@@ -1092,7 +672,7 @@ export function MessageInput({ onSearch, onClearSearch }: MessageInputProps) {
           type="file"
           className="hidden"
           multiple
-          onChange={(e) => handleFileSelect(e.target.files)}
+          onChange={(e) => onFilesChange && onFilesChange(e)}
         />
       </form>
     </div>

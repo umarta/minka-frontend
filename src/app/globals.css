@@ -159,3 +159,12 @@
     transform: translateX(4px);
   }
 }
+
+.scroll-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scroll-hide::-webkit-scrollbar {
+  display: none;
+}
