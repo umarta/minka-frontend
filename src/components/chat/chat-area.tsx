@@ -1,18 +1,19 @@
 "use client";
 
+import React from "react";
 import { ChatHeader } from "./chat-header";
 import { MessagesList } from "./messages-list";
 import { MessageInput } from "./message-input";
 import { EmptyChatState } from "./empty-chat-state";
-import { TakeoverStatus } from "./takeover-status";
 import { useChatStore } from "@/lib/stores/chat";
-import { Message } from "@/types";
-import { useEffect, useState } from "react";
+import { Message, MessageType } from "@/types";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useDragAndDrop } from "@/lib/hooks/useDragAndDrop";
-import { Upload, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Mic2, Plus, Upload, Video, X, FileText, Send } from "lucide-react";
+import { cn, getMessageType } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
+import { Textarea } from "../ui/textarea";
+import EmojiPicker from "./emoji-picker";
 
 interface ChatAreaProps {
   onReact?: (messageId: string, emoji: string) => void;
@@ -32,19 +33,133 @@ interface ChatAreaProps {
 }
 
 export function ChatArea(props: ChatAreaProps) {
-  const { selectedMessage, activeContact, sendMessage } = useChatStore();
+  const {
+    selectedMessage,
+    activeContact,
+    sendMessage,
+    selectedContactId,
+    setSelectedMessage,
+  } = useChatStore();
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showDroppedFiles, setShowDroppedFiles] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const [droppedFiles, setDroppedFiles] = useState<File[]>([]);
-  const [showDroppedFiles, setShowDroppedFiles] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>(
-    {}
-  );
-  const [isUploading, setIsUploading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [selectedFileIndex, setSelectedFileIndex] = useState<number>(0);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const fileInputRef2 = useRef<HTMLInputElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Memoize selected file for performance
+  const selectedFile = useMemo(() => {
+    return droppedFiles[selectedFileIndex];
+  }, [droppedFiles, selectedFileIndex]);
+
+  // Memoize file preview URL for performance
+  const selectedFilePreviewUrl = useMemo(() => {
+    if (!selectedFile || !selectedFile.type.startsWith("image/")) return null;
+    return URL.createObjectURL(selectedFile);
+  }, [selectedFile]);
+
+  // Cleanup preview URLs to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (selectedFilePreviewUrl) {
+        URL.revokeObjectURL(selectedFilePreviewUrl);
+      }
+    };
+  }, [selectedFilePreviewUrl]);
+
+  // Memoize file items rendering for performance
+  const fileItems = useMemo(() => {
+    return droppedFiles.map((file, index) => (
+      <div
+        key={`${file.name}-${index}`} // More stable key
+        className={cn(
+          "relative flex-shrink-0 group cursor-pointer",
+          selectedFileIndex === index &&
+            "ring-2 ring-blue-500 ring-offset-2 rounded-lg"
+        )}
+        onClick={() => setSelectedFileIndex(index)}
+      >
+        <div className="overflow-hidden border border-gray-200 rounded-lg">
+          {file.type.startsWith("image/") ? (
+            <img
+              src={URL.createObjectURL(file)}
+              alt={file.name}
+              className="object-cover rounded size-14"
+            />
+          ) : (
+            <div className="flex items-center justify-center bg-gray-100 rounded size-14">
+              {file.type.startsWith("video/") && (
+                <Video className="w-6 h-6 text-blue-500" />
+              )}
+              {file.type.startsWith("audio/") && (
+                <Mic2 className="w-6 h-6 text-green-500" />
+              )}
+              {!file.type.startsWith("image/") &&
+                !file.type.startsWith("video/") &&
+                !file.type.startsWith("audio/") && (
+                  <FileText className="w-6 h-6 text-gray-500" />
+                )}
+            </div>
+          )}
+        </div>
+
+        <div className="absolute inset-0 transition-opacity duration-200 opacity-0 group-hover:opacity-100">
+          <div className="absolute inset-0 rounded-lg bg-black/20"></div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              removeDroppedFile(index);
+            }}
+            className="absolute top-1 right-1 p-0.5 bg-white rounded-full transition-colors duration-200 shadow-sm cursor-pointer"
+            disabled={isUploading}
+          >
+            <X className="w-3 h-3 text-gray-600" />
+          </button>
+        </div>
+      </div>
+    ));
+  }, [droppedFiles, selectedFileIndex, isUploading]);
+
+  const handleAddMoreFiles = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileInputChange = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length > 0) {
+      const prevFilesLength = droppedFiles.length;
+      setDroppedFiles((prevFiles) => [...prevFiles, ...files]);
+      setShowDroppedFiles(true);
+      setSelectedFileIndex(prevFilesLength);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   const { isDragging, setDropRef } = useDragAndDrop({
     onFilesDropped: (files) => {
-      setDroppedFiles(files);
+      const prevFilesLength = droppedFiles.length;
+      setDroppedFiles((prevFiles) => [...prevFiles, ...files]);
       setShowDroppedFiles(true);
+
+      if (prevFilesLength === 0) {
+        setSelectedFileIndex(0);
+      } else {
+        setSelectedFileIndex(prevFilesLength);
+      }
 
       props.onFilesDropped?.(files);
     },
@@ -56,97 +171,299 @@ export function ChatArea(props: ChatAreaProps) {
     },
   });
 
-  // Function to handle sending files
-  const handleSendFiles = async (files: File[], message?: string) => {
-    if (!activeContact) return;
+  const insertEmoji = (emoji: string) => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const newMessage = message.slice(0, start) + emoji + message.slice(end);
+      setMessage(newMessage);
 
-    setIsUploading(true);
-    setUploadProgress({});
+      setTimeout(() => {
+        textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+        textarea.focus();
+      }, 0);
+    }
+  };
 
-    try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const fileId = `${file.name}-${i}`;
+  const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  }, []);
 
-        let messageType: "image" | "video" | "audio" | "document" = "document";
+  const handleTextareaChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const newValue = e.target.value;
+      setMessage(newValue);
 
-        if (file.type.startsWith("image/")) messageType = "image";
-        else if (file.type.startsWith("video/")) messageType = "video";
-        else if (file.type.startsWith("audio/")) messageType = "audio";
+      // Auto-resize textarea using requestAnimationFrame for better performance
+      const textarea = e.target;
+      requestAnimationFrame(() => {
+        textarea.style.height = "auto";
+        textarea.style.height = Math.min(textarea.scrollHeight, 120) + "px";
+      });
+    },
+    []
+  );
 
-        // Simulate upload progress
-        setUploadProgress((prev) => ({ ...prev, [fileId]: 0 }));
+  const removeDroppedFile = useCallback(
+    (index: number) => {
+      setDroppedFiles((prev) => prev.filter((_, i) => i !== index));
 
-        // Progress simulation with more realistic behavior
-        const progressInterval = setInterval(() => {
-          setUploadProgress((prev) => {
-            const currentProgress = prev[fileId] || 0;
-            if (currentProgress >= 95) {
-              clearInterval(progressInterval);
-              return prev;
-            }
-            // Slower progress as it gets closer to completion
-            const increment =
-              currentProgress < 50 ? Math.random() * 20 : Math.random() * 10;
-            const newProgress = Math.min(currentProgress + increment, 95);
-            return { ...prev, [fileId]: newProgress };
-          });
-        }, 300);
-
-        await sendMessage({
-          content: file.name,
-          message_type: messageType,
-          contact_id: activeContact.id,
-          session_id: "default",
-          media_file: file,
-          isDragAndDrop: true,
-          reply_to: selectedMessage?.wa_message_id || "",
-        });
-
-        // Complete the progress
-        clearInterval(progressInterval);
-        setUploadProgress((prev) => ({ ...prev, [fileId]: 100 }));
-
-        // Wait a bit before removing the progress
-        setTimeout(() => {
-          setUploadProgress((prev) => {
-            const newProgress = { ...prev };
-            delete newProgress[fileId];
-            return newProgress;
-          });
-        }, 1000);
+      // Adjust selected index after removal
+      if (index === selectedFileIndex) {
+        // If removing the selected file, select the next file or previous if it was the last
+        if (index >= droppedFiles.length - 1) {
+          setSelectedFileIndex(Math.max(0, droppedFiles.length - 2));
+        } else {
+          setSelectedFileIndex(index);
+        }
+      } else if (index < selectedFileIndex) {
+        // If removing a file before the selected one, decrease selected index
+        setSelectedFileIndex(selectedFileIndex - 1);
       }
 
-      // Close modal and reset state after all files are sent
-      setTimeout(() => {
+      if (droppedFiles.length === 1) {
         setShowDroppedFiles(false);
-        setDroppedFiles([]);
         setIsUploading(false);
-        setUploadProgress({});
-      }, 1500);
+        setSelectedFileIndex(0);
+      }
+    },
+    [selectedFileIndex, droppedFiles.length]
+  );
+
+  const handleFileSelect = (files: FileList | null) => {
+    if (!files) return;
+
+    const fileArray = Array.from(files);
+
+    // Validate each file before processing
+    const validFiles = fileArray.filter((file) => {
+      // Check if it's a valid File object
+      if (!file) {
+        console.error("❌ File is null or undefined:", file);
+        return false;
+      }
+
+      // Check if it has the necessary File properties
+      if (typeof file !== "object") {
+        console.error("❌ File is not an object:", file);
+        return false;
+      }
+
+      // Check for name property (File objects should have this)
+      if (!file.name && file.name !== "") {
+        console.error("❌ File object missing name property:", file);
+        return false;
+      }
+
+      // Check for size property
+      if (typeof file.size !== "number") {
+        console.error("❌ File object missing or invalid size property:", file);
+        return false;
+      }
+
+      return true;
+    });
+
+    if (validFiles.length === 0) {
+      console.error("❌ No valid files to process");
+      return;
+    }
+
+    if (validFiles.length > 0) {
+      setDroppedFiles((prev) => [...prev, ...validFiles]);
+      setShowDroppedFiles(true);
+    }
+
+    if (fileInputRef2.current) {
+      fileInputRef2.current.value = "";
+    }
+  };
+
+  const handleOnKeyDown = async (
+    e: React.KeyboardEvent,
+    type: "inner" | "outer"
+  ) => {
+    if (!["inner", "outer"].includes(type)) return;
+
+    const isPasteShortcut =
+      (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v";
+
+    if (!isPasteShortcut) return;
+
+    if (!navigator.clipboard || !navigator.clipboard.read) {
+      console.warn("Clipboard read API not available in this browser.");
+      return;
+    }
+
+    try {
+      if (navigator.permissions) {
+        try {
+          const permission = await navigator.permissions.query({
+            name: "clipboard-read" as PermissionName,
+          });
+          if (permission.state === "denied") {
+            console.warn("Clipboard permission denied.");
+            return;
+          }
+        } catch (permError) {
+          console.warn(
+            "Permission query failed, proceeding anyway.",
+            permError
+          );
+        }
+      }
+
+      const clipboardItems = await navigator.clipboard.read();
+
+      for (const clipboardItem of clipboardItems) {
+        if (!clipboardItem || !clipboardItem.types) continue;
+
+        for (const type of clipboardItem.types) {
+          if (typeof type !== "string" || !type.startsWith("image/")) continue;
+
+          e.preventDefault();
+
+          try {
+            const blob = await clipboardItem.getType(type);
+
+            if (!blob || blob.size === 0) {
+              console.warn("Empty image blob, skipping.");
+              continue;
+            }
+
+            const timestamp = new Date()
+              .toISOString()
+              .replace(/[:.]/g, "-")
+              .replace("T", "_")
+              .split("Z")[0];
+
+            const extension = type.split("/")[1] || "png";
+            const fileName = `snipped-image-${timestamp}.${extension}`;
+
+            const file = new File([blob], fileName, {
+              type: type,
+              lastModified: Date.now(),
+            });
+
+            const prevFilesLength = droppedFiles.length;
+            setDroppedFiles((prev) => [...prev, file]);
+            setShowDroppedFiles(true);
+
+            // Set selected to the newly pasted file
+            setSelectedFileIndex(prevFilesLength);
+            return;
+          } catch (blobError) {
+            console.error("Error reading image blob:", blobError);
+          }
+        }
+      }
+    } catch (clipboardError) {
+      console.error("Clipboard read failed:", clipboardError);
+    }
+  };
+
+  const resetState = () => {
+    setShowDroppedFiles(false);
+    setDroppedFiles([]);
+    setSelectedFileIndex(0);
+    setMessage("");
+    // setIsDraftSaving(false);
+    setShowEmojiPicker(false);
+
+    // Clear any pending localStorage save
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!message.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      let messageType: MessageType = "text";
+      let mediaFile: File | Blob | undefined;
+
+      if (droppedFiles.length > 0) {
+        const file = droppedFiles[0];
+        messageType = getMessageType(file);
+        mediaFile = file;
+      }
+
+      await sendMessage({
+        content: message.trim() || "",
+        message_type: messageType,
+        contact_id: activeContact?.id ?? "",
+        session_id: "default",
+        media_file: mediaFile as File,
+        reply_to: selectedMessage?.wa_message_id || "",
+      }).finally(() => {
+        resetState();
+        setIsSubmitting(false);
+        setSelectedMessage({
+          wa_message_id: "",
+          content: "",
+          media_url: "",
+          message_type: "text",
+          direction: "incoming",
+          name: "",
+        });
+      });
+
+      if (droppedFiles.length > 1) {
+        for (let i = 1; i < droppedFiles.length; i++) {
+          const file = droppedFiles[i];
+          const messageType = getMessageType(file);
+
+          await sendMessage({
+            content: "",
+            message_type: messageType,
+            contact_id: activeContact?.id ?? "",
+            session_id: "default",
+            media_file: file,
+            reply_to: "",
+          }).finally(() => {
+            resetState();
+            setIsSubmitting(false);
+            setSelectedMessage({
+              wa_message_id: "",
+              content: "",
+              media_url: "",
+              message_type: "text",
+              direction: "incoming",
+              name: "",
+            });
+          });
+        }
+      }
     } catch (error) {
-      console.error("Failed to send files:", error);
-      setIsUploading(false);
-      setUploadProgress({});
+      console.error("Failed to send message:", error);
     }
   };
 
-  // Function to remove a file from dropped files
-  const removeDroppedFile = (index: number) => {
-    setDroppedFiles((prev) => prev.filter((_, i) => i !== index));
-    if (droppedFiles.length === 1) {
-      setShowDroppedFiles(false);
-    }
-  };
+  useEffect(() => {
+    setSelectedMessage({
+      wa_message_id: "",
+      content: "",
+      media_url: "",
+      message_type: "text",
+      direction: "incoming",
+      name: "",
+    });
+    resetState();
+  }, [selectedContactId]);
 
-  // Prevent default browser drag and drop behavior
   useEffect(() => {
     const preventDefault = (e: DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
     };
 
-    // Add event listeners to prevent default browser behavior
     document.addEventListener("dragover", preventDefault);
     document.addEventListener("drop", preventDefault);
     document.addEventListener("dragenter", preventDefault);
@@ -160,12 +477,6 @@ export function ChatArea(props: ChatAreaProps) {
     };
   }, []);
 
-  // Hapus atau komentari useEffect inisialisasi WebSocketManager di ChatArea
-  // useEffect(() => {
-  //   console.log('[WS] useEffect in ChatArea: initializing WebSocketManager');
-  //   createWebSocketManager();
-  // }, []);
-
   return (
     <div
       ref={setDropRef}
@@ -174,175 +485,6 @@ export function ChatArea(props: ChatAreaProps) {
         isDragging && "bg-blue-50"
       )}
     >
-      {/* Drag & Drop Overlay */}
-      {isDragging && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="p-8 bg-white border-2 border-blue-300 border-dashed rounded-lg shadow-xl">
-            <div className="flex flex-col items-center gap-4 text-blue-600">
-              <Upload className="w-16 h-16" />
-              <div className="text-center">
-                <p className="text-xl font-semibold">Drop files here to send</p>
-                <p className="mt-1 text-sm text-gray-600">
-                  Support images, videos, audio, and documents
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* File Preview Modal */}
-      {showDroppedFiles && droppedFiles.length > 0 && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden">
-            <div className="p-4 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">Send Files</h3>
-                <button
-                  onClick={() => {
-                    if (!isUploading) {
-                      setShowDroppedFiles(false);
-                      setDroppedFiles([]);
-                      setUploadProgress({});
-                      setIsUploading(false);
-                    }
-                  }}
-                  className="p-1 rounded-full hover:bg-gray-100"
-                  disabled={isUploading}
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            <div className="p-4 overflow-y-auto max-h-96">
-              {/* Upload Progress Display */}
-              {isUploading && Object.keys(uploadProgress).length > 0 && (
-                <div className="p-3 mb-4 border border-blue-200 rounded-lg bg-blue-50">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-4 h-4 border-2 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
-                    <h4 className="text-sm font-medium text-blue-800">
-                      Uploading files...
-                    </h4>
-                  </div>
-                  {Object.entries(uploadProgress).map(([fileId, progress]) => (
-                    <div key={fileId} className="mb-3 last:mb-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-medium text-blue-700">
-                          {fileId.split("-")[0]}
-                        </span>
-                        <span className="text-xs text-blue-600">
-                          {Math.round(progress)}%
-                        </span>
-                      </div>
-                      <Progress value={progress} className="h-2 bg-blue-100" />
-                      {progress === 100 && (
-                        <div className="flex items-center gap-1 mt-1">
-                          <div className="flex items-center justify-center w-3 h-3 bg-green-500 rounded-full">
-                            <span className="text-xs text-white">✓</span>
-                          </div>
-                          <span className="text-xs text-green-600">
-                            Completed
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 gap-3">
-                {droppedFiles.map((file, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg"
-                  >
-                    {/* File preview */}
-                    <div className="flex-shrink-0">
-                      {file.type.startsWith("image/") ? (
-                        <img
-                          src={URL.createObjectURL(file)}
-                          alt="Preview"
-                          className="object-cover w-12 h-12 rounded"
-                        />
-                      ) : (
-                        <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded">
-                          {file.type.startsWith("video/") && (
-                            <Upload className="w-6 h-6 text-blue-500" />
-                          )}
-                          {file.type.startsWith("audio/") && (
-                            <Upload className="w-6 h-6 text-green-500" />
-                          )}
-                          {!file.type.startsWith("image/") &&
-                            !file.type.startsWith("video/") &&
-                            !file.type.startsWith("audio/") && (
-                              <Upload className="w-6 h-6 text-gray-500" />
-                            )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* File info */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {file.name}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {(file.size / 1024 / 1024).toFixed(2)} MB
-                      </p>
-                    </div>
-
-                    {/* Remove button */}
-                    <button
-                      onClick={() => removeDroppedFile(index)}
-                      className="p-1 rounded-full hover:bg-gray-100"
-                    >
-                      <X className="w-4 h-4 text-gray-500" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="p-4 border-t border-gray-200">
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    if (!isUploading) {
-                      setShowDroppedFiles(false);
-                      setDroppedFiles([]);
-                      setUploadProgress({});
-                      setIsUploading(false);
-                    }
-                  }}
-                  disabled={isUploading}
-                >
-                  {isUploading ? "Uploading..." : "Cancel"}
-                </Button>
-                <Button
-                  onClick={() => handleSendFiles(droppedFiles)}
-                  className="bg-green-600 hover:bg-green-700"
-                  disabled={isUploading}
-                >
-                  {isUploading ? (
-                    <>
-                      <div className="w-4 h-4 mr-2 border-2 border-white rounded-full border-t-transparent animate-spin"></div>
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      Send {droppedFiles.length} file
-                      {droppedFiles.length > 1 ? "s" : ""}
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {!activeContact ? (
         <div className="flex-1 h-full">
           <EmptyChatState />
@@ -350,16 +492,188 @@ export function ChatArea(props: ChatAreaProps) {
       ) : (
         <>
           <ChatHeader />
-          <div className="flex-1">
+          <div className="relative flex-1">
             <MessagesList contactId={activeContact.id} />
+            {isDragging && (
+              <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                <div className="p-8 bg-white border-2 border-blue-300 border-dashed rounded-lg shadow-xl">
+                  <div className="flex flex-col items-center gap-4 text-blue-600">
+                    <Upload className="w-16 h-16" />
+                    <div className="text-center">
+                      <p className="text-xl font-semibold">
+                        {droppedFiles.length > 0
+                          ? `Add more files (${droppedFiles.length} files queued)`
+                          : "Drop files here to send"}
+                      </p>
+                      <p className="mt-1 text-sm text-gray-600">
+                        Support images, videos, audio, and documents
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {showDroppedFiles && droppedFiles.length > 0 && (
+              <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden">
+                  <div className="p-4 border-b border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold"></h3>
+                      <button
+                        onClick={() => {
+                          if (!isUploading) resetState();
+                        }}
+                        className="p-1 rounded-full hover:bg-gray-100"
+                        disabled={isUploading}
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    accept="image/*,video/*,audio/*,application/*"
+                    onChange={handleFileInputChange}
+                  />
+
+                  <div className="p-4 border-b border-gray-200">
+                    {selectedFile && (
+                      <div className="p-3 mb-4 border rounded-lg bg-gray-50">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-shrink-0">
+                            {selectedFile.type.startsWith("image/") ? (
+                              <img
+                                src={selectedFilePreviewUrl!}
+                                alt={selectedFile.name}
+                                className="object-cover w-12 h-12 rounded"
+                              />
+                            ) : (
+                              <div className="flex items-center justify-center w-12 h-12 bg-white border rounded">
+                                {selectedFile.type.startsWith("video/") && (
+                                  <Video className="w-6 h-6 text-blue-500" />
+                                )}
+                                {selectedFile.type.startsWith("audio/") && (
+                                  <Mic2 className="w-6 h-6 text-green-500" />
+                                )}
+                                {!selectedFile.type.startsWith("image/") &&
+                                  !selectedFile.type.startsWith("video/") &&
+                                  !selectedFile.type.startsWith("audio/") && (
+                                    <FileText className="w-6 h-6 text-gray-500" />
+                                  )}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              {selectedFile.name}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                              • File {selectedFileIndex + 1} of{" "}
+                              {droppedFiles.length}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-3">
+                      <div className="relative flex-1">
+                        <Textarea
+                          ref={textareaRef}
+                          value={message}
+                          onChange={handleTextareaChange}
+                          onKeyPress={handleKeyPress}
+                          onKeyDown={(e) => handleOnKeyDown(e, "inner")}
+                          placeholder="Type a message..."
+                          className="min-h-[40px] max-h-[120px] resize-none pr-20 border-gray-300 focus:border-green-500 focus:ring-green-500"
+                          rows={1}
+                        />
+
+                        <div className="absolute flex items-center gap-1 transform -translate-y-1/2 right-2 top-1/2">
+                          <EmojiPicker
+                            onInsertEmoji={(v) => insertEmoji(v)}
+                            emojiOpen={showEmojiPicker}
+                            onEmojiOpen={setShowEmojiPicker}
+                          />
+
+                          {/* {isDraftSaving && (
+                            <Save className="w-3 h-3 text-blue-500 animate-pulse" />
+                          )} */}
+                        </div>
+                      </div>
+                      <Button
+                        className="px-4 text-white bg-green-600 hover:bg-green-700"
+                        onClick={handleSubmit}
+                        disabled={isSubmitting || message.trim() === ""}
+                      >
+                        <Send className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="p-4 overflow-y-auto max-h-96">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 px-1 py-1 overflow-x-auto scroll-hide">
+                        {fileItems}
+                      </div>
+                      <button
+                        className="flex items-center justify-center gap-3 border border-gray-200 rounded-lg size-14 min-w-[56px] max-w-[56px] min-h-[56px] max-h-[56px]"
+                        onClick={handleAddMoreFiles}
+                        disabled={isUploading}
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-          <MessageInput
-            onSearch={props.onSearch}
-            onClearSearch={props.onClearSearch}
-            searchQuery={props.searchQuery}
-          />
+          {showDroppedFiles && droppedFiles.length > 0 ? null : (
+            <MessageInput
+              fileInputRef={fileInputRef2}
+              onSearch={props.onSearch}
+              onClearSearch={props.onClearSearch}
+              searchQuery={props.searchQuery}
+              onFilesChange={(v) => handleFileSelect(v.target.files)}
+              onKeyboardShortcut={(e) => handleOnKeyDown(e, "outer")}
+              onOpenFilePicker={(v) => {
+                if (v === "image") {
+                  if (fileInputRef2.current) {
+                    fileInputRef2.current.accept = "image/*";
+                    fileInputRef2.current.click();
+                  }
+                } else if (v === "video") {
+                  if (fileInputRef2.current) {
+                    fileInputRef2.current.accept = "video/*";
+                    fileInputRef2.current.click();
+                  }
+                } else if (v === "document") {
+                  if (fileInputRef2.current) {
+                    fileInputRef2.current.accept =
+                      ".pdf,.doc,.docx,.xls,.xlsx,.txt";
+                    fileInputRef2.current.click();
+                  }
+                } else if (v === "audio") {
+                  if (fileInputRef2.current) {
+                    fileInputRef2.current.accept = "audio/*";
+                    fileInputRef2.current.click();
+                  }
+                }
+              }}
+            />
+          )}
         </>
       )}
     </div>
   );
 }
+
+// Export optimized version with React.memo
+export const OptimizedChatArea = React.memo(ChatArea);

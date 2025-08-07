@@ -221,21 +221,10 @@ export function MessagesList({ contactId }: MessagesListProps) {
 
   // Scroll to selected message from global search using wa_message_id
   useEffect(() => {
-    console.log('MessagesList useEffect - selectedMessageFromSearch:', selectedMessageFromSearch);
-    console.log('MessagesList useEffect - displayMessages length:', displayMessages.length);
-    
     if (selectedMessageFromSearch && displayMessages.length > 0) {
-      
-      
-      console.log('Looking for wa_message_id:', selectedMessageFromSearch.wa_message_id);
-      console.log('Available wa_message_ids:', displayMessages.map(msg => msg.wa_message_id));
-      
-        // Wait a bit for the messages to render, then scroll
       setTimeout(() => {
-        console.log('Scrolling to message with wa_message_id:', selectedMessageFromSearch.wa_message_id);
-        handleScrollToElement(selectedMessageFromSearch.wa_message_id || '');
-      }, 1000); // Increased timeout to ensure messages are loaded
-      
+        handleScrollToElement(selectedMessageFromSearch.wa_message_id || "");
+      }, 1000);
     }
   }, [selectedMessageFromSearch, displayMessages]);
 
@@ -273,7 +262,6 @@ export function MessagesList({ contactId }: MessagesListProps) {
       const firstChild = element.children[0] as HTMLElement;
 
       const secondChild = firstChild.children[0] as HTMLElement;
-      console.log(secondChild, "secondChild");
       if (secondChild) {
         secondChild.classList.add("message-highlight");
       } else {
