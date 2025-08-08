@@ -610,7 +610,7 @@ export function ChatArea(props: ChatAreaProps) {
                       <Button
                         className="px-4 text-white bg-green-600 hover:bg-green-700"
                         onClick={handleSubmit}
-                        disabled={isSubmitting || message.trim() === ""}
+                        disabled={isSubmitting}
                       >
                         <Send className="w-4 h-4" />
                       </Button>
