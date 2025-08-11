@@ -67,6 +67,7 @@ export interface Label extends BaseEntity {
   name: string;
   color: string;
   description?: string;
+  usage?: number;
 }
 
 // Enhanced Message types with 9 types and interactive features
