@@ -193,7 +193,7 @@ interface ChatState {
   searchQuery: string;
   searchResults: Message[];
   isSearching: boolean;
-  
+
   // Global Search
   globalSearchQuery: string;
   globalSearchResults: {
@@ -201,7 +201,7 @@ interface ChatState {
     messages: Message[];
   };
   isGlobalSearching: boolean;
-  globalSearchActiveFilter: 'all' | 'contacts' | 'messages';
+  globalSearchActiveFilter: "all" | "contacts" | "messages";
   showGlobalSearchResults: boolean;
   selectedMessageFromSearch: Message | null; // Message selected from global search
 
@@ -347,11 +347,11 @@ interface ChatActions {
   // Search
   searchMessages: (query: string) => Promise<void>;
   clearSearch: () => void;
-  
+
   // Global Search
   globalSearch: (query: string) => Promise<void>;
   clearGlobalSearch: () => void;
-  setGlobalSearchFilter: (filter: 'all' | 'contacts' | 'messages') => void;
+  setGlobalSearchFilter: (filter: "all" | "contacts" | "messages") => void;
   selectGlobalSearchContact: (contact: Contact) => void;
   selectGlobalSearchMessage: (message: Message) => void;
 
@@ -448,7 +448,7 @@ export const useChatStore = create<ChatStore>()(
     searchQuery: "",
     searchResults: [],
     isSearching: false,
-    
+
     // Global Search initial state
     globalSearchQuery: "",
     globalSearchResults: {
@@ -456,7 +456,7 @@ export const useChatStore = create<ChatStore>()(
       messages: [],
     },
     isGlobalSearching: false,
-    globalSearchActiveFilter: 'all' as const,
+    globalSearchActiveFilter: "all" as const,
     showGlobalSearchResults: false,
     selectedMessageFromSearch: null,
     typingUsers: {},
@@ -581,6 +581,8 @@ export const useChatStore = create<ChatStore>()(
     // New: Contact-based conversation actions
     loadContactConversation: async (contactId: string) => {
       try {
+        if (!contactId) return;
+
         // Load all tickets for this contact (for info panel)
         const tickets = await ticketsApi.getByContact(contactId);
 
@@ -629,7 +631,6 @@ export const useChatStore = create<ChatStore>()(
           activeTicket: state.activeTicket || currentTicket,
         }));
       } catch (error) {
-        console.error("Failed to load contact conversation:", error);
         set({
           error: "Failed to load contact conversation",
         });
@@ -643,6 +644,8 @@ export const useChatStore = create<ChatStore>()(
       append = false
     ) => {
       try {
+        if (!contactId) return;
+
         set({ isLoadingMessages: true, error: null });
 
         // Use the unified contact messages endpoint with DESC order for reverse pagination
@@ -1559,10 +1562,10 @@ export const useChatStore = create<ChatStore>()(
       }
 
       try {
-        set({ 
-          isGlobalSearching: true, 
+        set({
+          isGlobalSearching: true,
           globalSearchQuery: query,
-          showGlobalSearchResults: true 
+          showGlobalSearchResults: true,
         });
 
         // Call the actual global search API
@@ -1579,7 +1582,8 @@ export const useChatStore = create<ChatStore>()(
         });
       } catch (error) {
         set({
-          error: error instanceof Error ? error.message : "Global search failed",
+          error:
+            error instanceof Error ? error.message : "Global search failed",
           isGlobalSearching: false,
         });
       }
@@ -1609,63 +1613,76 @@ export const useChatStore = create<ChatStore>()(
     },
 
     selectGlobalSearchMessage: (message) => {
-      console.log('selectGlobalSearchMessage called with:', message);
-      console.log('Message wa_message_id:', message.wa_message_id);
-      
+      console.log("selectGlobalSearchMessage called with:", message);
+      console.log("Message wa_message_id:", message.wa_message_id);
+
       // Find the contact for this message in existing conversations
       let contact = get().conversations.find(
         (c) => c.contact.id.toString() === message.contact_id.toString()
       )?.contact;
-      
-      console.log('Found contact in conversations:', contact);
-      console.log('Available conversations:', get().conversations.map(c => ({ id: c.contact.id, name: c.contact.name })));
-      
+
+      console.log("Found contact in conversations:", contact);
+      console.log(
+        "Available conversations:",
+        get().conversations.map((c) => ({
+          id: c.contact.id,
+          name: c.contact.name,
+        }))
+      );
+
       if (contact) {
         // Store the selected message for highlighting
         set({ selectedMessageFromSearch: message });
-        
+
         // Select the conversation and load messages
         get().selectConversation(contact);
-        
+
         // Load contact messages to ensure we have the message data
-        get().loadContactMessages(contact.id.toString()).then(() => {
-          // Clear global search after loading messages
-          get().clearGlobalSearch();
-        });
+        get()
+          .loadContactMessages(contact.id.toString())
+          .then(() => {
+            // Clear global search after loading messages
+            get().clearGlobalSearch();
+          });
       } else {
         // Contact not found in conversations, try to load it from API
-        console.log('Contact not found in conversations, trying to load from API...');
-        
+        console.log(
+          "Contact not found in conversations, trying to load from API..."
+        );
+
         // Create a temporary contact object based on message data
         const tempContact = {
           id: message.contact_id,
-          name: message.sender_name || 'Unknown Contact',
-          phone: '',
-          phone_number: '',
-          avatar_url: '',
+          name: message.sender_name || "Unknown Contact",
+          phone: "",
+          phone_number: "",
+          avatar_url: "",
           is_blocked: false,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           last_seen: message.created_at,
         };
-        
-        console.log('Created temp contact:', tempContact);
-        
+
+        console.log("Created temp contact:", tempContact);
+
         // Store the selected message for highlighting
         set({ selectedMessageFromSearch: message });
-        
+
         // Select the conversation with temp contact
         get().selectConversation(tempContact);
-        
+
         // Load contact messages
-        get().loadContactMessages(tempContact.id.toString()).then(() => {
-          // Clear global search after loading messages
-          get().clearGlobalSearch();
-        }).catch((error) => {
-          console.error('Failed to load contact messages:', error);
-          // Still clear global search even if loading fails
-          get().clearGlobalSearch();
-        });
+        get()
+          .loadContactMessages(tempContact.id.toString())
+          .then(() => {
+            // Clear global search after loading messages
+            get().clearGlobalSearch();
+          })
+          .catch((error) => {
+            console.error("Failed to load contact messages:", error);
+            // Still clear global search even if loading fails
+            get().clearGlobalSearch();
+          });
       }
     },
 

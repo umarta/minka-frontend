@@ -18,7 +18,6 @@ export const useDragAndDrop = (options: DragAndDropOptions = {}) => {
   } = options;
 
   const [isDragging, setIsDragging] = useState(false);
-  const [dragCounter, setDragCounter] = useState(0);
   const dropRef = useRef<HTMLDivElement>(null);
 
   const validateFile = useCallback(
@@ -55,8 +54,6 @@ export const useDragAndDrop = (options: DragAndDropOptions = {}) => {
     e.preventDefault();
     e.stopPropagation();
 
-    setDragCounter((prev) => prev + 1);
-
     // Check if dragged items contain files
     if (e.dataTransfer?.types?.includes("Files")) {
       setIsDragging(true);
@@ -66,14 +63,6 @@ export const useDragAndDrop = (options: DragAndDropOptions = {}) => {
   const handleDragLeave = useCallback((e: DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-
-    setDragCounter((prev) => {
-      const newCounter = prev - 1;
-      if (newCounter === 0) {
-        setIsDragging(false);
-      }
-      return newCounter;
-    });
   }, []);
 
   const handleDragOver = useCallback((e: DragEvent) => {
@@ -87,7 +76,6 @@ export const useDragAndDrop = (options: DragAndDropOptions = {}) => {
       e.stopPropagation();
 
       setIsDragging(false);
-      setDragCounter(0);
 
       if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
         const files = Array.from(e.dataTransfer.files);
