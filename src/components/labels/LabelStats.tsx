@@ -152,7 +152,7 @@ export function LabelStats() {
                       />
                       <span className="text-sm truncate">{label.name}</span>
                     </div>
-                    <Badge variant="outline">0</Badge>
+                    <Badge variant="outline">{label.usage}</Badge>
                   </div>
                 ))}
               </div>

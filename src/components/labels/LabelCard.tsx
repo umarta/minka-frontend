@@ -156,7 +156,7 @@ export function LabelCard({
             
             <div className="text-right">
               <div className="text-xs text-gray-500">Usage</div>
-              <div className="text-sm font-medium">0</div>
+              <div className="text-sm font-medium">{label.usage}</div>
             </div>
           </div>
           
