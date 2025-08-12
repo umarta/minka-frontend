@@ -2,28 +2,28 @@
 
 import {
   ArrowLeft,
-  Phone,
-  VideoIcon,
-  MoreVertical,
-  MessageSquare,
+  // Phone,
+  // VideoIcon,
+  // MoreVertical,
+  // MessageSquare,
   Settings,
-  User,
-  Ban,
-  Trash2,
-  Info,
+  // User,
+  // Ban,
+  // Trash2,
+  // Info,
   Search,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+// import {
+//   DropdownMenu,
+//   DropdownMenuContent,
+//   DropdownMenuItem,
+//   DropdownMenuSeparator,
+//   DropdownMenuTrigger,
+// } from "@/components/ui/dropdown-menu";
 import { useChatStore } from "@/lib/stores/chat";
 import { formatDistanceToNow } from "date-fns";
 import { id } from "date-fns/locale";
@@ -32,54 +32,35 @@ import { TakeoverStatus } from "./takeover-status";
 import { RiskIndicator } from "./risk-indicator";
 import { useAntiBlockingStore } from "@/lib/stores/antiBlocking";
 import { useViewports } from "@/lib/hooks/useViewPort";
+import { useDebounce } from "@/hooks/use-debounce";
 
 export function ChatHeader() {
   const { isTablet } = useViewports();
   const {
     activeContact,
     activeConversation,
-    toggleRightSidebar,
     loadContactMessages,
     searchQuery,
     searchResults,
     isSearching,
-    clearSearch,
     clearActiveConversation,
   } = useChatStore();
 
   const [localSearchQuery, setLocalSearchQuery] = useState("");
   const { lastRisk, fetchRisk } = useAntiBlockingStore();
 
-  const handleSearch = useCallback(
-    async (query: string) => {
-      setLocalSearchQuery(query);
-      if (query.trim() && activeContact) {
-        await loadContactMessages(activeContact.id, 1, query);
-      } else if (!query.trim()) {
-        clearSearch();
-      }
-    },
-    [activeContact, loadContactMessages, clearSearch]
-  );
+  const debouncedSearchQuery = useDebounce(localSearchQuery, 500);
 
-  const handleClearSearch = () => {
-    setLocalSearchQuery("");
-    clearSearch();
-  };
-
-  // Clear local search when search is cleared from store
   useEffect(() => {
-    if (!searchQuery) {
-      setLocalSearchQuery("");
-    }
-  }, [searchQuery]);
+    if (activeContact?.id)
+      loadContactMessages(activeContact?.id, 1, debouncedSearchQuery);
+  }, [activeContact, debouncedSearchQuery]);
 
-  // Fetch risk assessment when contact changes
   useEffect(() => {
     if (activeContact?.id) {
       fetchRisk(parseInt(activeContact.id));
     }
-  }, [activeContact?.id, fetchRisk]);
+  }, [activeContact?.id]);
 
   if (!activeContact) {
     return (
@@ -229,14 +210,14 @@ export function ChatHeader() {
             type="text"
             placeholder="Cari pesan..."
             value={localSearchQuery}
-            onChange={(e) => handleSearch(e.target.value)}
+            onChange={(e) => setLocalSearchQuery(e.target.value)}
             className="pl-10 pr-10 text-sm h-9"
           />
           {localSearchQuery && (
             <Button
               variant="ghost"
               size="sm"
-              onClick={handleClearSearch}
+              onClick={() => setLocalSearchQuery("")}
               className="absolute p-0 text-gray-400 transform -translate-y-1/2 right-1 top-1/2 h-7 w-7 hover:text-gray-600"
             >
               <X className="w-4 h-4" />
@@ -246,15 +227,8 @@ export function ChatHeader() {
 
         {/* Search results indicator */}
         {searchQuery && (
-          <div className="mt-2 text-xs text-gray-500">
-            {isSearching ? (
-              <span>Mencari...</span>
-            ) : (
-              <span>
-                Ditemukan {searchResults?.length || 0} pesan untuk "
-                {searchQuery}"
-              </span>
-            )}
+          <div className="mt-3 text-xs text-gray-500">
+            Ditemukan {searchResults?.length || 0} pesan untuk "{searchQuery}"
           </div>
         )}
       </div>

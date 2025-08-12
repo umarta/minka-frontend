@@ -589,7 +589,7 @@ export function MessageInput({
                   onKeyPress={handleKeyPress}
                   onKeyDown={(e) => onKeyboardShortcut && onKeyboardShortcut(e)}
                   placeholder="Type a message..."
-                  className="min-h-[40px] max-h-[120px] pl-9 lg:pl-3 resize-none border-gray-300 focus:border-green-500 focus:ring-green-500 placeholder:lg:text-base placeholder:text-sm"
+                  className="min-h-[40px] max-h-[120px] pl-9 lg:pl-3 resize-none placeholder:lg:text-base placeholder:text-sm"
                   rows={1}
                 />
 

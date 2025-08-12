@@ -319,9 +319,9 @@ export function MessagesList({ contactId }: MessagesListProps) {
       return groups;
     }, {});
 
-  if (isLoadingMessages && displayMessages.length === 0 && !hasLoadedMessages) {
+  if (isLoadingMessages) {
     return (
-      <div className="flex items-center justify-center flex-1 bg-gray-50">
+      <div className="flex items-center justify-center flex-1 h-full">
         <div className="w-8 h-8 border-b-2 border-blue-500 rounded-full animate-spin"></div>
       </div>
     );
@@ -329,7 +329,7 @@ export function MessagesList({ contactId }: MessagesListProps) {
 
   if (!isLoadingMessages && displayMessages.length === 0 && hasLoadedMessages) {
     return (
-      <div className="flex items-center justify-center flex-1">
+      <div className="flex items-center justify-center flex-1 h-full">
         <div className="text-center text-gray-500">
           {searchQuery ? (
             <div>
