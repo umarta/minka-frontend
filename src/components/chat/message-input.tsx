@@ -1,38 +1,18 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import {
-  Send,
-  Paperclip,
-  FileText,
-  Mic,
-  Search,
-  X,
-  Video,
-  Save,
-  MicOff,
-  Play,
-  Pause,
-  Camera,
-  Music,
-} from "lucide-react";
+import { Send, Mic, Search, X, MicOff, Play, Pause } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-  DropdownMenuLabel,
-} from "@/components/ui/dropdown-menu";
 import { useChatStore } from "@/lib/stores/chat";
 import { MessageType } from "@/types";
 import { cn, formatDuration } from "@/lib/utils";
 import { useDebounce } from "@/hooks/use-debounce";
 import MessageReply from "./message-reply";
 import EmojiPicker from "./emoji-picker";
+import { useViewports } from "@/lib/hooks/useViewPort";
+import MessageAction from "./message-action";
 
 interface MessageInputProps {
   fileInputRef?: React.RefObject<HTMLInputElement | null>;
@@ -52,6 +32,7 @@ export function MessageInput({
   onFilesChange,
   onKeyboardShortcut,
 }: MessageInputProps) {
+  const { isTablet } = useViewports();
   const {
     selectedContactId,
     selectedMessage,
@@ -59,8 +40,6 @@ export function MessageInput({
     activeContact,
     sendMessage,
     isSendingMessage,
-    uploadProgress,
-    removeUploadProgress,
   } = useChatStore();
 
   // Message State
@@ -166,6 +145,7 @@ export function MessageInput({
     }
     if (playbackIntervalRef.current) {
       clearInterval(playbackIntervalRef.current);
+      playbackIntervalRef.current = null;
     }
 
     // Clear draft
@@ -178,7 +158,18 @@ export function MessageInput({
   };
 
   const startVoiceRecording = async () => {
+    // Prevent multiple starts
+    if (isRecording) {
+      return;
+    }
+
     try {
+      // Clear any existing recording interval first
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
+        recordingIntervalRef.current = null;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
@@ -226,6 +217,7 @@ export function MessageInput({
 
       if (recordingIntervalRef.current) {
         clearInterval(recordingIntervalRef.current);
+        recordingIntervalRef.current = null;
       }
     }
   };
@@ -240,11 +232,13 @@ export function MessageInput({
       }
       if (playbackIntervalRef.current) {
         clearInterval(playbackIntervalRef.current);
+        playbackIntervalRef.current = null;
       }
       setIsPlaying(false);
     } else {
       // Play audio
       if (audioRef.current) {
+        // Resume existing audio
         audioRef.current.play();
       } else {
         // Create audio element if not exists
@@ -260,6 +254,7 @@ export function MessageInput({
           setCurrentPlayTime(0);
           if (playbackIntervalRef.current) {
             clearInterval(playbackIntervalRef.current);
+            playbackIntervalRef.current = null;
           }
         };
 
@@ -268,7 +263,20 @@ export function MessageInput({
           setIsPlaying(false);
           if (playbackIntervalRef.current) {
             clearInterval(playbackIntervalRef.current);
+            playbackIntervalRef.current = null;
           }
+        };
+
+        audio.onpause = () => {
+          setIsPlaying(false);
+          if (playbackIntervalRef.current) {
+            clearInterval(playbackIntervalRef.current);
+            playbackIntervalRef.current = null;
+          }
+        };
+
+        audio.onplay = () => {
+          setIsPlaying(true);
         };
 
         audio.play();
@@ -276,20 +284,26 @@ export function MessageInput({
 
       setIsPlaying(true);
 
-      // Start countdown timer
+      // Start timer to track playback position
       playbackIntervalRef.current = setInterval(() => {
-        setCurrentPlayTime((prev) => {
-          const newTime = prev + 1;
-          // Stop when we reach the total duration
-          if (newTime >= recordingDuration) {
+        if (audioRef.current) {
+          const currentTime = Math.floor(audioRef.current.currentTime);
+          setCurrentPlayTime(currentTime);
+
+          // Auto stop when reached end
+          if (currentTime >= recordingDuration) {
             setIsPlaying(false);
+            setCurrentPlayTime(0);
             if (playbackIntervalRef.current) {
               clearInterval(playbackIntervalRef.current);
+              playbackIntervalRef.current = null;
             }
-            return 0; // Reset to beginning
+            if (audioRef.current) {
+              audioRef.current.pause();
+              audioRef.current.currentTime = 0;
+            }
           }
-          return newTime;
-        });
+        }
       }, 1000);
     }
   };
@@ -302,6 +316,7 @@ export function MessageInput({
     }
     if (playbackIntervalRef.current) {
       clearInterval(playbackIntervalRef.current);
+      playbackIntervalRef.current = null;
     }
 
     setRecordingBlob(null);
@@ -374,7 +389,28 @@ export function MessageInput({
     onSearch?.("");
     onClearSearch?.();
     setMessage("");
-    deleteRecording();
+
+    // Reset recording states when contact changes
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    if (playbackIntervalRef.current) {
+      clearInterval(playbackIntervalRef.current);
+      playbackIntervalRef.current = null;
+    }
+    if (isRecording && mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+    }
+    if (recordingIntervalRef.current) {
+      clearInterval(recordingIntervalRef.current);
+      recordingIntervalRef.current = null;
+    }
+
+    setRecordingBlob(null);
+    setRecordingDuration(0);
+    setIsPlaying(false);
+    setCurrentPlayTime(0);
     setIsRecording(false);
   }, [selectedContactId]);
 
@@ -383,9 +419,11 @@ export function MessageInput({
     return () => {
       if (recordingIntervalRef.current) {
         clearInterval(recordingIntervalRef.current);
+        recordingIntervalRef.current = null;
       }
       if (playbackIntervalRef.current) {
         clearInterval(playbackIntervalRef.current);
+        playbackIntervalRef.current = null;
       }
       if (audioRef.current) {
         audioRef.current.pause();
@@ -395,7 +433,7 @@ export function MessageInput({
   }, []);
 
   return (
-    <div className="relative p-4 space-y-4 transition-all duration-200 bg-background">
+    <div className="absolute inset-x-0 bottom-0 p-4 space-y-4 transition-all duration-200 bg-background">
       {(selectedMessage?.content || selectedMessage?.media_url) && (
         <MessageReply />
       )}
@@ -435,7 +473,7 @@ export function MessageInput({
         {recordingBlob ? (
           <div className="flex items-center justify-between gap-2">
             <div className="flex-1">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center gap-3">
                 <div className="flex items-center justify-center w-10 h-10 bg-green-100 rounded-lg">
                   <Mic className="w-5 h-5 text-green-600" />
                 </div>
@@ -483,97 +521,67 @@ export function MessageInput({
             </Button>
           </div>
         ) : (
-          <div className="flex items-end gap-2">
-            {!recordingBlob && (
-              <div className="flex items-center gap-1">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      type="button"
-                      className="text-gray-500 hover:text-gray-700"
-                    >
-                      <Paperclip className="w-4 h-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    side="top"
-                    align="start"
-                    className="w-48"
-                  >
-                    <DropdownMenuLabel>Upload Files</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={() =>
-                        onOpenFilePicker && onOpenFilePicker("image")
-                      }
-                    >
-                      <Camera className="w-4 h-4 mr-2" />
-                      Photos
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() =>
-                        onOpenFilePicker && onOpenFilePicker("video")
-                      }
-                    >
-                      <Video className="w-4 h-4 mr-2" />
-                      Videos
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() =>
-                        onOpenFilePicker && onOpenFilePicker("document")
-                      }
-                    >
-                      <FileText className="w-4 h-4 mr-2" />
-                      Documents
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() =>
-                        onOpenFilePicker && onOpenFilePicker("audio")
-                      }
-                    >
-                      <Music className="w-4 h-4 mr-2" />
-                      Audio
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  type="button"
-                  className={cn(
-                    "text-gray-500 hover:text-gray-700",
-                    isRecording && "bg-red-100 text-red-600"
-                  )}
-                  onMouseDown={startVoiceRecording}
-                  onMouseUp={stopVoiceRecording}
-                  onMouseLeave={stopVoiceRecording}
-                >
-                  {isRecording ? (
-                    <MicOff className="w-4 h-4" />
-                  ) : (
-                    <Mic className="w-4 h-4" />
-                  )}
-                </Button>
-              </div>
+          <div className="flex items-center gap-2">
+            {!isTablet && !recordingBlob && (
+              <MessageAction
+                onOpenFilePicker={(v) =>
+                  onOpenFilePicker && onOpenFilePicker(v)
+                }
+                onFilesChange={(e) => onFilesChange && onFilesChange(e)}
+                onKeyboardShortcut={(e) =>
+                  onKeyboardShortcut && onKeyboardShortcut(e)
+                }
+                isRecording={isRecording}
+                onStartVoiceRecording={startVoiceRecording}
+                onStopVoiceRecording={stopVoiceRecording}
+              />
             )}
 
             {isRecording && !recordingBlob && (
               <div className="relative flex-1">
-                <div className="flex items-center justify-center gap-2 mt-2 text-red-600">
-                  <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                  <span className="text-sm font-medium">
-                    Recording... {formatDuration(recordingDuration)}
-                  </span>
-                  <span className="text-xs">(Release to stop)</span>
+                <div className="flex items-center justify-center gap-4">
+                  {isTablet && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      type="button"
+                      className={cn(
+                        "text-gray-500 hover:text-gray-700",
+                        isRecording && "bg-red-100 text-red-600 "
+                      )}
+                      onClick={stopVoiceRecording}
+                    >
+                      <MicOff className="w-4 h-4" />
+                    </Button>
+                  )}
+                  <div className="flex items-center justify-center gap-2 text-red-600">
+                    <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                    <span className="text-sm font-medium">
+                      Recording... {formatDuration(recordingDuration)}
+                    </span>
+                    <span className="text-xs">(Release to stop)</span>
+                  </div>
                 </div>
               </div>
             )}
 
             {!isRecording && !recordingBlob && (
               <div className="relative flex-1">
+                {isTablet && (
+                  <div className="absolute flex items-center gap-1 transform -translate-y-1/2 left-2 top-1/2">
+                    <EmojiPicker
+                      onInsertEmoji={(v) => insertEmoji(v)}
+                      emojiOpen={showEmojiPicker}
+                      onEmojiOpen={setShowEmojiPicker}
+                    />
+
+                    {/* Draft Status */}
+                    {/* {isDraftSaving && (
+                    <Save className="w-3 h-3 text-blue-500 animate-pulse" />
+                  )} */}
+                  </div>
+                )}
+
                 <Textarea
                   ref={textareaRef}
                   value={message}
@@ -581,23 +589,43 @@ export function MessageInput({
                   onKeyPress={handleKeyPress}
                   onKeyDown={(e) => onKeyboardShortcut && onKeyboardShortcut(e)}
                   placeholder="Type a message..."
-                  className="min-h-[40px] max-h-[120px] resize-none pr-20 border-gray-300 focus:border-green-500 focus:ring-green-500"
+                  className="min-h-[40px] max-h-[120px] pl-9 lg:pl-3 resize-none border-gray-300 focus:border-green-500 focus:ring-green-500 placeholder:lg:text-base placeholder:text-sm"
                   rows={1}
                 />
 
                 {/* Right Side Actions in Input */}
-                <div className="absolute flex items-center gap-1 transform -translate-y-1/2 right-2 top-1/2">
-                  <EmojiPicker
-                    onInsertEmoji={(v) => insertEmoji(v)}
-                    emojiOpen={showEmojiPicker}
-                    onEmojiOpen={setShowEmojiPicker}
-                  />
+                {!isTablet && (
+                  <div className="absolute flex items-center gap-1 transform -translate-y-1/2 right-2 top-1/2">
+                    <EmojiPicker
+                      onInsertEmoji={(v) => insertEmoji(v)}
+                      emojiOpen={showEmojiPicker}
+                      onEmojiOpen={setShowEmojiPicker}
+                    />
 
-                  {/* Draft Status */}
-                  {isDraftSaving && (
+                    {/* Draft Status */}
+                    {/* {isDraftSaving && (
                     <Save className="w-3 h-3 text-blue-500 animate-pulse" />
-                  )}
-                </div>
+                  )} */}
+                  </div>
+                )}
+
+                {isTablet && (
+                  <div className="absolute flex items-center gap-1 transform -translate-y-1/2 right-2 top-1/2">
+                    <MessageAction
+                      onOpenFilePicker={(v) =>
+                        onOpenFilePicker && onOpenFilePicker(v)
+                      }
+                      onFilesChange={(e) => onFilesChange && onFilesChange(e)}
+                      onKeyboardShortcut={(e) =>
+                        onKeyboardShortcut && onKeyboardShortcut(e)
+                      }
+                      isRecording={isRecording}
+                      onStartVoiceRecording={startVoiceRecording}
+                      onStopVoiceRecording={stopVoiceRecording}
+                      isNotPadding
+                    />
+                  </div>
+                )}
               </div>
             )}
 

@@ -5,8 +5,6 @@ import {
   Phone,
   VideoIcon,
   MoreVertical,
-  Archive,
-  UserCheck,
   MessageSquare,
   Settings,
   User,
@@ -18,7 +16,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -34,8 +31,10 @@ import { useState, useCallback, useEffect } from "react";
 import { TakeoverStatus } from "./takeover-status";
 import { RiskIndicator } from "./risk-indicator";
 import { useAntiBlockingStore } from "@/lib/stores/antiBlocking";
+import { useViewports } from "@/lib/hooks/useViewPort";
 
 export function ChatHeader() {
+  const { isTablet } = useViewports();
   const {
     activeContact,
     activeConversation,
@@ -45,6 +44,7 @@ export function ChatHeader() {
     searchResults,
     isSearching,
     clearSearch,
+    clearActiveConversation,
   } = useChatStore();
 
   const [localSearchQuery, setLocalSearchQuery] = useState("");
@@ -133,38 +133,45 @@ export function ChatHeader() {
     <div className="flex flex-col bg-white border-b border-gray-200">
       {/* Main header */}
       <div className="flex items-center justify-between p-3">
-        <div className="flex items-center gap-3">
-          <Avatar className="w-10 h-10">
-            <AvatarImage src={activeContact?.avatar_url} />
-            <AvatarFallback className="text-sm text-gray-700 bg-gray-200">
-              {getInitials(activeContact?.name || "")}
-            </AvatarFallback>
-          </Avatar>
+        <div className="flex items-center gap-2">
+          {isTablet && activeContact && (
+            <ArrowLeft className="w-4 h-4" onClick={clearActiveConversation} />
+          )}
+          <div className="flex items-center gap-2">
+            <Avatar className="w-10 h-10">
+              <AvatarImage src={activeContact?.avatar_url} />
+              <AvatarFallback className="text-sm text-gray-700 bg-gray-200">
+                {getInitials(activeContact?.name || "")}
+              </AvatarFallback>
+            </Avatar>
 
-          <div className="flex-1 min-w-0">
-            <h3 className="font-medium text-gray-900 truncate">
-              {activeContact?.name || "Select Contact"}
-            </h3>
-            <p className="text-sm text-gray-500 truncate">{getStatusText()}</p>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-medium text-gray-900 truncate">
+                {activeContact?.name || "Select Contact"}
+              </h3>
+              <p className="text-sm text-gray-500 truncate">
+                {getStatusText()}
+              </p>
+            </div>
           </div>
         </div>
 
         <div className="flex items-center gap-1">
-          <Button
+          {/* <Button
             variant="ghost"
             size="sm"
             className="text-gray-600 hover:text-gray-900"
           >
             <Phone className="w-4 h-4" />
-          </Button>
-          <Button
+          </Button> */}
+          {/* <Button
             variant="ghost"
             size="sm"
             className="text-gray-600 hover:text-gray-900"
           >
             <VideoIcon className="w-4 h-4" />
-          </Button>
-          <Button
+          </Button> */}
+          {/* <Button
             variant="ghost"
             size="sm"
             className="text-gray-600 hover:text-gray-900"
@@ -172,7 +179,7 @@ export function ChatHeader() {
             title="Lihat Info Kontak"
           >
             <Info className="w-4 h-4" />
-          </Button>
+          </Button> */}
           <TakeoverStatus contact={activeContact} />
           <RiskIndicator
             risk={lastRisk}
@@ -181,7 +188,7 @@ export function ChatHeader() {
               // TODO: Open risk details modal
             }}
           />
-          <DropdownMenu>
+          {/* <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
@@ -210,7 +217,7 @@ export function ChatHeader() {
                 Hapus Percakapan
               </DropdownMenuItem>
             </DropdownMenuContent>
-          </DropdownMenu>
+          </DropdownMenu> */}
         </div>
       </div>
 

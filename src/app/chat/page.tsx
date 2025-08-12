@@ -30,7 +30,7 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
-      <div className="flex flex-1 overflow-y-auto">
+      <div className="flex flex-1 overflow-hidden">
         {/* Tablet: Show ContactSidebar when no activeContact, ChatArea when activeContact exists */}
         {isTablet ? (
           <div className="w-full transition-all duration-300 bg-white">

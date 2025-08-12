@@ -23,7 +23,7 @@ import { useViewports } from "@/lib/hooks/useViewPort";
 
 export function ContactSidebar() {
   const router = useRouter();
-  const { isTablet } = useViewports();
+  const { isTablet, isExtraSmall } = useViewports();
 
   const {
     conversations,
@@ -351,7 +351,7 @@ export function ContactSidebar() {
           }}
         >
           <div className="flex items-center justify-center gap-1">
-            <span>AI Agent</span>
+            <span>{isExtraSmall ? "AI" : "AI Agent"}</span>
             {tabCounts.ai_agent > 0 && (
               <Badge className="text-xs text-white bg-green-500">
                 {tabCounts.ai_agent > 99 ? "99+" : tabCounts.ai_agent}

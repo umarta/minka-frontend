@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 export const useViewports = () => {
+  const [isExtraSmall, setIsExtraSmall] = useState(false);
   const [isExtraNarrowScreen, setIsExtraNarrowScreen] = useState(false);
   const [isNarrowScreen, setIsNarrowScreen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -9,6 +10,7 @@ export const useViewports = () => {
 
   useEffect(() => {
     const handleResize = () => {
+      setIsExtraSmall(window.innerWidth <= 350);
       setIsExtraNarrowScreen(window.innerWidth <= 560);
       setIsNarrowScreen(window.innerWidth <= 768);
       setIsMobile(window.innerWidth <= 850);
@@ -17,6 +19,7 @@ export const useViewports = () => {
     };
 
     if (typeof window !== "undefined") {
+      setIsExtraSmall(window.innerWidth <= 350);
       setIsExtraNarrowScreen(window.innerWidth <= 560);
       setIsNarrowScreen(window.innerWidth <= 768);
       setIsMobile(window.innerWidth <= 850);
@@ -33,6 +36,7 @@ export const useViewports = () => {
   }, []);
 
   return {
+    isExtraSmall,
     innerWidth,
     isMobile,
     isTablet,

@@ -54,42 +54,38 @@ export function GlobalSearchInput({
         className="pl-10 pr-20 text-sm h-9"
         disabled={isSearching}
       />
-      
-      <div className="absolute flex items-center gap-1 transform -translate-y-1/2 right-2 top-1/2">
-        {/* Filter Button */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onFilterToggle}
-          className={cn(
-            "h-6 w-6 p-0",
-            hasActiveFilters && "text-blue-600"
-          )}
-          title="Filter"
-        >
-          <Filter className="w-3 h-3" />
-        </Button>
-        
-        {/* Clear Button */}
-        {localQuery && (
+
+      {isSearching ? (
+        <div className="absolute transform -translate-y-1/2 right-2 top-1/2">
+          <div className="w-3 h-3 border-b-2 border-blue-500 rounded-full animate-spin"></div>
+        </div>
+      ) : (
+        <div className="absolute flex items-center gap-1 transform -translate-y-1/2 right-2 top-1/2">
+          {/* Filter Button */}
           <Button
             variant="ghost"
             size="sm"
-            onClick={handleClear}
-            className="w-6 h-6 p-0 text-gray-400 hover:text-gray-600"
-            title="Clear search"
+            onClick={onFilterToggle}
+            className={cn("h-6 w-6 p-0", hasActiveFilters && "text-blue-600")}
+            title="Filter"
           >
-            <X className="w-3 h-3" />
+            <Filter className="w-3 h-3" />
           </Button>
-        )}
-      </div>
-      
-      {/* Loading indicator */}
-      {isSearching && (
-        <div className="absolute right-12 top-1/2 transform -translate-y-1/2">
-          <div className="w-3 h-3 border-b-2 border-blue-500 rounded-full animate-spin"></div>
+
+          {/* Clear Button */}
+          {localQuery && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClear}
+              className="w-6 h-6 p-0 text-gray-400 hover:text-gray-600"
+              title="Clear search"
+            >
+              <X className="w-3 h-3" />
+            </Button>
+          )}
         </div>
       )}
     </div>
   );
-} 
+}
