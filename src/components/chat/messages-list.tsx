@@ -7,6 +7,7 @@ import { Message, MessageDirection } from "@/types";
 import { format, isToday, isYesterday } from "date-fns";
 import { id } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { ChevronsDown } from "lucide-react";
 
 interface MessagesListProps {
   contactId: string;
@@ -24,7 +25,6 @@ interface PaginationMeta {
 
 export function MessagesList({ contactId }: MessagesListProps) {
   const {
-    selectedMessage,
     setSelectedMessage,
     contactMessages,
     isLoadingMessages,
@@ -40,6 +40,8 @@ export function MessagesList({ contactId }: MessagesListProps) {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const isUserScrollingRef = useRef(false);
+
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [hasLoadedMessages, setHasLoadedMessages] = useState(false);
@@ -49,7 +51,8 @@ export function MessagesList({ contactId }: MessagesListProps) {
   const [scrollTimeout, setScrollTimeout] = useState<NodeJS.Timeout | null>(
     null
   );
-  const isUserScrollingRef = useRef(false);
+  const [showScrollButton, setShowScrollButton] = useState(false);
+  const [lastContactId, setLastContactId] = useState<string | null>(null);
 
   // Determine which messages to display
   const displayMessages =
@@ -76,11 +79,27 @@ export function MessagesList({ contactId }: MessagesListProps) {
     loadContactMessages,
   ]);
 
+  const scrollToBottom = () => {
+    setShowScrollButton(false);
+    isUserScrollingRef.current = false; // Reset flag manual scrolling
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+      setShowScrollButton(false);
+    }
+  };
+
   // Handle scroll to detect if user scrolled up and load older messages
   const handleScroll = async () => {
     if (containerRef.current && !searchQuery) {
       const container = containerRef.current;
       const scrollTop = container.scrollTop;
+      const scrollHeight = container.scrollHeight;
+      const clientHeight = container.clientHeight;
+
+      const scrollFromBottom = scrollHeight - scrollTop - clientHeight;
+      const thirtyPercentOfContainer = clientHeight * 0.5;
+      const shouldShowScrollToBottom =
+        scrollFromBottom > thirtyPercentOfContainer;
 
       // Track if user is manually scrolling
       isUserScrollingRef.current = true;
@@ -89,6 +108,8 @@ export function MessagesList({ contactId }: MessagesListProps) {
       setTimeout(() => {
         isUserScrollingRef.current = false;
       }, 1000);
+
+      setShowScrollButton(shouldShowScrollToBottom);
 
       // Load older messages when user scrolls to top (within 50px from top)
       if (scrollTop <= 50 && !isLoadingOlder && paginationMeta?.has_next) {
@@ -128,9 +149,16 @@ export function MessagesList({ contactId }: MessagesListProps) {
   // Load messages when component mounts or contact changes
   useEffect(() => {
     if (contactId) {
+      // Deteksi perubahan kontak
+      const isContactChanged = lastContactId !== contactId;
+      setLastContactId(contactId);
+
       setHasLoadedMessages(false);
       setCurrentPage(1);
       setPaginationMeta(null);
+      setShowScrollButton(false);
+      // Reset user scrolling flag saat ganti kontak
+      isUserScrollingRef.current = false;
 
       // Add small delay to avoid race conditions
       const timer = setTimeout(async () => {
@@ -142,6 +170,16 @@ export function MessagesList({ contactId }: MessagesListProps) {
           if (response?.meta?.pagination) {
             setPaginationMeta(response.meta.pagination);
           }
+
+          // Force scroll ke bawah untuk kontak yang berubah
+          if (isContactChanged) {
+            setTimeout(() => {
+              if (messagesEndRef.current) {
+                messagesEndRef.current.scrollIntoView({ behavior: "auto" });
+                setShowScrollButton(false);
+              }
+            }, 300);
+          }
         } catch (error) {
           console.error("Failed to load initial messages:", error);
           setHasLoadedMessages(true);
@@ -149,14 +187,18 @@ export function MessagesList({ contactId }: MessagesListProps) {
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [contactId, loadContactMessages]);
+  }, [contactId, loadContactMessages, lastContactId]);
 
-  // Auto-scroll ke bawah saat buka chat baru atau ada pesan baru
+  // Auto-scroll ke bawah WAJIB saat buka chat baru atau ada pesan baru
   useEffect(() => {
     if (messagesEndRef.current && hasLoadedMessages) {
+      // Reset scroll position untuk memastikan selalu ke bawah
       setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 100);
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: "auto" });
+          setShowScrollButton(false);
+        }
+      }, 150);
     }
   }, [contactId, hasLoadedMessages]);
 
@@ -165,24 +207,74 @@ export function MessagesList({ contactId }: MessagesListProps) {
     if (
       messagesEndRef.current &&
       displayMessages.length > 0 &&
-      !isLoadingOlder &&
-      !isUserScrollingRef.current
+      !isLoadingOlder
     ) {
       const container = containerRef.current;
       if (container) {
-        const isNearBottom =
-          container.scrollHeight -
-            container.scrollTop -
-            container.clientHeight <
-          100;
-        if (isNearBottom) {
+        // Jika user belum scroll secara manual atau baru buka chat, auto scroll ke bawah
+        if (!isUserScrollingRef.current) {
           setTimeout(() => {
             messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+            setShowScrollButton(false);
           }, 50);
+        } else {
+          // Jika user sudah scroll, cek apakah masih dekat dengan bottom
+          const isNearBottom =
+            container.scrollHeight -
+              container.scrollTop -
+              container.clientHeight <
+            100;
+          if (isNearBottom) {
+            setTimeout(() => {
+              messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+              setShowScrollButton(false);
+            }, 50);
+          }
         }
       }
     }
   }, [displayMessages.length, isLoadingOlder]);
+
+  // Force auto scroll saat contactId berubah dan messages sudah ada
+  useEffect(() => {
+    if (contactId && displayMessages.length > 0 && !isLoadingMessages) {
+      // Reset flag manual scrolling untuk kontak baru
+      isUserScrollingRef.current = false;
+
+      setTimeout(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: "auto" });
+          setShowScrollButton(false);
+        }
+      }, 200);
+    }
+  }, [contactId, displayMessages.length, isLoadingMessages]);
+
+  // Tambahan: Auto scroll setiap kali ada perubahan messages untuk kontak yang sama
+  useEffect(() => {
+    if (
+      contactId &&
+      displayMessages.length > 0 &&
+      hasLoadedMessages &&
+      !searchQuery
+    ) {
+      // Hanya auto scroll jika tidak sedang loading older messages
+      if (!isLoadingOlder) {
+        setTimeout(() => {
+          if (messagesEndRef.current && !isUserScrollingRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+            setShowScrollButton(false);
+          }
+        }, 100);
+      }
+    }
+  }, [
+    displayMessages,
+    contactId,
+    hasLoadedMessages,
+    isLoadingOlder,
+    searchQuery,
+  ]);
 
   // Load messages when ticket changes - use optimized loading
   useEffect(() => {
@@ -392,6 +484,18 @@ export function MessagesList({ contactId }: MessagesListProps) {
             ))}
           </div>
         ))}
+
+      {showScrollButton && (
+        <div className="fixed z-10 bottom-20 right-6">
+          <button
+            className="flex items-center justify-center w-6 h-6 text-white transition-all duration-200 transform bg-green-600 rounded-full shadow-lg cursor-pointer hover:scale-105"
+            title="Scroll to bottom"
+            onClick={scrollToBottom}
+          >
+            <ChevronsDown className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       <div ref={messagesEndRef} />
     </div>
