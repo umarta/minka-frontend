@@ -1,61 +1,35 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import {
-  Search,
-  Phone,
-  MessageCircle,
-  Clock,
-  MoreVertical,
-  Star,
-  Archive,
-  Trash2,
-  CheckCheck,
-  Circle,
-  Tag,
-  Filter,
-  X,
-  ChevronLeft,
-} from "lucide-react";
+import { Phone, MessageCircle, Clock, ChevronLeft } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ConversationUnreadBadge } from "@/components/UnreadCountBadge";
-import { LabelBadgeInline } from "@/components/LabelBadgeDisplay";
-import { ConversationStatusDot } from "@/components/ConversationStatusIndicator";
 import { ContactLabelManager } from "@/components/ContactLabelManager";
 import { GlobalSearchInput } from "./global-search-input";
 import { GlobalSearchResults } from "./global-search-results";
 import { useChatStore } from "@/lib/stores/chat";
 import { Conversation, ConversationGroup } from "@/types";
 import { InfiniteConversationList } from "./infinite-conversation-list";
-import { format, isToday, isYesterday, isThisWeek } from "date-fns";
-import { id } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
-
+import { useViewports } from "@/lib/hooks/useViewPort";
 
 export function ContactSidebar() {
   const router = useRouter();
+  const { isTablet, isExtraSmall } = useViewports();
 
   const {
     conversations,
     chatGroups,
-    selectConversation,
-    activeContact,
     isLoadingConversations,
-    toggleSidebar,
-    sidebarCollapsed,
     loadConversationsByGroup,
-    moveConversationToGroup,
     setSelectedGroup,
     conversationCounts,
     loadConversationCounts,
@@ -91,8 +65,8 @@ export function ContactSidebar() {
   // Available labels for filtering
   const availableLabels = useMemo(() => {
     const labels = new Set<string>();
-    conversations.forEach(conv => {
-      conv.labels?.forEach(label => labels.add(label.name));
+    conversations.forEach((conv) => {
+      conv.labels?.forEach((label) => labels.add(label.name));
     });
     return Array.from(labels);
   }, [conversations]);
@@ -119,34 +93,6 @@ export function ContactSidebar() {
     // Ensure we're loading more for the current tab
     loadMoreConversations();
   }, [loadMoreConversations, pagination, isLoadingMore, selectedTab]);
-
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((word) => word[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  };
-
-  const getOnlineStatus = (lastSeen: string) => {
-    const lastSeenDate = new Date(lastSeen);
-    const now = new Date();
-    const diffMinutes = (now.getTime() - lastSeenDate.getTime()) / (1000 * 60);
-
-    if (diffMinutes < 5) return "online";
-    if (diffMinutes < 30) return "recent";
-    return "offline";
-  };
-
-  const getPriorityIcon = (ticket: any, unreadCount: number) => {
-    if (unreadCount > 5) return <span className="text-red-500">🔥</span>;
-    if (ticket?.priority === "high")
-      return <span className="text-orange-500">⚡</span>;
-    if (ticket?.priority === "urgent")
-      return <span className="text-red-500">🚨</span>;
-    return null;
-  };
 
   // Enhanced search and filtering logic
   const filteredConversations = useMemo(() => {
@@ -190,7 +136,7 @@ export function ContactSidebar() {
     if (selectedLabels.length > 0) {
       filteredByLabels = filteredByStatus.filter((conv) =>
         selectedLabels.some((label) =>
-          conv.labels?.some(convLabel => convLabel.name === label)
+          conv.labels?.some((convLabel) => convLabel.name === label)
         )
       );
     }
@@ -204,129 +150,19 @@ export function ContactSidebar() {
           return a.contact.name.localeCompare(b.contact.name);
         case "time":
         default:
-          return new Date(b.last_activity).getTime() - new Date(a.last_activity).getTime();
+          return (
+            new Date(b.last_activity).getTime() -
+            new Date(a.last_activity).getTime()
+          );
       }
     });
-  }, [conversations, debouncedSearchQuery, statusFilter, selectedLabels, sortBy]);
-
-  const getTimeDisplay = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-
-    if (isToday(date)) {
-      return format(date, "HH:mm", { locale: id });
-    } else if (isYesterday(date)) {
-      return "Kemarin";
-    } else if (isThisWeek(date)) {
-      return format(date, "EEEE", { locale: id });
-    } else {
-      return format(date, "dd/MM/yyyy", { locale: id });
-    }
-  };
-
-  const handleQuickAction = (
-    e: React.MouseEvent,
-    action: string,
-    conversation: Conversation
-  ) => {
-    e.stopPropagation();
-    console.log(`Quick action: ${action}`, conversation);
-  };
-
-  const renderConversation = (conversation: Conversation) => {
-    const unreadCount = conversation.unread_count || 0;
-    const lastMessage = conversation.last_message;
-    const contact = conversation.contact;
-    const ticket = conversation.active_ticket;
-
-    return (
-      <div
-        key={conversation.id}
-        className={cn(
-          "flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer transition-colors",
-          activeContact?.id === contact.id && "bg-blue-50 border-r-2 border-blue-500"
-        )}
-        onClick={() => selectConversation(contact)}
-      >
-        {/* Avatar */}
-        <div className="relative">
-          <Avatar className="w-10 h-10">
-            <AvatarImage src={contact.avatar_url} />
-            <AvatarFallback className="bg-blue-100 text-blue-600">
-              {getInitials(contact.name)}
-            </AvatarFallback>
-          </Avatar>
-          <ConversationStatusDot status={conversation.status} />
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-gray-900 truncate">
-              {contact.name}
-            </h3>
-            <div className="flex items-center gap-1">
-              {getPriorityIcon(ticket, unreadCount)}
-              <span className="text-xs text-gray-500">
-                {getTimeDisplay(conversation.last_activity)}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between mt-1">
-            <p className="text-xs text-gray-500 truncate flex-1">
-              {lastMessage?.content || "Belum ada pesan"}
-            </p>
-                         <div className="flex items-center gap-1 ml-2">
-               <ConversationUnreadBadge conversation={conversation} />
-             </div>
-          </div>
-
-                     {/* Labels */}
-           {conversation.labels && conversation.labels.length > 0 && (
-             <div className="flex flex-wrap gap-1 mt-1">
-               {conversation.labels.slice(0, 2).map((label) => (
-                 <LabelBadgeInline key={label.id} labels={[label]} maxVisible={2} />
-               ))}
-               {conversation.labels.length > 2 && (
-                 <span className="text-xs text-gray-400">
-                   +{conversation.labels.length - 2}
-                 </span>
-               )}
-             </div>
-           )}
-        </div>
-
-        {/* Quick Actions */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <MoreVertical className="w-3 h-3" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={(e) => handleQuickAction(e, "star", conversation)}>
-              <Star className="w-4 h-4 mr-2" />
-              Star
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={(e) => handleQuickAction(e, "archive", conversation)}>
-              <Archive className="w-4 h-4 mr-2" />
-              Archive
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={(e) => handleQuickAction(e, "delete", conversation)}>
-              <Trash2 className="w-4 h-4 mr-2" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    );
-  };
+  }, [
+    conversations,
+    debouncedSearchQuery,
+    statusFilter,
+    selectedLabels,
+    sortBy,
+  ]);
 
   const getTabCounts = () => ({
     advisor: conversationCounts.advisor || chatGroups.advisor?.length || 0,
@@ -336,127 +172,13 @@ export function ContactSidebar() {
 
   const tabCounts = getTabCounts();
 
-  // Collapsed sidebar view
-  if (sidebarCollapsed) {
-    return (
-      <div className="flex flex-col w-20 h-full bg-white border-r border-gray-200">
-        {/* Collapsed Header */}
-        <div className="flex justify-center p-3 border-b border-gray-200">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={toggleSidebar}
-            title="Expand sidebar"
-            className="w-8 h-8 p-0"
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M13 5l7 7-7 7M5 5l7 7-7 7"
-              />
-            </svg>
-          </Button>
-        </div>
-
-        {/* Collapsed Tab Indicators */}
-        <div className="flex flex-col border-b border-gray-200">
-          <button
-            className={cn(
-              "p-3 text-xs font-medium transition-colors relative",
-              selectedTab === "advisor"
-                ? "text-blue-600 bg-blue-50 border-r-2 border-blue-600"
-                : "text-gray-600 hover:text-gray-900"
-            )}
-            onClick={() => {
-              loadConversationsByGroup("advisor").then(() => {
-                setSelectedTab("advisor");
-              });
-            }}
-            title="Advisor"
-          >
-            AD
-            {tabCounts.advisor > 0 && (
-              <div className="absolute -top-1 -right-1 bg-blue-500 text-white text-[0.625rem] min-w-[16px] h-[16px] flex items-center justify-center rounded-full">
-                {tabCounts.advisor > 99 ? "99+" : tabCounts.advisor}
-              </div>
-            )}
-          </button>
-
-          <button
-            className={cn(
-              "p-3 text-xs font-medium transition-colors relative",
-              selectedTab === "ai_agent"
-                ? "text-blue-600 bg-blue-50 border-r-2 border-blue-600"
-                : "text-gray-600 hover:text-gray-900"
-            )}
-            onClick={() => {
-              loadConversationsByGroup("ai_agent").then(() => {
-                setSelectedTab("ai_agent");
-              });
-            }}
-            title="AI Agent"
-          >
-            AI
-            {tabCounts.ai_agent > 0 && (
-              <div className="absolute -top-1 -right-1 bg-green-500 text-white text-[0.625rem] min-w-[16px] h-[16px] flex items-center justify-center rounded-full">
-                {tabCounts.ai_agent > 99 ? "99+" : tabCounts.ai_agent}
-              </div>
-            )}
-          </button>
-
-          <button
-            className={cn(
-              "p-3 text-xs font-medium transition-colors relative",
-              selectedTab === "done"
-                ? "text-blue-600 bg-blue-50 border-r-2 border-blue-600"
-                : "text-gray-600 hover:text-gray-900"
-            )}
-            onClick={() => {
-              loadConversationsByGroup("done").then(() => {
-                setSelectedTab("done");
-              });
-            }}
-            title="Done"
-          >
-            DN
-            {tabCounts.done > 0 && (
-              <div className="absolute -top-1 -right-1 bg-gray-500 text-white text-[0.625rem] min-w-[16px] h-[16px] flex items-center justify-center rounded-full">
-                {tabCounts.done > 99 ? "99+" : tabCounts.done}
-              </div>
-            )}
-          </button>
-        </div>
-
-        {/* Collapsed Conversations List */}
-        <div className="flex-1 overflow-x-hidden overflow-y-auto">
-          {isLoadingConversations ? (
-            <div className="flex items-center justify-center p-3">
-              <div className="w-4 h-4 border-b-2 border-blue-500 rounded-full animate-spin"></div>
-            </div>
-          ) : filteredConversations.length > 0 ? (
-            <div className="space-y-1">
-              {filteredConversations.slice(0, 10).map(renderConversation)}
-            </div>
-          ) : (
-            <div className="p-3 text-center">
-              <MessageCircle className="w-6 h-6 mx-auto text-gray-400" />
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
   // FULL SIDEBAR
   return (
-    <aside className="flex flex-col h-full max-w-xs bg-white border-r border-gray-200 min-w-[560px]">
+    <aside
+      className={cn("flex flex-col h-full bg-white border-r border-gray-200", {
+        "min-w-[560px] max-w-xs": !isTablet,
+      })}
+    >
       {/* Header */}
       <header className="flex items-center justify-between p-4 border-b border-gray-200">
         <div className="flex items-center gap-1">
@@ -489,26 +211,6 @@ export function ContactSidebar() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={toggleSidebar}
-            title="Collapse sidebar"
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M11 19l-7-7 7-7m8 14l-7-7 7-7"
-              />
-            </svg>
-          </Button>
         </div>
       </header>
 
@@ -520,7 +222,9 @@ export function ContactSidebar() {
             onClear={clearGlobalSearch}
             onFilterToggle={() => setShowFilters((prev) => !prev)}
             isSearching={isGlobalSearching}
-            hasActiveFilters={selectedLabels.length > 0 || statusFilter !== "all"}
+            hasActiveFilters={
+              selectedLabels.length > 0 || statusFilter !== "all"
+            }
           />
 
           {/* Filter Options */}
@@ -647,7 +351,7 @@ export function ContactSidebar() {
           }}
         >
           <div className="flex items-center justify-center gap-1">
-            <span>AI Agent</span>
+            <span>{isExtraSmall ? "AI" : "AI Agent"}</span>
             {tabCounts.ai_agent > 0 && (
               <Badge className="text-xs text-white bg-green-500">
                 {tabCounts.ai_agent > 99 ? "99+" : tabCounts.ai_agent}
@@ -686,7 +390,7 @@ export function ContactSidebar() {
 
       {/* Global Search Results or Conversations List */}
       {showGlobalSearchResults ? (
-        <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex flex-col flex-1 min-h-0">
           <GlobalSearchResults
             query={globalSearchQuery}
             contacts={globalSearchResults.contacts}
@@ -704,8 +408,8 @@ export function ContactSidebar() {
           {pagination.hasMore && (
             <div className="p-2 border-b bg-gray-50">
               <div className="text-xs text-gray-500">
-                Menampilkan {filteredConversations.length} dari {pagination.total}{" "}
-                percakapan
+                Menampilkan {filteredConversations.length} dari{" "}
+                {pagination.total} percakapan
               </div>
             </div>
           )}

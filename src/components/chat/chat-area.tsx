@@ -634,41 +634,41 @@ export function ChatArea(props: ChatAreaProps) {
                 </div>
               </div>
             )}
+            {showDroppedFiles && droppedFiles.length > 0 ? null : (
+              <MessageInput
+                fileInputRef={fileInputRef2}
+                onSearch={props.onSearch}
+                onClearSearch={props.onClearSearch}
+                searchQuery={props.searchQuery}
+                onFilesChange={(v) => handleFileSelect(v.target.files)}
+                onKeyboardShortcut={(e) => handleOnKeyDown(e, "outer")}
+                onOpenFilePicker={(v) => {
+                  if (v === "image") {
+                    if (fileInputRef2.current) {
+                      fileInputRef2.current.accept = "image/*";
+                      fileInputRef2.current.click();
+                    }
+                  } else if (v === "video") {
+                    if (fileInputRef2.current) {
+                      fileInputRef2.current.accept = "video/*";
+                      fileInputRef2.current.click();
+                    }
+                  } else if (v === "document") {
+                    if (fileInputRef2.current) {
+                      fileInputRef2.current.accept =
+                        ".pdf,.doc,.docx,.xls,.xlsx,.txt";
+                      fileInputRef2.current.click();
+                    }
+                  } else if (v === "audio") {
+                    if (fileInputRef2.current) {
+                      fileInputRef2.current.accept = "audio/*";
+                      fileInputRef2.current.click();
+                    }
+                  }
+                }}
+              />
+            )}
           </div>
-          {showDroppedFiles && droppedFiles.length > 0 ? null : (
-            <MessageInput
-              fileInputRef={fileInputRef2}
-              onSearch={props.onSearch}
-              onClearSearch={props.onClearSearch}
-              searchQuery={props.searchQuery}
-              onFilesChange={(v) => handleFileSelect(v.target.files)}
-              onKeyboardShortcut={(e) => handleOnKeyDown(e, "outer")}
-              onOpenFilePicker={(v) => {
-                if (v === "image") {
-                  if (fileInputRef2.current) {
-                    fileInputRef2.current.accept = "image/*";
-                    fileInputRef2.current.click();
-                  }
-                } else if (v === "video") {
-                  if (fileInputRef2.current) {
-                    fileInputRef2.current.accept = "video/*";
-                    fileInputRef2.current.click();
-                  }
-                } else if (v === "document") {
-                  if (fileInputRef2.current) {
-                    fileInputRef2.current.accept =
-                      ".pdf,.doc,.docx,.xls,.xlsx,.txt";
-                    fileInputRef2.current.click();
-                  }
-                } else if (v === "audio") {
-                  if (fileInputRef2.current) {
-                    fileInputRef2.current.accept = "audio/*";
-                    fileInputRef2.current.click();
-                  }
-                }
-              }}
-            />
-          )}
         </>
       )}
     </div>

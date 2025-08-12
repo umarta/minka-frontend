@@ -57,14 +57,7 @@ export function ChatLayout() {
   useEffect(() => {
     if (activeContact) {
       // Call directly without dependency to avoid infinite loop
-      const loadData = async () => {
-        try {
-          await loadContactConversation(activeContact.id);
-        } catch (error) {
-          console.error("Failed to load contact conversation:", error);
-        }
-      };
-      loadData();
+      loadContactConversation(activeContact.id);
     }
   }, [activeContact]); // Remove loadContactConversation from dependency
 

@@ -538,6 +538,8 @@ export const useContactStore = create<ContactStore>()(
 
     getTakeoverStatus: async (contactId) => {
       try {
+        if (!contactId) return;
+
         set({ error: null });
 
         const response = await contactsApi.getTakeoverStatus(contactId);

@@ -346,7 +346,7 @@ export function MessageBubble({
 
       case "audio":
         return (
-          <div className="flex items-center gap-3 min-w-[250px] p-2">
+          <div className="flex items-center gap-3 min-w-[222px] p-2">
             <Button
               variant="ghost"
               size="sm"

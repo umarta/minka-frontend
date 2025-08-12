@@ -351,11 +351,7 @@ export function MessagesList({ contactId }: MessagesListProps) {
 
   return (
     <div
-      className={cn("flex-1 px-2 pt-4 overflow-y-auto", {
-        "max-h-[71vh]": selectedMessage?.content || selectedMessage?.media_url,
-        "max-h-[79vh]":
-          !selectedMessage?.content && !selectedMessage?.media_url,
-      })}
+      className="flex-1 px-2 pt-4 overflow-y-auto max-h-[72vh]"
       ref={containerRef}
       onScroll={throttledScrollHandler}
     >
