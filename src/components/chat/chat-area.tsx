@@ -481,7 +481,7 @@ export function ChatArea(props: ChatAreaProps) {
     <div
       ref={setDropRef}
       className={cn(
-        "flex flex-col flex-1 h-full min-w-0",
+        "flex flex-col flex-1 h-full min-w-0 relative",
         isDragging && "bg-blue-50"
       )}
     >
